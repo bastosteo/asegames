@@ -150,29 +150,95 @@ function renderSlots(nums, active = -1) {
   $('#rollSlots').innerHTML = Array.from({ length: L.PICK }, (_, i) =>
     nums[i] ? ballHtml(nums[i], 'gold') : `<span class="ball slot${i === active ? ' next' : ''}" aria-hidden="true">?</span>`).join('');
 }
-async function spinDie(final, ms) {
-  const die = $('#d20'), num = $('#d20num');
-  if (reduceMotion || ms <= 0) { num.textContent = final; return; }
-  die.classList.remove('landed'); die.classList.add('rolling');
-  die.style.setProperty('--roll-ms', ms + 'ms');
-  const t0 = performance.now();
-  while (performance.now() - t0 < ms - 60) { num.textContent = 1 + Math.floor(Math.random() * 20); await sleep(55); }
-  num.textContent = final;
-  die.classList.remove('rolling'); void die.offsetWidth; die.classList.add('landed');
-  await sleep(Math.min(220, ms / 3));
+// ---- Les 5 dés lancés par une main, qui roulent sur le tapis ----
+const D20_SVG = (n) => `<svg viewBox="0 0 100 100"><polygon class="d20-body" points="50,3 91,26.5 91,73.5 50,97 9,73.5 9,26.5"/><polygon class="d20-face" points="50,21 79,69 21,69"/><path class="d20-edge" d="M50 3 50 21M91 26.5 50 21M91 26.5 79 69M91 73.5 79 69M50 97 79 69M50 97 21 69M9 73.5 21 69M9 26.5 21 69M9 26.5 50 21"/><text x="50" y="58" text-anchor="middle" dominant-baseline="middle">${n}</text></svg>`;
+const frame = () => new Promise((r) => requestAnimationFrame(r));
+function makeDice(n) {
+  const table = $('#diceTable');
+  table.querySelectorAll('.die').forEach((d) => d.remove());
+  return Array.from({ length: n }, () => {
+    const el = document.createElement('div');
+    el.className = 'die'; el.innerHTML = D20_SVG('?');
+    table.append(el);
+    return { el, txt: el.querySelector('text'), x: 0, y: 0, vx: 0, vy: 0, a: 0, va: 0, value: 0 };
+  });
 }
-async function rollTicket(ms) {
-  const nums = [];
-  renderSlots(nums, 0);
-  while (nums.length < L.PICK) {
-    const r = rollD20();
-    await spinDie(r, ms);
-    if (nums.includes(r)) { $('#pickCount').textContent = `${r} is already on this ticket: rolling again…`; continue; }
-    nums.push(r);
-    renderSlots(nums, nums.length);
-    $('#pickCount').textContent = `Number ${nums.length} of ${L.PICK}: ${r}`;
+function place(d) { d.el.style.transform = `translate(${d.x}px, ${d.y}px) rotate(${d.a}deg)`; }
+// Simulation : rebonds sur les bords, frottement, chocs entre dés. Les numéros défilent tant que ça roule.
+async function simulate(dice, W, H, S, maxMs) {
+  const t0 = performance.now(); let last = t0;
+  for (;;) {
+    await frame();
+    const now = performance.now(), dt = Math.min(0.04, (now - last) / 1000); last = now;
+    let moving = false;
+    for (const d of dice) {
+      d.x += d.vx * dt; d.y += d.vy * dt; d.a += d.va * dt;
+      const f = Math.exp(-2.4 * dt); d.vx *= f; d.vy *= f; d.va *= f;
+      if (d.x < 0) { d.x = 0; d.vx = Math.abs(d.vx) * 0.6; }
+      if (d.x > W - S) { d.x = W - S; d.vx = -Math.abs(d.vx) * 0.6; d.va *= -0.8; }
+      if (d.y < 0) { d.y = 0; d.vy = Math.abs(d.vy) * 0.6; }
+      if (d.y > H - S) { d.y = H - S; d.vy = -Math.abs(d.vy) * 0.6; }
+      const sp = Math.hypot(d.vx, d.vy);
+      if (sp > 18) moving = true;
+      if (sp > 70 && Math.random() < 0.35) d.txt.textContent = 1 + Math.floor(Math.random() * 20);
+    }
+    for (let i = 0; i < dice.length; i++) for (let j = i + 1; j < dice.length; j++) {
+      const p = dice[i], q = dice[j], dx = q.x - p.x, dy = q.y - p.y, dist = Math.hypot(dx, dy) || 1;
+      if (dist < S * 0.92) {
+        const nx = dx / dist, ny = dy / dist, push = (S * 0.92 - dist) / 2;
+        p.x -= nx * push; p.y -= ny * push; q.x += nx * push; q.y += ny * push;
+        const rel = (q.vx - p.vx) * nx + (q.vy - p.vy) * ny;
+        if (rel < 0) { p.vx += rel * nx * 0.9; p.vy += rel * ny * 0.9; q.vx -= rel * nx * 0.9; q.vy -= rel * ny * 0.9; }
+      }
+    }
+    dice.forEach(place);
+    if (!moving || now - t0 > maxMs) break;
   }
-  const grid = [...nums].sort((a, b) => a - b);
+  for (const d of dice) { d.txt.textContent = d.value; d.a = Math.round(d.a / 60) * 60; d.txt.setAttribute('transform', `rotate(${-d.a % 360} 50 54)`); d.el.classList.add('landed'); place(d); }   // posé à plat, numéro à l'endroit
+}
+async function throwTicket(fast) {
+  const table = $('#diceTable'), hand = $('#hand');
+  const W = table.clientWidth, H = table.clientHeight, S = W < 420 ? 44 : 54;
+  $('#tableHint').hidden = true;
+  const dice = makeDice(L.PICK);
+  const values = [];
+  for (const d of dice) { d.value = rollD20(); values.push(d.value); }
+  renderSlots([], 0);
+  if (reduceMotion) {
+    dice.forEach((d, i) => { d.x = 20 + i * (S + 10); d.y = (H - S) / 2; d.txt.textContent = d.value; place(d); });
+  } else {
+    // La main arrive, prend son élan et lance
+    hand.style.setProperty('--throw-ms', (fast ? 420 : 900) + 'ms');
+    hand.classList.remove('throw'); void hand.offsetWidth; hand.classList.add('throw');
+    dice.forEach((d) => { d.x = W * 0.12; d.y = H / 2 - S / 2; d.el.style.opacity = '0'; place(d); });
+    await sleep(fast ? 200 : 480);
+    const speed = W * (fast ? 2.4 : 1.7);
+    dice.forEach((d, i) => {
+      d.el.style.opacity = '1';
+      d.x = W * 0.14 + Math.random() * 12; d.y = H / 2 - S / 2 + (i - 2) * S * 0.35;
+      d.vx = speed * (0.55 + Math.random() * 0.6); d.vy = (Math.random() - 0.5) * H * 3;
+      d.va = (Math.random() < 0.5 ? -1 : 1) * (500 + Math.random() * 700);
+    });
+    await simulate(dice, W, H, S, fast ? 1100 : 2400);
+  }
+  // Un numéro déjà sorti ? Ce dé saute et se relance.
+  const seen = new Set();
+  for (const d of dice) {
+    while (seen.has(d.value)) {
+      $('#pickCount').textContent = `${d.value} came up twice: re-rolling that die…`;
+      d.value = rollD20();
+      if (!reduceMotion) {
+        d.el.classList.remove('landed'); d.txt.removeAttribute('transform');
+        d.vx = (Math.random() - 0.5) * W * 0.8; d.vy = -H * 2.2; d.va = 900;
+        await simulate(dice, W, H, S, fast ? 500 : 900);   // les autres dés restent en place mais se poussent
+      } else d.txt.textContent = d.value;
+    }
+    seen.add(d.value);
+  }
+  const ordered = [...dice].sort((p, q) => p.x - q.x).map((d) => d.value);
+  for (let k = 1; k <= L.PICK; k++) { renderSlots(ordered.slice(0, k), k); if (!reduceMotion) await sleep(fast ? 40 : 110); }
+  const grid = [...ordered].sort((a, b) => a - b);
+  $('#pickCount').textContent = `Your numbers: ${grid.join(' · ')}`;
   addToCart(grid);
   return grid;
 }
@@ -182,14 +248,14 @@ async function rollTickets(n) {
   $$('#rollBtn, [data-roll]').forEach((b) => (b.disabled = true));
   try {
     for (let k = 0; k < n; k++) {
-      await rollTicket(n === 1 ? 650 : n <= 5 ? 260 : 160);
-      if (n > 1) $('#pickCount').textContent = `Ticket ${k + 1} of ${n} added to your cart`;
+      await throwTicket(n > 1);
+      if (n > 1) { $('#pickCount').textContent = `Ticket ${k + 1} of ${n} added to your cart`; await sleep(250); }
     }
-    if (n === 1) $('#pickCount').textContent = 'Ticket added to your cart. Roll again for another one!';
+    if (n === 1) $('#pickCount').textContent += '. Added to your cart!';
   } finally {
     S.rolling = false;
     $$('#rollBtn, [data-roll]').forEach((b) => (b.disabled = false));
-    $('#rollBtn').textContent = 'Roll another ticket';
+    $('#rollBtn').textContent = 'Throw again';
   }
 }
 function addToCart(grid) {

@@ -142,22 +142,27 @@ button { font: inherit; color: inherit; }
 .picker, .cart, .panel { background: var(--deep); border: 1px solid var(--line); border-radius: var(--r-panel); padding: 20px 18px; box-shadow: var(--shadow); }
 .picker h2 { margin-bottom: .1em; }
 .pick-count { color: var(--muted); margin-bottom: 14px; font-variant-numeric: tabular-nums; }
-.dice-stage { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; margin: 6px 0 4px; }
-.d20 { width: clamp(108px, 28vw, 150px); aspect-ratio: 1; filter: drop-shadow(0 14px 18px rgba(0,0,0,.45)); }
-.d20-svg { width: 100%; height: 100%; overflow: visible; }
-.d20-body { fill: url(#d20g); stroke: #8A6408; stroke-width: 1.4; stroke-linejoin: round; }
-.d20-face { fill: #FFF1B8; stroke: #8A6408; stroke-width: 1.2; stroke-linejoin: round; }
-.d20-edges path { fill: none; stroke: #8A6408; stroke-width: 1.2; stroke-linecap: round; }
-#d20num { font-family: var(--display); font-weight: 800; font-size: 22px; fill: var(--gold-ink); font-variant-numeric: tabular-nums; }
-.d20.rolling { animation: d20-roll var(--roll-ms, 650ms) cubic-bezier(.25,.7,.35,1) both; }
-.d20.landed { animation: d20-land .28s cubic-bezier(.2,.9,.3,1.4) both; }
-@keyframes d20-roll {
-  0% { transform: translateY(0) rotate(0) scale(1); }
-  30% { transform: translateY(-18px) rotate(260deg) scale(.92); }
-  60% { transform: translateY(4px) rotate(520deg) scale(1.02); }
-  100% { transform: translateY(0) rotate(720deg) scale(1); }
+/* Tapis de jeu, main et dés */
+.dice-table { position: relative; height: 230px; margin: 8px 0 12px; border-radius: 18px; overflow: hidden;
+  background: radial-gradient(120% 90% at 50% 40%, #1F6B4A, #124330 70%, #0D3123); box-shadow: inset 0 0 0 6px #5A3A1E, inset 0 0 0 8px #3E2712, inset 0 12px 30px rgba(0,0,0,.45); }
+.table-hint { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: rgba(255,255,255,.55); font-family: var(--display); font-weight: 700; font-size: 1.1rem; letter-spacing: .04em; }
+.hand { position: absolute; left: -16px; top: 50%; width: 150px; transform: translate(-110%, -50%); transform-origin: 30% 50%; z-index: 3; pointer-events: none; filter: drop-shadow(0 8px 10px rgba(0,0,0,.4)); }
+.hand-svg { width: 100%; height: auto; display: block; }
+.hand.throw { animation: throw var(--throw-ms, 900ms) cubic-bezier(.3,.7,.3,1) both; }
+@keyframes throw {
+  0% { transform: translate(-110%, -50%) rotate(0); }
+  35% { transform: translate(-25%, -50%) rotate(-24deg); }
+  55% { transform: translate(-5%, -50%) rotate(18deg); }
+  100% { transform: translate(-115%, -50%) rotate(0); }
 }
-@keyframes d20-land { 0% { transform: scale(1.12); } 100% { transform: scale(1); } }
+.die { position: absolute; left: 0; top: 0; width: 54px; height: 54px; z-index: 2; filter: drop-shadow(0 6px 6px rgba(0,0,0,.45)); will-change: transform; transition: opacity .15s; }
+.die svg { width: 100%; height: 100%; overflow: visible; }
+.die.landed { transition: transform .18s ease-out; }
+.d20-body { fill: url(#d20g); stroke: #8A6408; stroke-width: 1.6; stroke-linejoin: round; }
+.d20-face { fill: #FFF1B8; stroke: #8A6408; stroke-width: 1.4; stroke-linejoin: round; }
+.d20-edge { fill: none; stroke: #8A6408; stroke-width: 1.4; stroke-linecap: round; }
+.die text { font-family: var(--display); font-weight: 800; font-size: 25px; fill: var(--gold-ink); }
+@media (max-width: 420px) { .die { width: 44px; height: 44px; } .dice-table { height: 200px; } .hand { width: 120px; } }
 .roll-slots { display: flex; gap: 8px; flex-wrap: wrap; }
 .roll-slots .ball { --size: min(12vw, 52px); }
 .roll-slots .ball.gold { animation: drop .35s cubic-bezier(.2,.9,.3,1.3) both; }

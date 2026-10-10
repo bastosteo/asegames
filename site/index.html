@@ -57,24 +57,32 @@
   <!-- ===== Jouer ===== -->
   <section class="play" aria-labelledby="playTitle">
     <div class="picker">
-      <h2 id="playTitle">Roll the dice</h2>
-      <p class="pick-count" id="pickCount" aria-live="polite">The 20-sided die picks your 5 numbers. No choices, pure luck.</p>
-      <div class="dice-stage">
-        <div class="d20" id="d20" aria-hidden="true">
-        <svg viewBox="0 0 100 100" class="d20-svg">
-          <defs><linearGradient id="d20g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE68A"/><stop offset=".55" stop-color="#F4C542"/><stop offset="1" stop-color="#B8860B"/></linearGradient></defs>
-          <polygon class="d20-body" points="50,3 91,26.5 91,73.5 50,97 9,73.5 9,26.5"/>
-          <polygon class="d20-face" points="50,21 79,69 21,69"/>
-          <g class="d20-edges"><path d="M50 3 50 21M91 26.5 50 21M91 26.5 79 69M91 73.5 79 69M50 97 79 69M50 97 21 69M9 73.5 21 69M9 26.5 21 69M9 26.5 50 21"/></g>
-          <text id="d20num" x="50" y="58" text-anchor="middle" dominant-baseline="middle">20</text>
-        </svg>
+      <h2 id="playTitle">Throw the dice</h2>
+      <p class="pick-count" id="pickCount" aria-live="polite">Five 20-sided dice pick your 5 numbers. No choices, pure luck.</p>
+      <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="d20g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE68A"/><stop offset=".55" stop-color="#F4C542"/><stop offset="1" stop-color="#B8860B"/></linearGradient></defs></svg>
+      <div class="dice-table" id="diceTable" aria-hidden="true">
+        <div class="hand" id="hand">
+          <svg viewBox="0 0 160 110" class="hand-svg">
+            <defs><linearGradient id="skin" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F6CFA8"/><stop offset="1" stop-color="#E2A97E"/></linearGradient></defs>
+            <rect x="-4" y="30" width="48" height="52" rx="10" fill="#4949DF"/>
+            <rect x="34" y="27" width="12" height="58" rx="5" fill="#7272FF"/>
+            <g fill="url(#skin)" stroke="#B9845F" stroke-width="2">
+              <rect x="64" y="6" width="15" height="36" rx="7.5" transform="rotate(-38 71 26)"/>
+              <rect x="86" y="27" width="54" height="14" rx="7"/>
+              <rect x="88" y="41" width="60" height="14" rx="7"/>
+              <rect x="86" y="55" width="56" height="14" rx="7"/>
+              <rect x="84" y="69" width="46" height="13" rx="6.5"/>
+              <rect x="42" y="25" width="60" height="60" rx="24"/>
+            </g>
+          </svg>
         </div>
-        <div class="balls roll-slots" id="rollSlots" aria-label="Rolled numbers"></div>
+        <p class="table-hint" id="tableHint">Throw the dice!</p>
       </div>
+      <div class="balls roll-slots" id="rollSlots" aria-label="Rolled numbers"></div>
       <div class="pick-actions">
-        <button class="btn btn-primary btn-wide" id="rollBtn" type="button">Roll a ticket</button>
+        <button class="btn btn-primary btn-wide" id="rollBtn" type="button">Throw the dice</button>
       </div>
-      <p class="quick">Or roll several at once
+      <p class="quick">Or throw several tickets at once
         <button class="chip" data-roll="5" type="button">5 tickets</button>
         <button class="chip" data-roll="10" type="button">10 tickets</button>
       </p>
@@ -83,7 +91,7 @@
     <aside class="cart" aria-labelledby="cartTitle">
       <h2 id="cartTitle">My cart</h2>
       <ol class="cart-list" id="cartList"></ol>
-      <p class="cart-empty" id="cartEmpty">Your cart is empty. Roll the die to get a ticket.</p>
+      <p class="cart-empty" id="cartEmpty">Your cart is empty. Throw the dice to get a ticket.</p>
       <div class="cart-foot">
         <p class="cart-total"><span id="cartCount">0 tickets</span><strong id="cartSum">0 ASE</strong></p>
         <button class="btn btn-primary btn-wide" id="playBtn" disabled>Confirm my tickets</button>
@@ -125,7 +133,7 @@
 
   <section class="panel rules" id="tab-rules" role="tabpanel" hidden>
     <h3>The game</h3>
-    <p>Roll the 20-sided die: it picks the 5 numbers of your ticket (from 1 to 20) for you, pure luck. A ticket costs <strong class="js-price">2 ASE</strong>. One draw takes place every day at <strong class="js-drawtime">21:00</strong> (Paris time). Sales close <strong class="js-close">10 minutes</strong> before, then the next draw opens.</p>
+    <p>Throw the five 20-sided dice: they pick the 5 numbers of your ticket (from 1 to 20) for you, pure luck. A ticket costs <strong class="js-price">2 ASE</strong>. One draw takes place every day at <strong class="js-drawtime">21:00</strong> (Paris time). Sales close <strong class="js-close">10 minutes</strong> before, then the next draw opens.</p>
     <h3>Prizes</h3>
     <table class="odds">
       <thead><tr><th scope="col">Tier</th><th scope="col">Odds per ticket</th><th scope="col">Prize</th></tr></thead>
