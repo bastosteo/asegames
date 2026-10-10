@@ -13,3 +13,5 @@ ses-check/
 *.zip
 **/*-chain.json
 **/gh-signers.json
+.loto-v2-contrat
+.loto-v2-fait

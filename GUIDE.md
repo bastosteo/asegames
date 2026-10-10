@@ -22,7 +22,7 @@ cd ~ && unzip -o "/mnt/c/Users/basts/Downloads/Loto ASE/loto-ase.zip" && cd ~/lo
 Vérifie que tout fonctionne chez toi (rien n'est envoyé sur la chaîne) :
 
 ```bash
-node contrat/loto.test.mjs          # doit finir par "135 réussis, 0 échoués"
+node contrat/loto.test.mjs          # doit finir par "177 réussis, 0 échoués"
 node contrat/simulation.mjs 100     # 100 tirages simulés, conservation de l'argent vérifiée
 node croupier/e2e.test.mjs          # croupier sur une fausse chaîne : "22 réussis, 0 échoués"
 ```
@@ -64,7 +64,7 @@ uniquement le bout de SA chaîne (le bout se partage sans risque : il ne permet 
 ## 3. Déployer le contrat ⚠️
 
 **Quel fichier ?** `contrat/loto.deploy.js` : c'est `contrat/loto.js` compacté (sans commentaires, noms
-internes raccourcis), testé avec les mêmes 130 tests. Pourquoi : la CLI fixe la limite de gas d'un
+internes raccourcis), testé avec les mêmes tests. Pourquoi : la CLI fixe la limite de gas d'un
 déploiement à **1 000 × la taille du fichier**, et un déploiement au-dessus d'environ 13 M de gas reste
 bloqué dans la file d'attente (mesuré le 10/10/2026). Pour le régénérer après une modification :
 `node outils/compacter-contrat.mjs <chemin vers esbuild>`.
@@ -125,6 +125,26 @@ Tu reçois : démarrage, résultat de chaque tirage, retard d'un secret (15 min 
 annulation, erreurs répétées, chaîne bientôt épuisée.
 Si le PC est éteint à 21h, personne ne révèle : au bout de 2 h le tirage est annulé et les joueurs
 remboursés (sans perte pour eux). Pour un fonctionnement 24 h/24, on passera le croupier sur Fly.io.
+
+## 3 bis. Passer au contrat v2 (5 numéros sur 20, gains fixes + bonus)
+
+Règles du contrat v2 : grille de 5 numéros sur 20 à 2 ASE (4 bons = 50 ASE, 3 bons = 5 ASE) ; commission 20 % (75 % owner, 25 %
+collaborateur) ; jackpot 35 % des mises + report ; caisse des gains fixes 45 % (4 bons = 25 mises,
+3 bons = 2,5 mises, réduits ensemble si la caisse ne suffit pas) ; sans gagnant à 5 bons, la moitié
+des 35 % du tirage est versée en bonus aux 4 et 3 bons ; un 4 bons touche au plus 80 % d'un 5 bons ;
+plafond de 3 000 grilles par tirage ; gains envoyés automatiquement (événement « Paid » avec le
+nombre de bons numéros, message « Tu as gagné… » sur le site).
+
+Double-clique sur `Deployer-nouveau-loto.bat` (après avoir mis le nouveau zip dans tes Téléchargements).
+Le script lit l'ancien contrat, puis te demande (o/n) avant chacune des 3 transactions ⚠️ :
+1. `setPaused(true)` sur l'ancien contrat (plus d'achats dessus) ;
+2. le déploiement de `contrat/loto.deploy.js` ;
+3. `init` du nouveau contrat, avec les mêmes chaînes de secrets, le même wallet owner et le wallet
+   du collaborateur `ase1ludcdjwrnfdfl6wujdahvkrsxst6vtve7qs3kw`.
+
+Ensuite il met à jour le site, les croupiers du PC et GitHub, puis remet le site en ligne.
+Il peut être relancé sans risque : il ne redéploie jamais un contrat déjà en place.
+L'ancien contrat garde son jackpot de test (aucune fonction de retrait, par sécurité).
 
 ## 4 bis. Les croupiers sur GitHub (gratuit, PC éteint possible)
 
@@ -192,7 +212,7 @@ tirage, ou Fly.io plus tard).
 ## Checklist après déploiement
 
 Lectures (gratuites) :
-- [ ] `asentum view $C getConfig` : `admin` = ton compte de déploiement (en 0x), `payOwner` / `payCollab` corrects, `price` = 2000000000000000000, `drawH` 21, `closeMin` 10.
+- [ ] `asentum view $C getConfig` : `admin` = ton compte de déploiement (en 0x), `payOwner` / `payCollab` corrects, `price` = 5000000000000000000, `drawH` 21, `closeMin` 10, `maxRound` 3000.
 - [ ] `asentum view $C info` : `drawTs` correspond à ce soir 21h00 (heure de Paris).
 - [ ] `node croupier.mjs status` (owner) : chaîne OK. Idem côté collaborateur.
 - [ ] Site : jackpot, compte à rebours et « Tirage n°1 » s'affichent ; l'onglet Admin n'apparaît qu'avec le wallet admin.
@@ -205,7 +225,7 @@ Premier tirage (après 20h50) :
 - [ ] Journal du croupier : `poke`, `reveal` (owner puis collab), `tally`, `settle` confirmés.
 - [ ] Message Telegram « Tirage n°1 : … ».
 - [ ] Site → Résultats → « Vérifier » : toutes les lignes en ✓.
-- [ ] Les wallets owner et collaborateur ont reçu 4 % et 1 % des ventes (80/20 de 5 %).
+- [ ] Les wallets owner et collaborateur ont reçu 15 % et 5 % des ventes (75/25 de 20 %).
 - [ ] Les gagnants ont été payés (« Payé » dans Mes grilles) ; `getState` → `owed` revient à 0.
 - [ ] `getState` → `jackpot` = report affiché dans Résultats.
 

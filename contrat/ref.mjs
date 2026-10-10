@@ -2,7 +2,7 @@
 // Sert aux tests (recalcul croisé) et au script croupier.
 import { createHash, randomBytes } from 'node:crypto';
 
-export const PICK = 5, MAXN = 18;
+export const PICK = 5, MAXN = 20;
 export const sha = (bufOrText) => createHash('sha256').update(bufOrText).digest('hex');
 export const shaHex = (hex) => sha(Buffer.from(hex, 'hex'));
 
@@ -30,13 +30,38 @@ export function drawNumbers(roundId, sO, sC, digest) {
   while (nums.length < PICK) {
     for (const b of Buffer.from(seed, 'hex')) {
       if (nums.length >= PICK) break;
-      if (b >= 252) continue;
+      if (b >= 240) continue;   // 240 = 12 × 20 : pas de biais
       const n = (b % MAXN) + 1;
       if (!nums.includes(n)) nums.push(n);
     }
     seed = shaHex(seed);
   }
   return nums.sort((a, b) => a - b);
+}
+// Règles de gains (écrites indépendamment du contrat, en BigInt) :
+// 20 % commission, 35 % jackpot, 45 % caisse des gains fixes (4 bons = 25 mises,
+// 3 bons = 2,5 mises, réduits ensemble si la caisse ne suffit pas). Sans gagnant
+// à 5 bons : bonus = moitié des 35 % du tour, au prorata des gains fixes.
+// Un 4 bons touche au plus 80 % d'un 5 bons. Le reste → jackpot suivant.
+export function payouts(sales, price, jackpotIn, [n3, n4, n5]) {
+  const S = BigInt(sales), P = BigInt(price), J = BigInt(jackpotIn);
+  const N3 = BigInt(n3), N4 = BigInt(n4), N5 = BigInt(n5);
+  const commission = S / 5n;
+  const pj = S * 35n / 100n;
+  const caisse = S - commission - pj;
+  let g3 = P * 25n / 10n, g4 = P * 25n, g5 = 0n;
+  const du = N3 * g3 + N4 * g4;
+  if (du > caisse) { g3 = g3 * caisse / du; g4 = g4 * caisse / du; }
+  const fixe = N3 * g3 + N4 * g4;
+  if (N5 > 0n) {
+    g5 = (pj + J) / N5;
+    if (5n * g4 > 4n * g5) { g3 = g3 * g5 * 4n / (g4 * 5n); g4 = g5 * 4n / 5n; }
+  } else if (fixe > 0n) {
+    g3 = g3 + g3 * pj / (2n * fixe);
+    g4 = g4 + g4 * pj / (2n * fixe);
+  }
+  const verse = N3 * g3 + N4 * g4 + N5 * g5;
+  return { per: [g3, g4, g5], commission, owner: commission * 3n / 4n, carry: J + S - commission - verse };
 }
 export const matches = (g, nums) => g.filter((n) => nums.includes(n)).length;
 

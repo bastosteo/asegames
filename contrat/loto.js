@@ -2,16 +2,21 @@
 //  LOTO ASE — loto à numéros, pari mutuel, testnet Asentum
 // =====================================================================
 //  Règles :
-//   - Grille = 5 numéros distincts entre 1 et 18. Prix par défaut : 2 ASE.
+//   - Grille = 5 numéros distincts entre 1 et 20. Prix par défaut : 2 ASE.
 //   - Un tirage par jour (21h00 heure de Paris par défaut, heure d'été
 //     gérée). Les ventes ferment 10 min avant ; le tour suivant s'ouvre.
 //   - Répartition des ventes d'un tour :
-//       5 %  commission (80 % owner, 20 % collaborateur)
-//       40 % jackpot (5 bons)  + reports des tours précédents
-//       20 % rang 4 bons
-//       35 % rang 3 bons
-//     Chaque rang est partagé à parts égales entre ses gagnants.
-//     Rang sans gagnant → sa part s'ajoute au jackpot suivant.
+//       20 % commission (75 % owner, 25 % collaborateur)
+//       35 % jackpot (5 bons), partagé entre ses gagnants, + reports
+//       45 % caisse des gains fixes : 4 bons = 25 mises, 3 bons = 2,5 mises.
+//            Si la caisse ne suffit pas, les deux gains baissent dans la
+//            même proportion (l'ordre 4 bons > 3 bons est toujours gardé).
+//     Pas de gagnant à 5 bons → la moitié des 35 % du tour est versée en
+//     bonus aux 4 et 3 bons (en proportion de leur gain fixe).
+//     Tout le reste (jackpot non gagné, reste de la caisse) → jackpot suivant.
+//     Un gagnant à 4 bons ne touche jamais plus que 80 % d'un 5 bons.
+//   - Les gains sont ENVOYÉS automatiquement par le croupier (settle) ;
+//     l'événement "Paid" indique le nombre de bons numéros.
 //   - Hasard : double secret en chaîne (owner puis collaborateur),
 //     révélés APRÈS la fermeture des ventes. Numéros =
 //     SHA-256("LOTOASE|tour|secretOwner|secretCollab|empreinteDesGrilles").
@@ -20,7 +25,7 @@
 //
 //  Sécurité :
 //   - Aucune fonction ne permet à l'admin de retirer des fonds. Seule la
-//     commission (5 %) est envoyée, automatiquement, à la fin d'un tirage.
+//     commission (20 %) est envoyée, automatiquement, à la fin d'un tirage.
 //   - L'état est enregistré AVANT chaque envoi d'ASE.
 //   - Montants en BigInt (wei), stockés en texte.
 //
@@ -32,13 +37,11 @@
 // =====================================================================
 
 const PICK = 5;                 // numéros par grille
-const MAXN = 18;                // numéros possibles : 1..18
+const MAXN = 20;                // numéros possibles : 1..20
 const BPS = 10000n;             // base des pourcentages (10000 = 100 %)
-const SHARE_COMMISSION = 500n;  // 5 %
-const SHARE_JACKPOT = 4000n;    // 40 %
-const SHARE_R4 = 2000n;         // 20 %
-const SHARE_R3 = 3500n;         // 35 %
-const OWNER_CUT = 8000n;        // 80 % de la commission pour l'owner
+const SHARE_COMMISSION = 2000n; // 20 %
+const SHARE_JACKPOT = 3500n;    // 35 % (le reste, 45 %, = caisse des gains fixes)
+const OWNER_CUT = 7500n;        // 75 % de la commission pour l'owner
 const DAY = 86400000;           // un jour en ms
 const HOUR = 3600000;
 const MAX_GRIDS_HARD = 50;      // plafond absolu de grilles par achat
@@ -56,7 +59,7 @@ function jget(k, d) {
 function jset(k, v) { storage.set(k, JSON.stringify(v)); }
 function big(x) { return BigInt(x); }
 function nowMs() { return Number(chain.blockTimestamp); }
-function noValue() { assert(big(msg.value || 0) === 0n, 'pas d\'ASE ici'); }
+function noValue() { assert(big(msg.value || 0) === 0n, 'no ASE accepted here'); }
 function sender() { return String(msg.sender).toLowerCase(); }
 
 // --- Adresses : le contrat n'accepte que "0x…" (40 hexa). Le site, le
@@ -64,7 +67,7 @@ function sender() { return String(msg.sender).toLowerCase(); }
 // (taille du contrat limitée : voir RESULTATS-SONDE.md).
 function addr(a) {
   const s = String(a).trim().toLowerCase();
-  assert(/^0x[0-9a-f]{40}$/.test(s), 'adresse 0x attendue : ' + a);
+  assert(/^0x[0-9a-f]{40}$/.test(s), '0x address expected: ' + a);
   return s;
 }
 
@@ -127,7 +130,7 @@ function sha256Bytes(bytes) {
 }
 function hexToBytes(hex) {
   const s = String(hex);
-  assert(s.length % 2 === 0 && /^[0-9a-f]*$/.test(s), 'hexa invalide');
+  assert(s.length % 2 === 0 && /^[0-9a-f]*$/.test(s), 'invalid hex');
   const out = [];
   for (let i = 0; i < s.length; i += 2) out.push(parseInt(s.substr(i, 2), 16));
   return out;
@@ -151,8 +154,8 @@ function chainOk(secret, tip) {
   return false;
 }
 
-// Numéros gagnants : 5 numéros distincts dans 1..18, tirage uniforme
-// (on rejette les octets ≥ 252 = 14 × 18 pour éviter tout biais).
+// Numéros gagnants : 5 numéros distincts dans 1..20, tirage uniforme
+// (on rejette les octets ≥ 240 = 12 × 20 pour éviter tout biais).
 function drawNumbers(roundId, sO, sC, digest) {
   let seed = sha256Text('LOTOASE|' + roundId + '|' + sO + '|' + sC + '|' + digest);
   const nums = [];
@@ -160,7 +163,7 @@ function drawNumbers(roundId, sO, sC, digest) {
     const bytes = hexToBytes(seed);
     for (const b of bytes) {
       if (nums.length >= PICK) break;
-      if (b >= 252) continue;
+      if (b >= 240) continue;
       const n = (b % MAXN) + 1;
       if (nums.indexOf(n) < 0) nums.push(n);
     }
@@ -175,14 +178,14 @@ function matches(grid, nums) {
   return k;
 }
 
-// Vérifie une grille : 5 entiers distincts entre 1 et 18 → triée.
+// Vérifie une grille : 5 entiers distincts entre 1 et 20 → triée.
 function cleanGrid(g) {
-  assert(Array.isArray(g) && g.length === PICK, 'une grille = ' + PICK + ' numéros');
+  assert(Array.isArray(g) && g.length === PICK, 'a ticket = ' + PICK + ' numbers');
   const out = [];
   for (const x of g) {
     const n = Number(x);
-    assert(Number.isInteger(n) && n >= 1 && n <= MAXN, 'numéro hors plage (1 à ' + MAXN + ') : ' + x);
-    assert(out.indexOf(n) < 0, 'numéro en double : ' + n);
+    assert(Number.isInteger(n) && n >= 1 && n <= MAXN, 'number out of range (1 to ' + MAXN + '): ' + x);
+    assert(out.indexOf(n) < 0, 'duplicate number: ' + n);
     out.push(n);
   }
   return out.sort((a, b) => a - b);
@@ -201,16 +204,9 @@ function daysFromCivil(y, m, d) {
   const doe = yoe * 365 + Math.floor(yoe / 4) - Math.floor(yoe / 100) + doy;
   return era * 146097 + doe - 719468;
 }
-function yearOfDays(z) {
-  z += 719468;
-  const era = Math.floor(z / 146097);
-  const doe = z - era * 146097;
-  const yoe = Math.floor((doe - Math.floor(doe / 1460) + Math.floor(doe / 36524) - Math.floor(doe / 146096)) / 365);
-  const doy = doe - (365 * yoe + Math.floor(yoe / 4) - Math.floor(yoe / 100));
-  const mp = Math.floor((5 * doy + 2) / 153);
-  const y = yoe + era * 400;
-  return mp >= 10 ? y + 1 : y;
-}
+// Année approximative (± 1 jour autour du 1er janvier) : suffit, car l'heure
+// d'été ne change qu'en mars et octobre, loin du changement d'année.
+function yearOfDays(z) { return Math.floor(z / 365.2425) + 1970; }
 function lastSunday(y, m) {
   const last = (m === 12 ? daysFromCivil(y + 1, 1, 1) : daysFromCivil(y, m + 1, 1)) - 1;
   const wd = (((last + 4) % 7) + 7) % 7; // 0 = dimanche (1970-01-01 était un jeudi)
@@ -242,10 +238,10 @@ function nextDrawAfter(t, h, m) {
 // ---------------------------------------------------------------------
 function cfg() { return jget('cfg', null); }
 function st() { return jget('st', null); }
-function getR(id) { const r = jget('r:' + id, null); assert(r, 'tour inconnu'); return r; }
+function getR(id) { const r = jget('r:' + id, null); assert(r, 'unknown draw'); return r; }
 function putR(r) { jset('r:' + r.id, r); }
-function getP(id, i) { const p = jget('p:' + id + ':' + i, null); assert(p, 'achat inconnu'); return p; }
-function onlyAdmin(c) { assert(sender() === c.admin, 'réservé à l\'admin'); }
+function getP(id, i) { const p = jget('p:' + id + ':' + i, null); assert(p, 'unknown purchase'); return p; }
+function onlyAdmin(c) { assert(sender() === c.admin, 'admin only'); }
 
 function newRound(id, c, prevDrawTs) {
   const offset = c.closeMin * 60000;
@@ -285,34 +281,32 @@ function sync(c, s) {
   return s;
 }
 
-// Calcule les rangs et paie la commission, une fois tous les achats comptés.
+// Calcule les gains et paie la commission, une fois tous les achats comptés.
 function finalize(r, c, s) {
-  const S = big(r.sales);
+  const S = big(r.sales), P = big(r.price), J = big(s.jackpot);
+  const [n3, n4, n5] = r.cnt.map(big);
   const commission = (S * SHARE_COMMISSION) / BPS;
   const cOwner = (commission * OWNER_CUT) / BPS;
-  const cCollab = commission - cOwner;
-  const jackpotIn = big(s.jackpot);
-  const p4 = (S * SHARE_R4) / BPS;
-  const p3 = (S * SHARE_R3) / BPS;
-  const pj = (S * SHARE_JACKPOT) / BPS;
-  const rest = S - commission - pj - p4 - p3;           // arrondis → jackpot
-  const pools = [p3, p4, pj + rest + jackpotIn];        // rangs 3, 4, 5 bons
-  let carry = 0n, owed = 0n;
-  const per = [];
-  for (let k = 0; k < 3; k++) {
-    const n = big(r.cnt[k]);
-    if (n > 0n) {
-      const each = pools[k] / n;
-      per.push(each.toString());
-      owed += each * n;
-      carry += pools[k] - each * n;                    // poussière d'arrondi
-    } else {
-      per.push('0');
-      carry += pools[k];                               // rang sans gagnant
-    }
+  const pj = (S * SHARE_JACKPOT) / BPS;               // part jackpot du tour
+  const F = S - commission - pj;                      // caisse des gains fixes (45 %)
+  let g3 = (P * 5n) / 2n, g4 = P * 25n, g5 = 0n;      // gains fixes : 2,5 et 25 mises
+  const due = n3 * g3 + n4 * g4;
+  if (due > F) { g3 = (g3 * F) / due; g4 = (g4 * F) / due; }   // caisse insuffisante
+  const fixed = n3 * g3 + n4 * g4;
+  if (n5 > 0n) {
+    g5 = (pj + J) / n5;
+    // un 4 bons ne touche jamais plus que 80 % d'un 5 bons (petit jackpot)
+    if (g4 * 5n > g5 * 4n) { g3 = (g3 * g5 * 4n) / (g4 * 5n); g4 = (g5 * 4n) / 5n; }
+  } else if (fixed > 0n) {
+    // pas de jackpot gagné : bonus = moitié de la part jackpot du tour
+    g3 += (g3 * pj) / (fixed * 2n);
+    g4 += (g4 * pj) / (fixed * 2n);
   }
+  const per = [g3, g4, g5].map(String);
+  const owed = n3 * g3 + n4 * g4 + n5 * g5;
+  const carry = J + S - commission - owed;            // tout le reste → jackpot suivant
   r.per = per;
-  r.jackpotIn = jackpotIn.toString();
+  r.jackpotIn = J.toString();
   r.carryOut = carry.toString();
   r.commission = commission.toString();
   r.status = 'done';
@@ -324,36 +318,37 @@ function finalize(r, c, s) {
   jset('st', s);
   // Envois APRÈS l'enregistrement de l'état.
   if (cOwner > 0n) transfer(c.payOwner, cOwner.toString());
-  if (cCollab > 0n) transfer(c.payCollab, cCollab.toString());
+  if (commission > cOwner) transfer(c.payCollab, (commission - cOwner).toString());
   emit('Finalized', {
     round: String(r.id), nums: JSON.stringify(r.nums), counts: JSON.stringify(r.cnt), per: JSON.stringify(per),
     jackpotIn: r.jackpotIn, carryOut: r.carryOut, commission: r.commission,
-    toOwner: cOwner.toString(), toCollab: cCollab.toString(),
   });
 }
 
-// Gain total d'un achat (somme sur ses grilles).
-function prizeOfPurchase(r, p) {
-  let total = 0n;
+// Gain total d'un achat et nombre de grilles gagnantes à 3, 4, 5 bons.
+function prizeOf(r, p) {
+  let t = 0n;
+  const w = [0, 0, 0];
   for (const g of p.g) {
     const k = matches(g, r.nums);
-    if (k >= 3) total += big(r.per[k - 3]);
+    if (k >= 3) { t += big(r.per[k - 3]); w[k - 3]++; }
   }
-  return total;
+  return [t, w];
 }
 
 // Paie un achat gagnant d'un tour terminé. Renvoie le montant payé.
 function payOne(r, i, s) {
   const p = getP(r.id, i);
   if (p.paid) return 0n;
-  const prize = prizeOfPurchase(r, p);
+  const [prize, w] = prizeOf(r, p);
   if (prize === 0n) return 0n;
   p.paid = true;
   jset('p:' + r.id + ':' + i, p);
   s.owed = (big(s.owed) - prize).toString();
   s.tot.prizes = (big(s.tot.prizes) + prize).toString();
   transfer(p.b, prize.toString());
-  emit('Paid', { round: String(r.id), idx: String(i), to: p.b, amount: prize.toString() });
+  // "bons" = meilleur résultat de l'achat ; "wins" = grilles gagnantes à 3, 4, 5 bons
+  emit('Paid', { round: String(r.id), idx: String(i), to: p.b, amount: prize.toString(), bons: String(w[2] ? 5 : w[1] ? 4 : 3), wins: JSON.stringify(w) });
   return prize;
 }
 
@@ -380,8 +375,8 @@ function cancelRound(r, s, reason) {
 
 function batchRange(from, count, total) {
   const a = Number(from), n = Number(count);
-  assert(Number.isInteger(a) && a >= 0, 'début invalide');
-  assert(Number.isInteger(n) && n > 0 && n <= MAX_BATCH, 'nombre : 1 à ' + MAX_BATCH);
+  assert(Number.isInteger(a) && a >= 0, 'invalid start');
+  assert(Number.isInteger(n) && n > 0 && n <= MAX_BATCH, 'count: 1 to ' + MAX_BATCH);
   return [a, Math.min(total, a + n)];
 }
 
@@ -394,14 +389,15 @@ function batchRange(from, count, total) {
   // ===================================================================
   init(payOwner, payCollab, collabAdmin, tipOwner, tipCollab) {
     noValue();
-    assert(!storage.get('cfg'), 'déjà initialisé');
-    assert(isSecret(tipOwner) && isSecret(tipCollab), 'bouts invalides');
-    assert(tipOwner !== tipCollab, 'bouts identiques');
+    assert(!storage.get('cfg'), 'already initialized');
+    assert(isSecret(tipOwner) && isSecret(tipCollab), 'invalid tips');
+    assert(tipOwner !== tipCollab, 'identical tips');
     const c = {
       admin: sender(),
       payOwner: addr(payOwner), payCollab: addr(payCollab), collabAdmin: addr(collabAdmin),
       price: (2n * 10n ** 18n).toString(),   // 2 ASE
-      maxGrids: 20, drawH: 21, drawM: 0,     // 21h00 Paris
+      maxGrids: 20, maxRound: 3000,          // grilles max par achat / par tirage
+      drawH: 21, drawM: 0,                   // 21h00 Paris
       closeMin: 10, revealMin: 120,          // fermeture 10 min avant, 2 h pour révéler
       paused: false,
     };
@@ -423,18 +419,19 @@ function batchRange(from, count, total) {
   buy(grids, seed) {
     const c = cfg();
     let s = st();
-    assert(c, 'non initialisé');
-    assert(!c.paused, 'jeu en pause');
+    assert(c, 'not initialized');
+    assert(!c.paused, 'game paused');
     s = sync(c, s);
     const r = getR(s.cur);
-    assert(r.status === 'open' && nowMs() < r.closeTs, 'ventes fermées');
-    assert(Array.isArray(grids) && grids.length >= 1, 'aucune grille');
-    assert(grids.length <= c.maxGrids && grids.length <= MAX_GRIDS_HARD, 'trop de grilles (max ' + c.maxGrids + ')');
+    assert(r.status === 'open' && nowMs() < r.closeTs, 'sales closed');
+    assert(Array.isArray(grids) && grids.length >= 1, 'no ticket');
+    assert(grids.length <= c.maxGrids && grids.length <= MAX_GRIDS_HARD, 'too many tickets (max ' + c.maxGrids + ')');
+    assert(r.grids + grids.length <= c.maxRound, 'draw full (' + c.maxRound + ' tickets)');
     const clean = grids.map(cleanGrid);
     const cost = big(r.price) * big(clean.length);
-    assert(big(msg.value || 0) === cost, 'montant attendu : ' + cost.toString() + ' wei');
+    assert(big(msg.value || 0) === cost, 'wrong amount, expected: ' + cost.toString() + ' wei');
     const sd = seed === undefined || seed === null ? '' : String(seed).toLowerCase();
-    assert(/^[0-9a-f]{0,64}$/.test(sd), 'graine invalide');
+    assert(/^[0-9a-f]{0,64}$/.test(sd), 'invalid seed');
     const who = sender();
     const i = r.buys;
     jset('p:' + r.id + ':' + i, { b: who, g: clean, s: sd, paid: false });
@@ -471,13 +468,13 @@ function batchRange(from, count, total) {
     const s = sync(cfg(), st());
     const r = getR(Number(roundId));
     const o = who === 'owner';
-    assert(o || who === 'collab', 'who : owner ou collab');
-    assert(r.id === s.next, 'tirer d\'abord le tour ' + s.next);
-    assert(r.status === 'closed', 'statut : ' + r.status);
-    assert(nowMs() < r.closeTs + r.revealMin * 60000, 'délai dépassé');
-    assert(o ? !r.sO : r.sO && !r.sC, o ? 'déjà révélé' : 'owner d\'abord, ou déjà révélé');
+    assert(o || who === 'collab', 'who: owner or collab');
+    assert(r.id === s.next, 'draw first round ' + s.next);
+    assert(r.status === 'closed', 'status: ' + r.status);
+    assert(nowMs() < r.closeTs + r.revealMin * 60000, 'too late');
+    assert(o ? !r.sO : r.sO && !r.sC, o ? 'already revealed' : 'owner first, or already revealed');
     const sec = String(secret).toLowerCase();
-    assert(isSecret(sec) && chainOk(sec, o ? s.tipO : s.tipC), 'secret invalide');
+    assert(isSecret(sec) && chainOk(sec, o ? s.tipO : s.tipC), 'invalid secret');
     if (o) { r.sO = sec; s.tipO = sec; }
     else { r.sC = sec; s.tipC = sec; r.nums = drawNumbers(r.id, r.sO, sec, r.digest); r.status = 'tally'; }
     putR(r);
@@ -493,7 +490,7 @@ function batchRange(from, count, total) {
     const c = cfg();
     const s = st();
     const r = getR(Number(roundId));
-    assert(r.status === 'tally', 'statut : ' + r.status);
+    assert(r.status === 'tally', 'status: ' + r.status);
     const [a, b] = batchRange(r.cursor, count, r.buys);
     for (let i = a; i < b; i++) {
       const p = getP(r.id, i);
@@ -515,8 +512,8 @@ function batchRange(from, count, total) {
     const c = cfg();
     const s = sync(c, st());
     const r = getR(Number(roundId));
-    assert(r.status === 'closed', 'statut : ' + r.status);
-    assert(nowMs() >= r.closeTs + r.revealMin * 60000, 'trop tôt');
+    assert(r.status === 'closed', 'status: ' + r.status);
+    assert(nowMs() >= r.closeTs + r.revealMin * 60000, 'too early');
     cancelRound(r, s, 'timeout');
     sync(c, s);
     jset('st', s);
@@ -528,13 +525,14 @@ function batchRange(from, count, total) {
   // ===================================================================
   // Le croupier (ou n'importe qui) règle un tour par paquets : paie les
   // gagnants d'un tour tiré, ou rembourse les joueurs d'un tour annulé.
-  // Reprendre à "next" tant que next < total.
+  // Reprendre à "next" tant que next < total. L'argent va toujours à
+  // l'acheteur : un joueur peut régler SON achat avec settle(tour, idx, 1).
   settle(roundId, from, count) {
     noValue();
     const s = st();
     const r = getR(Number(roundId));
     const pay = r.status === 'done';
-    assert(pay || r.status === 'cancelled', 'rien à régler');
+    assert(pay || r.status === 'cancelled', 'nothing to settle');
     const [a, b] = batchRange(from, count, r.buys);
     let total = 0n, n = 0, i = a;
     for (; i < b && n < MAX_PAYS; i++) {
@@ -543,19 +541,6 @@ function batchRange(from, count, total) {
     }
     jset('st', s);
     return { amount: total.toString(), next: i, total: r.buys };
-  },
-  // Un joueur réclame son gain, ou son remboursement si le tour est annulé.
-  // L'argent va toujours à l'acheteur, quel que soit l'appelant.
-  claim(roundId, idx) {
-    noValue();
-    const s = st();
-    const r = getR(Number(roundId));
-    const pay = r.status === 'done';
-    assert(pay || r.status === 'cancelled', 'rien à réclamer');
-    const x = pay ? payOne(r, Number(idx), s) : refundOne(r, Number(idx), s);
-    assert(x > 0n, 'rien à réclamer');
-    jset('st', s);
-    return x.toString();
   },
   // ===================================================================
   //  ADMIN (owner uniquement). Aucune ne touche aux fonds des joueurs.
@@ -573,17 +558,19 @@ function batchRange(from, count, total) {
   // S'appliquent au tour en cours s'il n'a encore aucune grille, sinon au suivant.
   // prix en wei, heure/minute du tirage (Paris), plafond de grilles par achat,
   // fermeture des ventes (min avant le tirage), délai de révélation (min).
-  setConfig(price, drawH, drawM, maxGrids, closeMin, revealMin) {
+  setConfig(price, drawH, drawM, maxGrids, closeMin, revealMin, maxRound) {
     noValue();
     const c = cfg(); onlyAdmin(c);
     const v = big(price), H = Number(drawH), M = Number(drawM), G = Number(maxGrids), A = Number(closeMin), B = Number(revealMin);
+    const T = maxRound === undefined ? c.maxRound : Number(maxRound);
     const ok = (x, lo, hi) => Number.isInteger(x) && x >= lo && x <= hi;
-    assert(v >= 10n ** 16n && v <= 10n ** 21n, 'prix : 0,01 à 1000 ASE');
-    assert(ok(H, 6, 23) && ok(M, 0, 59), 'heure : 6h00 à 23h59');
-    assert(ok(G, 1, MAX_GRIDS_HARD), 'grilles par achat : 1 à ' + MAX_GRIDS_HARD);
-    assert(ok(A, 2, 60), 'fermeture : 2 à 60 min');
-    assert(ok(B, 30, 1440), 'révélation : 30 à 1440 min');
-    Object.assign(c, { price: v.toString(), drawH: H, drawM: M, maxGrids: G, closeMin: A, revealMin: B });
+    assert(v >= 10n ** 16n && v <= 10n ** 21n, 'price: 0.01 to 1000 ASE');
+    assert(ok(H, 6, 23) && ok(M, 0, 59), 'time: 06:00 to 23:59');
+    assert(ok(G, 1, MAX_GRIDS_HARD), 'tickets per purchase: 1 to ' + MAX_GRIDS_HARD);
+    assert(ok(A, 2, 60), 'closing: 2 to 60 min');
+    assert(ok(B, 30, 1440), 'reveal: 30 to 1440 min');
+    assert(ok(T, G, 100000), 'tickets per draw: ' + G + ' to 100000');
+    Object.assign(c, { price: v.toString(), drawH: H, drawM: M, maxGrids: G, closeMin: A, revealMin: B, maxRound: T });
     jset('cfg', c);
     // Si personne n'a encore joué le tour en cours, il prend les nouveaux
     // réglages tout de suite (horaire, prix, délais) ; sinon au tour suivant.
@@ -591,7 +578,7 @@ function batchRange(from, count, total) {
     const r = getR(s.cur);
     if (r.status === 'open' && r.grids === 0) newRound(r.id, c, 0);
     jset('st', s);
-    emit('Config', { key: 'game', value: JSON.stringify([c.price, H, M, G, A, B]) });
+    emit('Config', { key: 'game', value: JSON.stringify([c.price, H, M, G, A, B, T]) });
     return true;
   },
   setPayouts(payOwner, payCollab) {
@@ -618,8 +605,8 @@ function batchRange(from, count, total) {
     const c = cfg(); onlyAdmin(c);
     let s = st();
     const r = getR(Number(roundId));
-    assert(r.status === 'open' || r.status === 'closed', 'statut : ' + r.status);
-    assert(!r.sO && !r.sC, 'secret déjà révélé');
+    assert(r.status === 'open' || r.status === 'closed', 'status: ' + r.status);
+    assert(!r.sO && !r.sC, 'secret already revealed');
     cancelRound(r, s, 'admin');
     if (r.id === s.cur) { s.cur = r.id + 1; newRound(s.cur, c, r.drawTs); }
     s = sync(c, s);
@@ -632,8 +619,8 @@ function batchRange(from, count, total) {
     noValue();
     const c = cfg(); onlyAdmin(c);
     const s = sync(c, st());
-    assert(getR(s.next).status === 'open', 'tirage en attente');
-    assert(isSecret(tip) && tip !== s.tipC, 'bout invalide');
+    assert(getR(s.next).status === 'open', 'draw pending');
+    assert(isSecret(tip) && tip !== s.tipC, 'invalid tip');
     s.tipO = tip;
     jset('st', s);
     emit('Config', { key: 'tipOwner', value: tip });
@@ -642,10 +629,10 @@ function batchRange(from, count, total) {
   setTipCollab(tip) {
     noValue();
     const c = cfg();
-    assert(sender() === c.collabAdmin, 'réservé au collaborateur');
+    assert(sender() === c.collabAdmin, 'collaborator only');
     const s = sync(c, st());
-    assert(getR(s.next).status === 'open', 'tirage en attente');
-    assert(isSecret(tip) && tip !== s.tipO, 'bout invalide');
+    assert(getR(s.next).status === 'open', 'draw pending');
+    assert(isSecret(tip) && tip !== s.tipO, 'invalid tip');
     s.tipC = tip;
     jset('st', s);
     emit('Config', { key: 'tipCollab', value: tip });
@@ -654,7 +641,7 @@ function batchRange(from, count, total) {
   setCollabAdmin(newAddr) {
     noValue();
     const c = cfg();
-    assert(sender() === c.collabAdmin, 'réservé au collaborateur');
+    assert(sender() === c.collabAdmin, 'collaborator only');
     c.collabAdmin = addr(newAddr);
     jset('cfg', c);
     emit('Config', { key: 'collabAdmin', value: c.collabAdmin });
@@ -673,8 +660,8 @@ function batchRange(from, count, total) {
     const out = [];
     for (let i = a; i < b; i++) {
       const p = getP(r.id, i);
-      const prize = r.status === 'done' ? prizeOfPurchase(r, p).toString() : '0';
-      out.push({ idx: i, b: p.b, g: p.g, s: p.s || '', paid: p.paid, prize });
+      const [prize, w] = r.status === 'done' ? prizeOf(r, p) : [0n, [0, 0, 0]];
+      out.push({ idx: i, b: p.b, g: p.g, s: p.s || '', paid: p.paid, prize: prize.toString(), w });
     }
     return out;
   },
@@ -684,7 +671,7 @@ function batchRange(from, count, total) {
     const s = st();
     const r = getR(s.cur);
     const t = nowMs();
-    let pending = 0n;     // 40 % des tours fermés pas encore tirés (part jackpot)
+    let pending = 0n;     // part jackpot des tours fermés pas encore tirés
     for (let id = s.next; id < s.cur; id++) {
       const x = getR(id);
       if (x.status === 'closed' || x.status === 'tally') pending += (big(x.sales) * SHARE_JACKPOT) / BPS;
@@ -692,7 +679,7 @@ function batchRange(from, count, total) {
     const jackpotNow = big(s.jackpot) + pending + (big(r.sales) * SHARE_JACKPOT) / BPS;
     return {
       now: String(t), paused: c.paused, round: r.id, status: t >= r.closeTs ? 'closing' : r.status,
-      drawTs: String(r.drawTs), closeTs: String(r.closeTs), price: r.price, maxGrids: c.maxGrids,
+      drawTs: String(r.drawTs), closeTs: String(r.closeTs), price: r.price, maxGrids: c.maxGrids, maxRound: c.maxRound,
       grids: r.grids, sales: r.sales, jackpotCarried: s.jackpot, jackpotEstimate: jackpotNow.toString(),
       nextToDraw: s.next, owed: s.owed, totals: s.tot,
     };

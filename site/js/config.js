@@ -4,7 +4,7 @@
 export default {
   // Adresse du contrat du loto (ase1… ou 0x…). Vide → le site démarre en MODE DÉMO.
   // Tu peux aussi forcer la démo en ajoutant ?demo à l'adresse de la page.
-  CONTRACT: 'ase15nquypra8kvqkkkaj4k2umje2d9sa0s0jyaxlm',
+  CONTRACT: 'ase1hcfm75h4wnwrxma6juwjw4tm8wzcwqs9saaqfr',
 
   // Nœuds RPC utilisés pour les lectures (le 2e sert de secours).
   RPC: ['https://testnet.asentum.com', 'https://explorer.asentum.com/rpc'],

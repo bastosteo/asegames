@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      CONTRACT: ${{ vars.CONTRACT || 'ase15nquypra8kvqkkkaj4k2umje2d9sa0s0jyaxlm' }}
+      CONTRACT: ${{ vars.CONTRACT || 'ase1hcfm75h4wnwrxma6juwjw4tm8wzcwqs9saaqfr' }}
       RPC_URL: ${{ vars.RPC_URL || 'https://testnet.asentum.com' }}
       TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

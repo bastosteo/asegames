@@ -88,7 +88,7 @@ export async function startDemo(contractUrl) {
   const api = {
     demo: true,
     rpc: {
-      url: 'démo (dans ton navigateur)',
+      url: 'demo (in your browser)',
       view: async (_c, m, a = []) => JSON.parse(JSON.stringify(c.view(m, a))),
       balance: async (a) => chain.balanceOf(L.toHex(a)),
       receipt: async (h) => receipts.get(h) || null,

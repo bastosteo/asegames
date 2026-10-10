@@ -64,6 +64,7 @@ sec('Initialisation');
   const cfg = w.c.view('getConfig');
   t('admin = déployeur', cfg.admin === ADMIN);
   t('prix 2 ASE', cfg.price === PRICE.toString());
+  t('plafond 3000 grilles par tirage, 20 par achat', cfg.maxRound === 3000 && cfg.maxGrids === 20);
   t('double init refusé', !w.c.call(ADMIN, 'init', [OWNER_PAY, COLLAB, COLLAB, w.chO[200], w.chC[200]]).success);
   const r1 = w.round(1);
   t('tour 1 ouvert', r1.status === 'open');
@@ -88,9 +89,9 @@ sec('Achat');
   t('grilles triées et enregistrées', JSON.stringify(pur[0].g) === '[[1,2,3,4,5],[14,15,16,17,18]]');
   t('acheteur enregistré', pur[0].b === P[0]);
   t('événement Buy émis (avec la graine)', r.events.some((e) => e.name === 'Buy' && e.data.grids === '[[1,2,3,4,5],[14,15,16,17,18]]' && e.data.seed === 'abcd'));
-  t('contrat a reçu 4 ASE', w.chain.balanceOf(w.c.address) === 4n * ASE);
+  t('contrat a reçu 4 ASE', w.chain.balanceOf(w.c.address) === 2n * PRICE);
   const rd = w.round(1);
-  t('ventes du tour = 4 ASE, 2 grilles, 1 achat', rd.sales === (4n * ASE).toString() && rd.grids === 2 && rd.buys === 1);
+  t('ventes du tour = 4 ASE, 2 grilles, 1 achat', rd.sales === (2n * PRICE).toString() && rd.grids === 2 && rd.buys === 1);
   let d = ref.nextDigest(ref.initialDigest(1), P[0], [[1, 2, 3, 4, 5], [14, 15, 16, 17, 18]], 'abcd', 0);
   t('empreinte des grilles recalculable (référence indépendante)', rd.digest === d);
   t('gas d\'un achat de 20 grilles < 1 000 000', (() => {
@@ -109,7 +110,8 @@ sec('Grilles invalides');
   };
   bad('numéro en double refusé', [[1, 1, 2, 3, 4]]);
   bad('numéro 0 refusé', [[0, 1, 2, 3, 4]]);
-  bad('numéro 19 refusé', [[1, 2, 3, 4, 19]]);
+  t('numéros 19 et 20 acceptés', w.buy(P[1], [[16, 17, 18, 19, 20]]).success);
+  bad('numéro 21 refusé', [[1, 2, 3, 4, 21]]);
   bad('numéro décimal refusé', [[1.5, 2, 3, 4, 5]]);
   bad('texte refusé', [['a', 2, 3, 4, 5]]);
   bad('4 numéros refusés', [[1, 2, 3, 4]]);
@@ -118,7 +120,7 @@ sec('Grilles invalides');
   bad('montant insuffisant refusé', [[1, 2, 3, 4, 5]], PRICE - 1n);
   bad('montant en trop refusé', [[1, 2, 3, 4, 5]], PRICE + 1n);
   bad('21 grilles refusées (plafond 20)', Array.from({ length: 21 }, () => [1, 2, 3, 4, 5]));
-  t('rien encaissé après tous ces refus', w.chain.balanceOf(w.c.address) === 0n);
+  t('rien encaissé après tous ces refus', w.chain.balanceOf(w.c.address) === PRICE);
   t('graine non hexa refusée', !w.c.call(P[0], 'buy', [[[1, 2, 3, 4, 5]], 'zz'], PRICE).success);
 }
 
@@ -157,7 +159,7 @@ sec('Tirage et ordre des révélations');
   const rd = w.round(1);
   const exp = ref.drawNumbers(1, w.chO[199], w.chC[199], rd.digest);
   t('numéros = référence indépendante', JSON.stringify(rd.nums) === JSON.stringify(exp), JSON.stringify([rd.nums, exp]));
-  t('5 numéros distincts entre 1 et 18', rd.nums.length === 5 && new Set(rd.nums).size === 5 && rd.nums.every((n) => n >= 1 && n <= 18));
+  t('5 numéros distincts entre 1 et 20', rd.nums.length === 5 && new Set(rd.nums).size === 5 && rd.nums.every((n) => n >= 1 && n <= 20));
     t('statut "tally"', rd.status === 'tally');
   t('pas d\'annulation d\'urgence après révélation', !w.c.call(ADMIN, 'emergencyCancel', [1]).success);
   t('pas d\'annulation pour délai après révélation complète', !w.c.call(P[0], 'cancelExpired', [1]).success);
@@ -184,9 +186,10 @@ sec('Calcul des rangs (3 000 grilles, recomptage indépendant)');
   const cnt = [0, 0, 0];
   for (const p of all) for (const g of p.g) { const k = ref.matches(g, rd.nums); if (k >= 3) cnt[k - 3]++; }
   t('nombre de gagnants à 3/4/5 bons identique au recomptage', JSON.stringify(cnt) === JSON.stringify(rd.cnt), JSON.stringify([cnt, rd.cnt]));
-  const S = BigInt(rd.sales);
-  t('gain par gagnant à 3 bons = 35 % / nb gagnants', cnt[0] === 0 || BigInt(rd.per[0]) === (S * 3500n / 10000n) / BigInt(cnt[0]));
-  t('gain par gagnant à 4 bons = 20 % / nb gagnants', cnt[1] === 0 || BigInt(rd.per[1]) === (S * 2000n / 10000n) / BigInt(cnt[1]));
+  const exp = ref.payouts(rd.sales, rd.price, rd.jackpotIn, rd.cnt);
+  t('gains par rang = calcul de référence (' + rd.cnt.join('/') + ')', JSON.stringify(rd.per) === JSON.stringify(exp.per.map(String)), JSON.stringify([rd.per, exp.per.map(String)]));
+  t('report = calcul de référence', rd.carryOut === exp.carry.toString());
+  t('4 bons > 3 bons', rd.cnt[1] === 0 || BigInt(rd.per[1]) > BigInt(rd.per[0]));
   // Paiements
   const before = P.map((a) => w.chain.balanceOf(a));
   const pa = w.payAll(1);
@@ -199,17 +202,17 @@ sec('Calcul des rangs (3 000 grilles, recomptage indépendant)');
 }
 
 // ---------------------------------------------------------------------
-sec('Commission 5 % et partage 80/20 exacts');
+sec('Commission 20 % et partage 75/25 exacts');
 {
   const w = world();
-  // 7 grilles = 14 ASE → 0,7 ASE de commission → 0,56 owner / 0,14 collab
+  // 7 grilles = 14 ASE → 2,8 ASE de commission → 2,1 owner / 0,7 collab
   w.buy(P[0], Array.from({ length: 7 }, () => ref.randomGrid()));
   const bO = w.chain.balanceOf(OWNER_PAY), bC = w.chain.balanceOf(COLLAB);
   const d = w.draw(1);
   t('tirage OK', d.success, d.error);
-  t('owner reçoit 0,56 ASE', w.chain.balanceOf(OWNER_PAY) - bO === 560000000000000000n);
-  t('collaborateur reçoit 0,14 ASE (il paie aussi le gas de ses appels en vrai)', w.chain.balanceOf(COLLAB) - bC === 140000000000000000n);
-  t('commission enregistrée = 5 % exact', w.round(1).commission === '700000000000000000');
+  t('owner reçoit 2,1 ASE', w.chain.balanceOf(OWNER_PAY) - bO === 2100000000000000000n);
+  t('collaborateur reçoit 0,7 ASE', w.chain.balanceOf(COLLAB) - bC === 700000000000000000n);
+  t('commission enregistrée = 20 % exact', w.round(1).commission === (28n * ASE / 10n).toString());
   // Montant "tordu" : prix 0,033… pour tester les arrondis
   const w2 = world();
   w2.c.call(ADMIN, 'setConfig', ['33333333333333333', 21, 0, 20, 10, 120]);
@@ -220,7 +223,8 @@ sec('Commission 5 % et partage 80/20 exacts');
   t('tirage avec prix non rond OK', d2.success, d2.error);
   const r2 = w2.round(2);
   const S = BigInt(r2.sales), C = BigInt(r2.commission);
-  t('commission = floor(5 %)', C === S * 500n / 10000n);
+  t('commission = floor(20 %)', C === S * 2000n / 10000n);
+  t('gains = calcul de référence (prix non rond)', JSON.stringify(r2.per) === JSON.stringify(ref.payouts(r2.sales, r2.price, r2.jackpotIn, r2.cnt).per.map(String)));
   t('owner + collab = commission exacte (aucun wei perdu)', (w2.chain.balanceOf(OWNER_PAY) - bO2) + (w2.chain.balanceOf(COLLAB) - bC2) === C);
   t('ventes = commission + gains attribués + report (au wei près)',
     S + BigInt(r2.jackpotIn) === C + BigInt(r2.carryOut) + r2.cnt.reduce((a, n, k) => a + BigInt(n) * BigInt(r2.per[k]), 0n));
@@ -253,16 +257,17 @@ sec('Partage entre gagnants + jackpot (le test "joue à Dieu" : il connaît les 
   t('numéros sortis = G', JSON.stringify(r.nums) === JSON.stringify(G));
   t('2 gagnants du jackpot', r.cnt[2] === 2);
   const S = BigInt(r.sales);
-  const pj = S * 4000n / 10000n + (S - S * 500n / 10000n - S * 4000n / 10000n - S * 2000n / 10000n - S * 3500n / 10000n);
-  t('jackpot partagé à parts égales', BigInt(r.per[2]) === pj / 2n);
+  t('jackpot partagé à parts égales (35 % / 2)', BigInt(r.per[2]) === (S * 3500n / 10000n) / 2n);
   const b0 = w.chain.balanceOf(P[0]);
-  const cl = w.c.call(P[0], 'claim', [1, 0]);
-  t('claim du joueur 1 OK', cl.success, cl.error);
+  const cl = w.c.call(P[0], 'settle', [1, 0, 1]);
+  t('le joueur peut régler son propre achat', cl.success, cl.error);
   t('joueur 1 reçoit sa part', w.chain.balanceOf(P[0]) - b0 === BigInt(r.per[2]));
-  t('double claim refusé', !w.c.call(P[0], 'claim', [1, 0]).success);
-  t('claim d\'un perdant refusé', !w.c.call(P[2], 'claim', [1, 2]).success || w.c.view('getPurchases', [1, 2, 1])[0].prize !== '0');
+  const ev = cl.events.find((e) => e.name === 'Paid');
+  t('événement Paid : "5 bons", 1 grille gagnante', ev && ev.data.bons === '5' && ev.data.wins === '[0,0,1]' && ev.data.to === P[0], JSON.stringify(ev && ev.data));
+  t('double paiement impossible', (() => { const x = w.c.call(P[0], 'settle', [1, 0, 1]); return x.success && x.returnValue.amount === '0'; })());
+  t('un perdant ne reçoit rien', (() => { const lo = w.c.view('getPurchases', [1, 0, 50]).find((q) => q.prize === '0'); const b = w.chain.balanceOf(lo.b); const x = w.c.call(P[3], 'settle', [1, lo.idx, 1]); return x.success && x.returnValue.amount === '0' && w.chain.balanceOf(lo.b) === b; })());
   const b1 = w.chain.balanceOf(P[1]);
-  t('un tiers peut déclencher le claim, le gain va à l\'acheteur', w.c.call(P[3], 'claim', [1, 1]).success && w.chain.balanceOf(P[1]) - b1 === BigInt(r.per[2]));
+  t('un tiers peut déclencher le paiement, le gain va à l\'acheteur', w.c.call(P[3], 'settle', [1, 1, 1]).success && w.chain.balanceOf(P[1]) - b1 === BigInt(r.per[2]));
   t('payBatch ne repaie pas les déjà payés', (() => { const x = w.c.call(ADMIN, 'settle', [1, 0, 2]); return x.success && x.returnValue.amount === '0'; })());
   t('solde cohérent', balanceOk(w));
 }
@@ -276,8 +281,8 @@ sec('Report du jackpot');
   w.draw(1);
   const r1 = w.round(1);
   t('pas de gagnant à 5 bons au tour 1', r1.cnt[2] === 0);
-  const S1 = 2n * ASE;
-  const exp1 = S1 - S1 * 500n / 10000n - r1.cnt.reduce((a, n, k) => a + BigInt(n) * BigInt(r1.per[k]), 0n);
+  const S1 = PRICE;
+  const exp1 = S1 - S1 * 2000n / 10000n - r1.cnt.reduce((a, n, k) => a + BigInt(n) * BigInt(r1.per[k]), 0n);
   t('report = ventes − commission − gains', BigInt(r1.carryOut) === exp1);
   t('jackpot global = report', w.st().jackpot === r1.carryOut);
   w.c.call(P[1], 'buy', [[[6, 7, 8, 9, 10]], ''], PRICE);
@@ -304,7 +309,7 @@ sec('Pause');
   const cur = w.st().cur;
   t('annulation d\'urgence du tour ouvert', w.c.call(ADMIN, 'emergencyCancel', [cur]).success);
   const b = w.chain.balanceOf(P[1]);
-  t('remboursement 100 %', w.c.call(P[1], 'claim', [cur, 0]).success && w.chain.balanceOf(P[1]) - b === PRICE);
+  t('remboursement 100 %', w.c.call(P[1], 'settle', [cur, 0, 1]).success && w.chain.balanceOf(P[1]) - b === PRICE);
   t('solde cohérent', balanceOk(w));
 }
 
@@ -319,6 +324,9 @@ sec('Accès admin refusé aux autres');
   for (const bad of [['1', 21, 0, 20, 10, 120], ['2000000000000000000', 5, 0, 20, 10, 120], ['2000000000000000000', 21, 60, 20, 10, 120], ['2000000000000000000', 21, 0, 51, 10, 120], ['2000000000000000000', 21, 0, 20, 1, 120], ['2000000000000000000', 21, 0, 20, 10, 20]])
     t('setConfig hors bornes refusé ' + JSON.stringify(bad), !w.c.call(ADMIN, 'setConfig', bad).success);
   t('setConfig valide accepté', w.c.call(ADMIN, 'setConfig', ['3000000000000000000', 20, 15, 10, 15, 90]).success && w.c.view('getConfig').maxGrids === 10);
+  t('setConfig sans plafond par tirage : inchangé', w.c.view('getConfig').maxRound === 3000);
+  t('setConfig avec plafond par tirage', w.c.call(ADMIN, 'setConfig', ['3000000000000000000', 20, 15, 10, 15, 90, 5000]).success && w.c.view('getConfig').maxRound === 5000);
+  t('plafond par tirage < grilles par achat refusé', !w.c.call(ADMIN, 'setConfig', ['3000000000000000000', 20, 15, 10, 15, 90, 5]).success);
   t('setTipCollab refusé à l\'admin', !w.c.call(ADMIN, 'setTipCollab', ['b'.repeat(64)]).success);
   t('aucune fonction de retrait n\'existe', !Object.keys(w.c.api).some((k) => /withdraw|sweep|drain|rescue/i.test(k)));
   t('ASE joint à un appel non payant refusé', !w.c.call(P[0], 'poke', [], 1n).success);
@@ -340,9 +348,9 @@ sec('Pas de révélation → annulation et remboursement');
   const b0 = w.chain.balanceOf(P[0]), b1 = w.chain.balanceOf(P[1]);
   const rb = w.c.call(P[3], 'settle', [1, 0, 10]);
   t('remboursement par paquet OK', rb.success, rb.error);
-  t('joueur A remboursé 4 ASE', w.chain.balanceOf(P[0]) - b0 === 4n * ASE);
-  t('joueur B remboursé 2 ASE', w.chain.balanceOf(P[1]) - b1 === 2n * ASE);
-  t('double remboursement refusé', !w.c.call(P[0], 'claim', [1, 0]).success);
+  t('joueur A remboursé 10 ASE', w.chain.balanceOf(P[0]) - b0 === 2n * PRICE);
+  t('joueur B remboursé 5 ASE', w.chain.balanceOf(P[1]) - b1 === PRICE);
+  t('double remboursement impossible', (() => { const b = w.chain.balanceOf(P[0]); const x = w.c.call(P[0], 'settle', [1, 0, 1]); return x.success && w.chain.balanceOf(P[0]) === b; })());
   t('aucune commission prélevée', w.chain.balanceOf(OWNER_PAY) === 100000n * ASE);
   // Le jeu repart : la chaîne owner a avancé d'un cran, pas celle du collaborateur.
   w.buy(P[0], [[1, 2, 3, 4, 5]]);
@@ -411,6 +419,99 @@ sec('Heure de Paris et changement d\'heure');
   const w4 = world({ start: Date.UTC(2026, 9, 10, 13, 55) });  // 15:55 Paris
   w4.c.call(ADMIN, 'setConfig', ['2000000000000000000', 16, 0, 20, 10, 120]);
   t('16:00 demandé à 15:55 → lendemain 16:00', new Date(w4.round(1).drawTs).toISOString().startsWith('2026-10-11T14:00'), new Date(w4.round(1).drawTs).toISOString());
+}
+
+// ---------------------------------------------------------------------
+// Trouve une graine pour le dernier achat qui fait sortir G (le test connaît les 2 secrets).
+function forceDraw(w, id, G, buyer, grid) {
+  const rd = w.round(id);
+  const sO = ref.preimageOf(w.chO, w.st().tipO), sC = ref.preimageOf(w.chC, w.st().tipC);
+  for (let i = 0; i < 2000000; i++) {
+    const s = i.toString(16);
+    const dg = ref.nextDigest(rd.digest, buyer, [grid], s, rd.buys);
+    if (JSON.stringify(ref.drawNumbers(id, sO, sC, dg)) === JSON.stringify(G)) return w.buy(buyer, [grid], s);
+  }
+  throw new Error('graine introuvable');
+}
+const G = [2, 7, 11, 13, 17];
+const per = (w, id) => w.round(id).per.map(BigInt);
+
+sec('Gains fixes + bonus (pas de jackpot gagné)');
+{
+  const w = world();
+  // 100 grilles : 1 à 4 bons, 9 à 3 bons, le reste perdant (≤ 1 bon)
+  w.buy(P[0], [[2, 7, 11, 13, 1]]);
+  for (let i = 0; i < 9; i++) t('achat 3 bons', w.buy(P[1], [i % 2 ? [2, 7, 11, 4, 6] : [2, 7, 11, 3, 5]]).success);
+  const losers = [[1, 3, 4, 5, 6], [1, 3, 4, 5, 8], [1, 3, 4, 6, 8], [3, 4, 5, 6, 8], [1, 4, 5, 6, 8]];
+  for (let i = 0; i < 89; i++) w.buy(P[2], [losers[i % 5]]);
+  forceDraw(w, 1, G, P[3], [1, 3, 4, 5, 6]);
+  const d = w.draw(1);
+  t('tirage OK', d.success, d.error);
+  const r = w.round(1);
+  t('100 grilles, gagnants 9 / 1 / 0', r.grids === 100 && JSON.stringify(r.cnt) === '[9,1,0]', JSON.stringify(r.cnt));
+  const [g3, g4] = per(w, 1);
+  // 100 grilles à 2 ASE = 200 ASE, 1 × 4 bons, 9 × 3 bons, pas de jackpot
+  t('4 bons = 65,78 ASE (50 + bonus)', g4 / 10n ** 16n === 6578n, String(g4));
+  t('3 bons = 6,57 ASE (5 + bonus)', g3 / 10n ** 16n === 657n, String(g3));
+  t('4 bons = 10 × 3 bons (bonus au prorata)', g4 / g3 === 10n);
+  t('report = 35 ASE (moitié de la part jackpot) + poussière d\'arrondi', BigInt(r.carryOut) - 35n * ASE < 1000n && r.carryOut === ref.payouts(r.sales, r.price, r.jackpotIn, r.cnt).carry.toString(), r.carryOut);
+  const b = w.chain.balanceOf(P[0]);
+  const pa = w.payAll(1);
+  t('paiement automatique de tous les gagnants', pa.success && w.st().owed === '0');
+  t('le 4 bons a reçu son gain sans rien faire', w.chain.balanceOf(P[0]) - b === g4);
+  t('solde cohérent', balanceOk(w));
+}
+
+sec('Caisse insuffisante + petit jackpot (ordre 5 > 4 > 3 garanti)');
+{
+  const w = world();
+  // 5 grilles seulement : 1 × 5 bons, 2 × 4 bons, 1 × 3 bons → caisse des gains fixes trop petite
+  w.buy(P[0], [G]);
+  w.buy(P[1], [[2, 7, 11, 13, 1], [2, 7, 11, 13, 3]]);
+  w.buy(P[2], [[2, 7, 11, 4, 5]]);
+  forceDraw(w, 1, G, P[3], [1, 3, 4, 5, 6]);
+  const d = w.draw(1);
+  t('tirage OK', d.success, d.error);
+  const r = w.round(1);
+  t('gagnants 1 / 2 / 1', JSON.stringify(r.cnt) === '[1,2,1]', JSON.stringify(r.cnt));
+  const [g3, g4, g5] = per(w, 1);
+  t('= calcul de référence', JSON.stringify(r.per) === JSON.stringify(ref.payouts(r.sales, r.price, r.jackpotIn, r.cnt).per.map(String)));
+  t('5 bons > 4 bons > 3 bons', g5 > g4 && g4 > g3 && g3 > 0n, [g3, g4, g5].join(' '));
+  t('4 bons ≤ 80 % du 5 bons', g4 * 5n <= g5 * 4n);
+  const pa = w.payAll(1);
+  t('tout est payé, rien n\'est promis en trop', pa.success && w.st().owed === '0' && balanceOk(w));
+  const ev = w.c.call(ADMIN, 'settle', [1, 0, 5]);
+  t('rien à repayer', ev.success && ev.returnValue.amount === '0');
+}
+
+sec('Jackpot gagné avec report');
+{
+  const w = world();
+  for (let i = 0; i < 20; i++) w.buy(P[0], [[1, 3, 4, 5, 6]]);
+  forceDraw(w, 1, G, P[3], [1, 3, 4, 5, 6]);   // aucune grille gagnante
+  w.draw(1);
+  const carry1 = BigInt(w.round(1).carryOut);
+  t('tour 1 sans gagnant : tout est reporté sauf la commission (42 ASE × 80 %)', carry1 === 336n * ASE / 10n, String(carry1));
+  w.buy(P[1], [G]);
+  forceDraw(w, 2, G, P[3], [1, 3, 4, 5, 6]);
+  w.draw(2);
+  const r = w.round(2);
+  t('jackpot entrant = report du tour 1', r.jackpotIn === carry1.toString());
+  t('gagnant du jackpot : 35 % du tour + report', BigInt(r.per[2]) === (2n * PRICE * 35n / 100n) + carry1, r.per[2]);
+  t('= calcul de référence', JSON.stringify(r.per) === JSON.stringify(ref.payouts(r.sales, r.price, r.jackpotIn, r.cnt).per.map(String)));
+  t('solde cohérent', balanceOk(w));
+}
+
+sec('Plafond de grilles par tirage');
+{
+  const w = world();
+  w.c.call(ADMIN, 'setConfig', [PRICE.toString(), 21, 0, 20, 10, 120, 30]);
+  t('20 grilles OK', w.buy(P[0], Array.from({ length: 20 }, () => ref.randomGrid())).success);
+  t('10 de plus OK (30 = plafond)', w.buy(P[1], Array.from({ length: 10 }, () => ref.randomGrid())).success);
+  const x = w.buy(P[2], [ref.randomGrid()]);
+  t('31e grille refusée : tirage complet', !x.success && /draw full/.test(x.error), x.error);
+  w.close(1);
+  t('le tirage suivant est rouvert', w.buy(P[2], [ref.randomGrid()]).success && w.round(2).grids === 1);
 }
 
 console.log(`\n${ok} réussis, ${ko} échoués`);

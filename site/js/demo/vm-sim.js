@@ -57,15 +57,15 @@ class Contract {
       get: (k) => { self.gas.reads++; return self.store.has(String(k)) ? self.store.get(String(k)) : undefined; },
       set: (k, v) => {
         if (!self.readOnly) { if (self.store.has(String(k)) || self.touched.has(String(k))) self.gas.over++; else self.gas.fresh++; self.touched.add(String(k)); }
-        if (self.readOnly) throw new Error('écriture interdite en lecture (view)');
+        if (self.readOnly) throw new Error('write not allowed in a read-only call (view)');
         // On-chain les valeurs semblent stockées en texte : on force du texte
         // pour que les tests attrapent les oublis de conversion.
-        if (typeof v !== 'string') throw new Error('storage.set : valeur non texte (' + typeof v + ') pour ' + k);
+        if (typeof v !== 'string') throw new Error('storage.set: non-string value (' + typeof v + ') for ' + k);
         self.store.set(String(k), v);
       },
       has: (k) => self.store.has(String(k)),
       delete: (k) => {
-        if (self.readOnly) throw new Error('écriture interdite en lecture (view)');
+        if (self.readOnly) throw new Error('write not allowed in a read-only call (view)');
         self.store.delete(String(k));
       },
     };
@@ -76,16 +76,16 @@ class Contract {
     };
     const assert = (cond, m) => { if (!cond) throw new Error(m || 'assertion failed'); };
     const transfer = (to, amount) => {
-      if (self.readOnly) throw new Error('transfer interdit en lecture');
+      if (self.readOnly) throw new Error('transfer not allowed in a read-only call');
       const amt = BigInt(amount);
-      if (amt < 0n) throw new Error('montant négatif');
+      if (amt < 0n) throw new Error('negative amount');
       self.gas.transfers++;
       self.pendingTransfers.push({ to: String(to).toLowerCase(), amount: amt });
       const pendingOut = self.pendingTransfers.reduce((s, t) => s + t.amount, 0n);
-      if (pendingOut > self.chain.balanceOf(self.address)) throw new Error('solde du contrat insuffisant');
+      if (pendingOut > self.chain.balanceOf(self.address)) throw new Error('insufficient contract balance');
       return true;
     };
-    const E = () => { throw new Error('E() non simulé'); };
+    const E = () => { throw new Error('E() not simulated'); };
     // Le fichier se termine par un objet ({...}) : eval renvoie cet objet.
     const factory = new Function('storage', 'msg', 'chain', 'emit', 'assert', 'transfer', 'E', 'cron',
       '"use strict"; return eval(arguments[8]);');
@@ -102,10 +102,10 @@ class Contract {
   // Transaction : atomique, débite la valeur jointe du compte appelant.
   call(sender, method, args = [], value = 0n) {
     const fn = this.api[method];
-    if (typeof fn !== 'function') throw new Error('méthode inconnue : ' + method);
+    if (typeof fn !== 'function') throw new Error('unknown method: ' + method);
     value = BigInt(value);
     const s = sender.toLowerCase();
-    if (this.chain.balanceOf(s) < value) throw new Error('solde appelant insuffisant');
+    if (this.chain.balanceOf(s) < value) throw new Error('insufficient caller balance');
     const snapshot = new Map(this.store);
     this.pendingTransfers = [];
     this.pendingEvents = [];
@@ -122,7 +122,7 @@ class Contract {
       const g = this.gas;
       const gas = 21000 + g.reads * 800 + g.fresh * 20000 + g.over * 2900 + g.transfers * 10000 + g.events * 1000;
       this.lastGas = gas;
-      if (gas > GAS_LIMIT) throw new Error('gas limit exceeded (estimé ' + gas + ')');
+      if (gas > GAS_LIMIT) throw new Error('gas limit exceeded (estimated ' + gas + ')');
       for (const t of this.pendingTransfers) {
         this.chain.balances.set(this.address, this.chain.balanceOf(this.address) - t.amount);
         this.chain.fund(t.to, t.amount);
@@ -145,7 +145,7 @@ class Contract {
   // Lecture gratuite : aucune écriture permise.
   view(method, args = [], sender = null) {
     const fn = this.api[method];
-    if (typeof fn !== 'function') throw new Error('méthode inconnue : ' + method);
+    if (typeof fn !== 'function') throw new Error('unknown method: ' + method);
     this.readOnly = true;
     this.gas = { reads: 0, fresh: 0, over: 0, transfers: 0, events: 0 };
     this.touched = new Set();

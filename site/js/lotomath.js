@@ -1,7 +1,7 @@
 // Calculs partagés par le site : SHA-256, tirage, empreinte des grilles,
 // conversion d'adresses. Mêmes règles que le contrat (vérifié par les tests).
 
-export const PICK = 5, MAXN = 18;
+export const PICK = 5, MAXN = 20;
 
 const K = [
   0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
@@ -54,7 +54,7 @@ export function drawNumbers(roundId, sO, sC, digest) {
   while (nums.length < PICK) {
     for (const b of hexToBytes(seed)) {
       if (nums.length >= PICK) break;
-      if (b >= 252) continue;
+      if (b >= 240) continue;
       const n = (b % MAXN) + 1;
       if (!nums.includes(n)) nums.push(n);
     }
@@ -70,7 +70,7 @@ export function flashGrid() {
   const buf = new Uint8Array(32);
   while (s.size < PICK) {
     crypto.getRandomValues(buf);
-    for (const b of buf) { if (s.size >= PICK) break; if (b < 252) s.add((b % MAXN) + 1); }
+    for (const b of buf) { if (s.size >= PICK) break; if (b < 240) s.add((b % MAXN) + 1); }
   }
   return [...s].sort((a, b) => a - b);
 }
@@ -97,11 +97,11 @@ function convert(data, from, to, pad) {
 export function toHex(a) {
   const s = String(a || '').trim().toLowerCase();
   if (/^0x[0-9a-f]{40}$/.test(s)) return s;
-  if (!s.startsWith('ase1')) throw new Error('adresse invalide');
+  if (!s.startsWith('ase1')) throw new Error('invalid address');
   const d = [...s.slice(4)].map((c) => B32.indexOf(c));
-  if (d.some((x) => x < 0) || polymod([...hrpExp(), ...d]) !== 1) throw new Error('adresse ase1 invalide (faute de frappe ?)');
+  if (d.some((x) => x < 0) || polymod([...hrpExp(), ...d]) !== 1) throw new Error('invalid ase1 address (typo?)');
   const bytes = convert(d.slice(0, -6), 5, 8, false);
-  if (bytes.length !== 20) throw new Error('adresse ase1 invalide');
+  if (bytes.length !== 20) throw new Error('invalid ase1 address');
   return '0x' + bytes.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 export function toAse1(a) {
@@ -122,12 +122,35 @@ export function fmtAse(wei, digits = 2) {
   const neg = w < 0n; const a = neg ? -w : w;
   const scaled = (a * 10n ** BigInt(digits) + WEI / 2n) / WEI;
   const ip = scaled / 10n ** BigInt(digits), fp = scaled % 10n ** BigInt(digits);
-  const ips = ip.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-  return (neg ? '−' : '') + ips + (digits ? ',' + fp.toString().padStart(digits, '0') : '');
+  const ips = ip.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return (neg ? '−' : '') + ips + (digits ? '.' + fp.toString().padStart(digits, '0') : '');
 }
 export function parseAse(str) {
-  const s = String(str).trim().replace(',', '.');
-  if (!/^\d+(\.\d{0,18})?$/.test(s)) throw new Error('montant invalide');
+  // Accepte « 5 », « 2.5 », « 1,000.5 » (virgules = milliers) et aussi « 2,5 » (virgule décimale).
+  let s = String(str).trim().replace(/[\s_]/g, '');
+  if (s.includes('.') || /^\d{1,3}(,\d{3})+$/.test(s)) s = s.replace(/,(?=\d{3}(\D|$))/g, '');
+  else s = s.replace(',', '.');
+  if (!/^\d+(\.\d{0,18})?$/.test(s)) throw new Error('invalid amount');
   const [i, f = ''] = s.split('.');
   return BigInt(i) * WEI + BigInt((f + '0'.repeat(18)).slice(0, 18));
+}
+
+// Règles de gains du contrat (pour « Vérifier ce tirage ») : 20 % commission,
+// 35 % jackpot, 45 % caisse des gains fixes (4 bons = 25 mises, 3 bons = 2,5 mises).
+export function payouts(sales, price, jackpotIn, [n3, n4, n5]) {
+  const S = BigInt(sales), P = BigInt(price), J = BigInt(jackpotIn);
+  const N3 = BigInt(n3), N4 = BigInt(n4), N5 = BigInt(n5);
+  const commission = (S * 2000n) / 10000n, pj = (S * 3500n) / 10000n, F = S - commission - pj;
+  let g3 = (P * 5n) / 2n, g4 = P * 25n, g5 = 0n;
+  const due = N3 * g3 + N4 * g4;
+  if (due > F) { g3 = (g3 * F) / due; g4 = (g4 * F) / due; }
+  const fixed = N3 * g3 + N4 * g4;
+  if (N5 > 0n) {
+    g5 = (pj + J) / N5;
+    if (g4 * 5n > g5 * 4n) { g3 = (g3 * g5 * 4n) / (g4 * 5n); g4 = (g5 * 4n) / 5n; }
+  } else if (fixed > 0n) {
+    g3 += (g3 * pj) / (fixed * 2n);
+    g4 += (g4 * pj) / (fixed * 2n);
+  }
+  return { per: [g3, g4, g5], commission };
 }

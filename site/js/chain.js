@@ -19,11 +19,11 @@ export class Rpc {
         return await r.json();
       } catch (e) { last = e; }
     }
-    throw new Error('Le réseau Asentum ne répond pas (' + (last?.message || '?') + ')');
+    throw new Error('The Asentum network is not responding (' + (last?.message || '?') + ')');
   }
   async view(contract, method, args = []) {
     const j = await this.req('/view', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contract: toHex(contract), method, args }) });
-    if (!j.ok) throw new Error(j.reason || 'lecture refusée');
+    if (!j.ok) throw new Error(j.reason || 'read rejected');
     return j.returnValue;
   }
   async balance(addr) { return BigInt((await this.req('/balance/' + toHex(addr))).balance || 0); }
@@ -37,7 +37,7 @@ export class Rpc {
       if (r) return r;
       await new Promise((ok) => setTimeout(ok, 2000));
     }
-    throw new Error('Transaction envoyée mais pas encore confirmée. Elle apparaîtra dans quelques minutes.');
+    throw new Error('Transaction sent but not confirmed yet. It should show up within a few minutes.');
   }
 }
 
@@ -62,11 +62,11 @@ export class TelegramWallet {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ dappOrigin: location.origin, dappName: this.dappName }),
     });
-    if (!r.ok) throw new Error('Wallet Telegram injoignable (HTTP ' + r.status + ')');
+    if (!r.ok) throw new Error('Telegram wallet unreachable (HTTP ' + r.status + ')');
     const { sessionId, code } = await r.json();
     onCode(code);
     for (let i = 0; i < 150; i++) {
-      if (shouldStop()) throw new Error('Connexion annulée');
+      if (shouldStop()) throw new Error('Connection cancelled');
       await new Promise((ok) => setTimeout(ok, 2000));
       const s = await fetch(this.api + '/api/sessions/' + sessionId).then((x) => x.json()).catch(() => ({}));
       if (s.status === 'connected' && s.address) {
@@ -74,7 +74,7 @@ export class TelegramWallet {
         return this.address;
       }
     }
-    throw new Error('Code expiré : recommence la connexion.');
+    throw new Error('Code expired: please start the connection again.');
   }
   async restore(sessionId) {
     try {
@@ -88,16 +88,16 @@ export class TelegramWallet {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ type: 'contract_call', to: toHex(contract), method, args, value: String(valueWei) }),
     });
-    if (!cr.ok) throw new Error('Demande de signature refusée (session expirée ? reconnecte-toi)');
+    if (!cr.ok) throw new Error('Signature request rejected (session expired? please reconnect)');
     const { requestId } = await cr.json();
     for (let i = 0; i < 160; i++) {
       await new Promise((ok) => setTimeout(ok, 2000));
       const s = await fetch(`${this.api}/api/sessions/${this.session}/sign-requests/${requestId}`).then((x) => x.json()).catch(() => ({}));
       if (s.status === 'approved') return s.txHash;
-      if (s.status === 'rejected') throw new Error(s.error || 'Refusé dans le wallet Telegram');
-      if (s.status === 'expired') throw new Error('Demande expirée (5 min) : valide plus vite dans Telegram.');
+      if (s.status === 'rejected') throw new Error(s.error || 'Rejected in the Telegram wallet');
+      if (s.status === 'expired') throw new Error('Request expired (5 min): approve faster in Telegram.');
     }
-    throw new Error('Pas de réponse du wallet Telegram');
+    throw new Error('No response from the Telegram wallet');
   }
   async disconnect() {}
 }

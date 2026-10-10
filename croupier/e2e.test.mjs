@@ -62,7 +62,7 @@ const buyRandom = (n) => {
     const p = players[i % players.length];
     const k = 1 + (i % 5);
     const g = Array.from({ length: k }, () => ref.randomGrid());
-    const x = C.call(p, 'buy', [g, i.toString(16)], 2n * ASE * BigInt(k));
+    const x = C.call(p, "buy", [g, i.toString(16)], 2n * ASE * BigInt(k));
     if (!x.success) throw new Error(x.error);
   }
 };
@@ -78,8 +78,8 @@ t('tour 1 fermé, révélé (owner puis collab), compté, finalisé', view('getR
 t('tous les gains payés automatiquement (dettes = 0)', done1);
 const rd1 = view('getRound', [1]);
 t('numéros = référence indépendante', JSON.stringify(rd1.nums) === JSON.stringify(ref.drawNumbers(1, rd1.sO, rd1.sC, rd1.digest)));
-t('commission owner reçue (80 %)', mock.chain.balanceOf(OWN_PAY) === BigInt(rd1.commission) * 8000n / 10000n);
-t('commission collab reçue (20 %)', mock.chain.balanceOf(COL_PAY) === BigInt(rd1.commission) - BigInt(rd1.commission) * 8000n / 10000n);
+t('commission owner reçue (75 %)', mock.chain.balanceOf(OWN_PAY) === BigInt(rd1.commission) * 7500n / 10000n);
+t('commission collab reçue (25 %)', mock.chain.balanceOf(COL_PAY) === BigInt(rd1.commission) - BigInt(rd1.commission) * 7500n / 10000n);
 await waitFor(() => mock.alerts.some((a) => a.includes('Tirage n°1')), 5000, 'annonce');
 t('annonce Telegram du tirage envoyée', mock.alerts.some((a) => a.includes('Tirage n°1')));
 t('alerte de démarrage envoyée', mock.alerts.some((a) => a.includes('démarré')));

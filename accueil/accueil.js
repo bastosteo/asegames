@@ -18,7 +18,7 @@ $('#themeBtn').onclick = () => {
 
 let info = null, offset = 0;
 async function load() {
-  if (!CONFIG.CONTRACT) { $('#lotoJackpot').textContent = 'démo'; $('#lotoCountdown').textContent = '–'; return; }
+  if (!CONFIG.CONTRACT) { $('#lotoJackpot').textContent = 'demo'; $('#lotoCountdown').textContent = '–'; return; }
   try {
     info = await new Rpc(CONFIG.RPC).view(CONFIG.CONTRACT, 'info', []);
     offset = Number(info.now) - Date.now();
@@ -29,9 +29,9 @@ async function load() {
 function tick() {
   if (!info) return;
   const s = Math.floor((Number(info.closeTs) - (Date.now() + offset)) / 1000);
-  if (s <= 0) { $('#lotoCountLabel').textContent = 'Tirage'; $('#lotoCountdown').textContent = 'en cours'; return; }
+  if (s <= 0) { $('#lotoCountLabel').textContent = 'Draw'; $('#lotoCountdown').textContent = 'in progress'; return; }
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
-  $('#lotoCountLabel').textContent = 'Fin des ventes dans';
+  $('#lotoCountLabel').textContent = 'Sales close in';
   $('#lotoCountdown').textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}`;
 }
 load();

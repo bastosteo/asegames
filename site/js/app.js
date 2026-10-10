@@ -23,9 +23,9 @@ const S = {
 };
 const chainNow = () => Date.now() + S.clockOffset;
 const ballHtml = (n, cls = '') => `<span class="ball ${cls}">${n}</span>`;
-const parisTime = (ms) => new Date(Number(ms)).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' }).replace(':', 'h');
-const parisDay = (ms) => new Date(Number(ms)).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris', weekday: 'long', day: 'numeric', month: 'long' });
-const plural = (n, one, many) => `${n.toLocaleString('fr-FR')} ${n > 1 ? many : one}`;
+const parisTime = (ms) => new Date(Number(ms)).toLocaleTimeString('en-GB', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const parisDay = (ms) => new Date(Number(ms)).toLocaleDateString('en-GB', { timeZone: 'Europe/Paris', weekday: 'long', day: 'numeric', month: 'long' });
+const plural = (n, one, many) => `${n.toLocaleString('en-GB')} ${n === 1 ? one : many}`;
 
 // ------------------------------------------------------------- thème
 function applyTheme(t) { if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }
@@ -91,7 +91,7 @@ async function refresh() {
     renderAll();
   } catch (e) {
     console.error(e);
-    toast('Lecture impossible : ' + cleanError(e), 'err', 8000);
+    toast('Could not read the chain: ' + cleanError(e), 'err', 8000);
   }
 }
 
@@ -102,20 +102,20 @@ function renderHero() {
   const closing = i.status === 'closing';
   const price = BigInt(closing ? S.cfg.price : i.price);
   $('#priceLabel').textContent = L.fmtAse(price, price % L.WEI === 0n ? 0 : 2) + ' ASE';
-  $('#gridsPlayed').textContent = i.grids.toLocaleString('fr-FR');
-  $('#drawWhen').textContent = `Tirage n°${i.round}, ${parisDay(i.drawTs)} à ${parisTime(i.drawTs)}`;
+  $('#gridsPlayed').textContent = i.grids.toLocaleString('en-GB');
+  $('#drawWhen').textContent = `Draw #${i.round}, ${parisDay(i.drawTs)} at ${parisTime(i.drawTs)} (Paris time)`;
   $('#pausedBanner').hidden = !i.paused;
   const last = [...S.rounds.values()].filter((r) => r.status === 'done').sort((a, b) => b.id - a.id)[0];
   if (last) {
     $('#lastDraw').hidden = false;
-    $('#lastDrawId').textContent = `n°${last.id}, ${parisDay(last.drawTs)}`;
+    $('#lastDrawId').textContent = `#${last.id}, ${parisDay(last.drawTs)}`;
     const box = $('#lastBalls');
     const html = last.nums.map((n) => ballHtml(n, 'gold')).join('');
     if (box.dataset.id !== String(last.id)) { box.innerHTML = html; box.dataset.id = last.id; box.classList.remove('reveal'); void box.offsetWidth; box.classList.add('reveal'); }
     $('#lastVerify').onclick = () => verifyRound(last.id);
     if (last.cnt[2] > 0 && S.lastAnnounced < last.id) {
       S.lastAnnounced = last.id; store.set('loto.lastAnnounced', last.id);
-      toast(`Jackpot remporté au tirage n°${last.id} : ${L.fmtAse(BigInt(last.per[2]) * BigInt(last.cnt[2]), 0)} ASE !`, 'ok', 12000);
+      toast(`Jackpot won in draw #${last.id}: ${L.fmtAse(BigInt(last.per[2]) * BigInt(last.cnt[2]), 0)} ASE!`, 'ok', 12000);
     }
   }
   tickCountdown();
@@ -125,25 +125,25 @@ function tickCountdown() {
   const now = chainNow();
   const close = Number(i.closeTs);
   let label, target;
-  if (now < close) { label = 'Fin des ventes dans'; target = close; }
-  else { label = 'Tirage en cours'; target = null; }
+  if (now < close) { label = 'Sales close in'; target = close; }
+  else { label = 'Draw in progress'; target = null; }
   $('#countdownLabel').textContent = label;
   if (target) {
     const s = Math.max(0, Math.floor((target - now) / 1000));
     const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
     $('#countdown').textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}`;
-  } else $('#countdown').textContent = 'Résultats bientôt';
+  } else $('#countdown').textContent = 'Results soon';
 }
 setInterval(tickCountdown, 1000);
 
 // ------------------------------------------------------------- grille et panier
 function buildGrid() {
-  const g = $('#grid18');
+  const g = $('#grid20');
   g.innerHTML = '';
   for (let n = 1; n <= L.MAXN; n++) {
     const b = document.createElement('button');
     b.className = 'ball'; b.type = 'button'; b.textContent = n;
-    b.setAttribute('aria-pressed', 'false'); b.setAttribute('aria-label', 'Numéro ' + n);
+    b.setAttribute('aria-pressed', 'false'); b.setAttribute('aria-label', 'Number ' + n);
     b.onclick = () => {
       if (S.selected.has(n)) S.selected.delete(n);
       else if (S.selected.size < L.PICK) S.selected.add(n);
@@ -154,16 +154,16 @@ function buildGrid() {
 }
 function renderPicker() {
   const full = S.selected.size >= L.PICK;
-  $$('#grid18 .ball').forEach((b, i) => {
+  $$('#grid20 .ball').forEach((b, i) => {
     const on = S.selected.has(i + 1);
     b.setAttribute('aria-pressed', String(on));
     b.disabled = full && !on;
   });
-  $('#pickCount').textContent = `${S.selected.size} sur ${L.PICK}`;
+  $('#pickCount').textContent = `${S.selected.size} of ${L.PICK}`;
   $('#addBtn').disabled = !full;
 }
 function addToCart(grid) {
-  if (S.cart.length >= 200) { toast('Panier plein (200 grilles).', 'err'); return; }
+  if (S.cart.length >= 200) { toast('Cart full (200 tickets).', 'err'); return; }
   S.cart.push(grid); store.set('loto.cart', S.cart); renderCart();
 }
 $('#flashBtn').onclick = () => { S.selected = new Set(L.flashGrid()); renderPicker(); };
@@ -174,18 +174,18 @@ $$('[data-flash]').forEach((b) => (b.onclick = () => { for (let k = 0; k < Numbe
 function currentPrice() { return S.info ? BigInt(S.info.status === 'closing' ? S.cfg.price : S.info.price) : 2n * L.WEI; }
 function renderCart() {
   const list = $('#cartList');
-  list.innerHTML = S.cart.map((g, i) => `<li><span class="idx">${i + 1}</span><span class="balls tiny">${g.map((n) => ballHtml(n)).join('')}</span><button class="rm" data-rm="${i}" aria-label="Retirer la grille ${i + 1}">×</button></li>`).join('');
+  list.innerHTML = S.cart.map((g, i) => `<li><span class="idx">${i + 1}</span><span class="balls tiny">${g.map((n) => ballHtml(n)).join('')}</span><button class="rm" data-rm="${i}" aria-label="Remove ticket ${i + 1}">×</button></li>`).join('');
   list.querySelectorAll('[data-rm]').forEach((b) => (b.onclick = () => { S.cart.splice(Number(b.dataset.rm), 1); store.set('loto.cart', S.cart); renderCart(); }));
   $('#cartEmpty').hidden = S.cart.length > 0;
   const n = S.cart.length, cost = currentPrice() * BigInt(n);
-  $('#cartCount').textContent = plural(n, 'grille', 'grilles');
+  $('#cartCount').textContent = plural(n, 'ticket', 'tickets');
   $('#cartSum').textContent = L.fmtAse(cost, cost % L.WEI === 0n ? 0 : 2) + ' ASE';
   const btn = $('#playBtn');
   const max = S.cfg ? S.cfg.maxGrids : 20;
   const txs = Math.ceil(n / max);
-  if (!S.wallet) { btn.textContent = 'Connecter mon wallet pour jouer'; btn.disabled = false; }
-  else { btn.textContent = n ? `Jouer ${plural(n, 'grille', 'grilles')} (${L.fmtAse(cost, cost % L.WEI === 0n ? 0 : 2)} ASE)` : 'Valider mes grilles'; btn.disabled = !n || S.busy || (S.info && S.info.paused); }
-  $('#cartNote').textContent = txs > 1 ? `Plus de ${max} grilles : ${txs} transactions à valider, l'une après l'autre.` : 'Une seule transaction pour tout le panier.';
+  if (!S.wallet) { btn.textContent = 'Connect wallet to play'; btn.disabled = false; }
+  else { btn.textContent = n ? `Play ${plural(n, 'ticket', 'tickets')} (${L.fmtAse(cost, cost % L.WEI === 0n ? 0 : 2)} ASE)` : 'Confirm my tickets'; btn.disabled = !n || S.busy || (S.info && S.info.paused); }
+  $('#cartNote').textContent = txs > 1 ? `More than ${max} tickets: ${txs} transactions to approve, one after the other.` : 'One single transaction for the whole cart.';
 }
 
 $('#playBtn').onclick = async () => {
@@ -193,12 +193,12 @@ $('#playBtn').onclick = async () => {
   if (!S.cart.length || S.busy) return;
   const price = currentPrice();
   const total = price * BigInt(S.cart.length);
-  if (S.balance !== null && S.balance < total) { toast(`Solde insuffisant : il faut ${L.fmtAse(total)} ASE plus un peu de gas.`, 'err'); return; }
+  if (S.balance !== null && S.balance < total) { toast(`Insufficient balance: you need ${L.fmtAse(total)} ASE plus a little gas.`, 'err'); return; }
   const max = S.cfg.maxGrids;
   const chunks = []; for (let i = 0; i < S.cart.length; i += max) chunks.push(S.cart.slice(i, i + max));
   for (let k = 0; k < chunks.length; k++) {
     const part = chunks.length > 1 ? ` (${k + 1}/${chunks.length})` : '';
-    const ok = await sendTx(`${plural(chunks[k].length, 'grille enregistrée', 'grilles enregistrées')}${part}`, 'buy', [chunks[k], L.randomSeedHex()], price * BigInt(chunks[k].length));
+    const ok = await sendTx(`${plural(chunks[k].length, 'ticket registered', 'tickets registered')}${part}`, 'buy', [chunks[k], L.randomSeedHex()], price * BigInt(chunks[k].length));
     if (!ok) return;
     S.cart = S.cart.slice(chunks[k].length); store.set('loto.cart', S.cart); renderCart();
   }
@@ -208,19 +208,19 @@ $('#playBtn').onclick = async () => {
 // ------------------------------------------------------------- transactions
 async function sendTx(doneLabel, method, args, value = 0n) {
   S.busy = true; renderCart();
-  const t1 = toast(S.wallet.kind === 'telegram' ? 'Valide la transaction dans Telegram…' : 'Valide la transaction dans ton wallet…', '', 0);
+  const t1 = toast(S.wallet.kind === 'telegram' ? 'Approve the transaction in Telegram…' : 'Approve the transaction in your wallet…', '', 0);
   try {
     const hash = await S.wallet.call(S.contract, method, args, value);
-    t1.textContent = 'Transaction envoyée, confirmation en cours (souvent 10 à 60 s)…';
+    t1.textContent = 'Transaction sent, waiting for confirmation (usually 10 to 60 s)…';
     const rc = await S.rpc.waitReceipt(hash);
     t1.remove();
-    if (!rc.success) throw new Error(rc.error || 'refusée par le contrat');
+    if (!rc.success) throw new Error(rc.error || 'rejected by the contract');
     toast(doneLabel + ' ✓', 'ok');
     await refresh();
     return true;
   } catch (e) {
     t1.remove();
-    toast('Échec : ' + cleanError(e), 'err', 10000);
+    toast('Failed: ' + cleanError(e), 'err', 10000);
     return false;
   } finally { S.busy = false; renderCart(); }
 }
@@ -228,7 +228,7 @@ async function sendTx(doneLabel, method, args, value = 0n) {
 // ------------------------------------------------------------- mes grilles
 function renderMine() {
   const box = $('#mineBody');
-  if (!S.wallet) { box.innerHTML = '<p class="muted">Connecte ton wallet pour voir tes grilles.</p>'; return; }
+  if (!S.wallet) { box.innerHTML = '<p class="muted">Connect your wallet to see your tickets.</p>'; return; }
   const me = S.wallet.address;
   const ids = [...S.rounds.keys()].sort((a, b) => b - a);
   let html = '';
@@ -237,43 +237,63 @@ function renderMine() {
     const mine = (S.purchases.get(id) || []).filter((p) => p.b === me);
     if (!mine.length) continue;
     const drawn = r.status === 'done' ? r.nums : null;
-    let tag = '<span class="tag">En attente du tirage</span>';
-    if (r.status === 'done') tag = `<span class="tag">Tiré : </span><span class="balls tiny">${r.nums.map((n) => ballHtml(n, 'gold')).join('')}</span>`;
-    if (r.status === 'cancelled') tag = '<span class="tag warn">Tirage annulé : remboursé à 100 %</span>';
-    html += `<div class="round-block"><div class="round-head"><h3>Tirage n°${id}</h3><span class="muted small">${parisDay(r.drawTs)}</span>${tag}</div>`;
+    let tag = '<span class="tag">Waiting for the draw</span>';
+    if (r.status === 'done') tag = `<span class="tag">Drawn: </span><span class="balls tiny">${r.nums.map((n) => ballHtml(n, 'gold')).join('')}</span>`;
+    if (r.status === 'cancelled') tag = '<span class="tag warn">Draw cancelled: 100% refunded</span>';
+    html += `<div class="round-block"><div class="round-head"><h3>Draw #${id}</h3><span class="muted small">${parisDay(r.drawTs)}</span>${tag}</div>`;
     for (const p of mine) {
       const grids = p.g.map((g) => {
         const k = drawn ? L.matches(g, drawn) : 0;
-        return `<div class="balls small" aria-label="Grille ${g.join(' ')}${drawn ? ', ' + k + ' bons numéros' : ''}">${g.map((n) => ballHtml(n, drawn ? (drawn.includes(n) ? 'gold' : 'dim') : '')).join('')}</div>`;
+        return `<div class="balls small" aria-label="Ticket ${g.join(' ')}${drawn ? ', ' + plural(k, 'match', 'matches') : ''}">${g.map((n) => ballHtml(n, drawn ? (drawn.includes(n) ? 'gold' : 'dim') : '')).join('')}</div>`;
       }).join('');
       let right = '';
       if (r.status === 'done') {
         const prize = BigInt(p.prize);
-        if (prize > 0n) right = p.paid ? `<span class="tag ok">Payé</span><span class="amount">+${L.fmtAse(prize)} ASE</span>` : `<span class="amount">+${L.fmtAse(prize)} ASE</span><button class="btn btn-primary btn-small" data-claim="${id}:${p.idx}">Réclamer</button>`;
-        else right = '<span class="muted small">Pas de gain</span>';
+        if (prize > 0n) right = p.paid ? `<span class="tag ok">Sent to your wallet</span><span class="amount">+${L.fmtAse(prize)} ASE</span>` : `<span class="amount">+${L.fmtAse(prize)} ASE</span><span class="muted small">Automatic payout in progress</span><button class="btn btn-ghost btn-small" data-claim="${id}:${p.idx}">Claim now</button>`;
+        else right = '<span class="muted small">No prize</span>';
       } else if (r.status === 'cancelled') {
-        right = p.paid ? '<span class="tag ok">Remboursé</span>' : `<button class="btn btn-small" data-refund="${id}:${p.idx}">Me faire rembourser</button>`;
-      } else right = `<span class="muted small">${plural(p.g.length, 'grille', 'grilles')}</span>`;
+        right = p.paid ? '<span class="tag ok">Refunded</span>' : `<button class="btn btn-small" data-refund="${id}:${p.idx}">Refund me</button>`;
+      } else right = `<span class="muted small">${plural(p.g.length, 'ticket', 'tickets')}</span>`;
       html += `<div class="ticket"><div class="grids">${grids}</div><div class="right">${right}</div></div>`;
     }
     html += '</div>';
   }
-  box.innerHTML = html || '<p class="muted">Tu n\'as pas encore joué sur les derniers tirages. Choisis tes numéros juste au-dessus.</p>';
-  box.querySelectorAll('[data-claim]').forEach((b) => (b.onclick = () => { const [id, i] = b.dataset.claim.split(':').map(Number); sendTx('Gain reçu', 'claim', [id, i]); }));
-  box.querySelectorAll('[data-refund]').forEach((b) => (b.onclick = () => { const [id, i] = b.dataset.refund.split(':').map(Number); sendTx('Remboursement reçu', 'claim', [id, i]); }));
+  box.innerHTML = html || '<p class="muted">You haven\'t played in recent draws yet. Pick your numbers just above.</p>';
+  box.querySelectorAll('[data-claim]').forEach((b) => (b.onclick = () => { const [id, i] = b.dataset.claim.split(':').map(Number); sendTx('Prize received', 'settle', [id, i, 1]); }));
+  box.querySelectorAll('[data-refund]').forEach((b) => (b.onclick = () => { const [id, i] = b.dataset.refund.split(':').map(Number); sendTx('Refund received', 'settle', [id, i, 1]); }));
+  announceWins();
+}
+
+// Message « Tu as gagné » : une fois par gain, quand le wallet du gagnant est connecté.
+function announceWins() {
+  if (!S.wallet) return;
+  const me = S.wallet.address, key = 'asegame.loto.vus.' + me;
+  const seen = new Set(store.get(key, []));
+  for (const [id, list] of S.purchases) {
+    const r = S.rounds.get(id);
+    if (!r || r.status !== 'done') continue;
+    for (const p of list) {
+      if (p.b !== me || p.prize === '0' || seen.has(id + ':' + p.idx)) continue;
+      seen.add(id + ':' + p.idx);
+      const best = Math.max(...p.g.map((g) => L.matches(g, r.nums)));
+      toast(`🎉 You won ${L.fmtAse(p.prize)} ASE with ${plural(best, 'match', 'matches')} in draw #${id}! ` +
+        (p.paid ? 'Your winnings have been sent to your wallet.' : 'Your winnings are on their way to your wallet automatically.'), 'ok', 0);
+    }
+  }
+  store.set(key, [...seen].slice(-300));
 }
 
 // ------------------------------------------------------------- résultats
 function renderResults() {
   const rows = [...S.rounds.values()].filter((r) => ['done', 'cancelled'].includes(r.status)).sort((a, b) => b.id - a.id);
-  if (!rows.length) { $('#resultsBody').innerHTML = '<p class="muted">Aucun tirage terminé pour l\'instant. Le premier a lieu à l\'heure indiquée en haut de la page.</p>'; return; }
-  const winCell = (r, k) => (r.cnt[k] ? `${r.cnt[k]} × ${L.fmtAse(r.per[k])}` : '<span class="muted">reporté</span>');
+  if (!rows.length) { $('#resultsBody').innerHTML = '<p class="muted">No completed draws yet. The first one takes place at the time shown at the top of the page.</p>'; return; }
+  const winCell = (r, k) => (r.cnt[k] ? `${r.cnt[k]} × ${L.fmtAse(r.per[k])}` : `<span class="muted">${k === 2 ? 'rolled over' : '–'}</span>`);
   $('#resultsBody').innerHTML = `<div style="overflow-x:auto"><table class="res-table">
-    <thead><tr><th scope="col">Tirage</th><th scope="col">Numéros</th><th scope="col" class="num">Grilles</th><th scope="col" class="num">5 bons</th><th scope="col" class="num">4 bons</th><th scope="col" class="num">3 bons</th><th scope="col" class="num">Report</th><th scope="col"></th></tr></thead>
+    <thead><tr><th scope="col">Draw</th><th scope="col">Numbers</th><th scope="col" class="num">Tickets</th><th scope="col" class="num">5 matches</th><th scope="col" class="num">4 matches</th><th scope="col" class="num">3 matches</th><th scope="col" class="num">Rollover</th><th scope="col"></th></tr></thead>
     <tbody>${rows.map((r) => r.status === 'cancelled'
-      ? `<tr><td>n°${r.id}<br><span class="muted small">${parisDay(r.drawTs)}</span></td><td colspan="6"><span class="tag warn">Annulé, joueurs remboursés</span></td><td></td></tr>`
-      : `<tr><td>n°${r.id}<br><span class="muted small">${parisDay(r.drawTs)}</span></td><td><span class="balls tiny">${r.nums.map((n) => ballHtml(n, 'gold')).join('')}</span></td><td class="num">${r.grids}</td><td class="num">${winCell(r, 2)}</td><td class="num">${winCell(r, 1)}</td><td class="num">${winCell(r, 0)}</td><td class="num">${L.fmtAse(r.carryOut, 0)}</td><td><button class="link-btn" data-verify="${r.id}">Vérifier</button></td></tr>`).join('')}
-    </tbody></table></div><p class="muted small">Montants en ASE, par grille gagnante. « Report » = montant qui part dans le jackpot suivant.</p>`;
+      ? `<tr><td>#${r.id}<br><span class="muted small">${parisDay(r.drawTs)}</span></td><td colspan="6"><span class="tag warn">Cancelled, players refunded</span></td><td></td></tr>`
+      : `<tr><td>#${r.id}<br><span class="muted small">${parisDay(r.drawTs)}</span></td><td><span class="balls tiny">${r.nums.map((n) => ballHtml(n, 'gold')).join('')}</span></td><td class="num">${r.grids}</td><td class="num">${winCell(r, 2)}</td><td class="num">${winCell(r, 1)}</td><td class="num">${winCell(r, 0)}</td><td class="num">${L.fmtAse(r.carryOut, 0)}</td><td><button class="link-btn" data-verify="${r.id}">Verify</button></td></tr>`).join('')}
+    </tbody></table></div><p class="muted small">Amounts in ASE, per winning ticket. “Rollover” = amount carried into the next jackpot.</p>`;
   $$('#resultsBody [data-verify]').forEach((b) => (b.onclick = () => verifyRound(Number(b.dataset.verify))));
 }
 
@@ -288,16 +308,16 @@ function renderRanking() {
   }
   wins.sort((a, b) => (b.prize > a.prize ? 1 : b.prize < a.prize ? -1 : 0));
   const me = S.wallet?.address;
-  const who = (a) => (a === me ? '<strong>toi</strong>' : esc(L.shortAddr(a)));
-  $('#rankWins').innerHTML = wins.slice(0, 10).map((w) => `<li><strong>${L.fmtAse(w.prize)} ASE</strong> <span>par</span> ${who(w.b)} <span>(tirage n°${w.id})</span></li>`).join('') || '<li class="muted">Pas encore de gain.</li>';
-  $('#rankGrids').innerHTML = [...grids].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([a, n]) => `<li>${who(a)} <span>avec</span> <strong>${n}</strong> <span>${n > 1 ? 'grilles' : 'grille'}</span></li>`).join('') || '<li class="muted">Personne n\'a encore joué.</li>';
-  $('#rankScope').textContent = `Sur les ${S.rounds.size} derniers tirages.`;
+  const who = (a) => (a === me ? '<strong>you</strong>' : esc(L.shortAddr(a)));
+  $('#rankWins').innerHTML = wins.slice(0, 10).map((w) => `<li><strong>${L.fmtAse(w.prize)} ASE</strong> <span>by</span> ${who(w.b)} <span>(draw #${w.id})</span></li>`).join('') || '<li class="muted">No wins yet.</li>';
+  $('#rankGrids').innerHTML = [...grids].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([a, n]) => `<li>${who(a)} <span>with</span> <strong>${n.toLocaleString('en-GB')}</strong> <span>${n === 1 ? 'ticket' : 'tickets'}</span></li>`).join('') || '<li class="muted">Nobody has played yet.</li>';
+  $('#rankScope').textContent = `Over the last ${plural(S.rounds.size, 'draw', 'draws')}.`;
 }
 
 // ------------------------------------------------------------- vérification
 async function verifyRound(id) {
   const dlg = $('#dlgVerify'), body = $('#verifyBody');
-  body.innerHTML = '<p class="muted">Recalcul en cours dans ton navigateur…</p>';
+  body.innerHTML = '<p class="muted">Recomputing in your browser…</p>';
   dlg.showModal();
   try {
     const r = await loadRound(id, true);
@@ -307,33 +327,30 @@ async function verifyRound(id) {
     // 1) Empreinte des grilles
     let d = L.initialDigest(id);
     list.forEach((p) => { d = L.nextDigest(d, p.b, p.g, p.s || '', p.idx); });
-    step(d === r.digest, 'Empreinte des grilles', `Recalculée à partir des ${list.length} achats : <code>${d.slice(0, 24)}…</code>`);
+    step(d === r.digest, 'Ticket fingerprint', `Recomputed from ${plural(list.length, 'purchase', 'purchases')}: <code>${d.slice(0, 24)}…</code>`);
     // 2) Chaînes de secrets
     const chainCheck = (sec, key) => {
       const prev = [...S.rounds.values()].filter((x) => x.id < id && x[key]).sort((a, b) => b.id - a.id)[0];
-      if (!prev) return [true, 'premier secret visible ici (les tirages plus anciens ne sont pas chargés)'];
+      if (!prev) return [true, 'first secret visible here (older draws are not loaded)'];
       let h = sec;
-      for (let k = 1; k <= 30; k++) { h = L.sha256Hex(h); if (h === prev[key]) return [true, `SHA-256${k > 1 ? ' ×' + k : ''} de ce secret = secret du tirage n°${prev.id}`]; }
-      return [false, 'ne prolonge pas la chaîne du tirage n°' + prev.id];
+      for (let k = 1; k <= 30; k++) { h = L.sha256Hex(h); if (h === prev[key]) return [true, `SHA-256${k > 1 ? ' ×' + k : ''} of this secret = secret of draw #${prev.id}`]; }
+      return [false, 'does not extend the chain of draw #' + prev.id];
     };
     const [o1, o2] = chainCheck(r.sO, 'sO'), [c1, c2] = chainCheck(r.sC, 'sC');
-    step(o1, 'Secret de l\'opérateur', `<code>${r.sO}</code><br>${o2}`);
-    step(c1, 'Secret du collaborateur', `<code>${r.sC}</code><br>${c2}`);
+    step(o1, 'Operator secret', `<code>${r.sO}</code><br>${o2}`);
+    step(c1, 'Collaborator secret', `<code>${r.sC}</code><br>${c2}`);
     // 3) Numéros
     const nums = L.drawNumbers(id, r.sO, r.sC, d);
-    step(JSON.stringify(nums) === JSON.stringify(r.nums), 'Numéros tirés', `SHA-256("LOTOASE|${id}|secret opérateur|secret collaborateur|empreinte") donne <span class="balls tiny" style="display:inline-flex;vertical-align:middle">${nums.map((n) => ballHtml(n, 'gold')).join('')}</span>`);
+    step(JSON.stringify(nums) === JSON.stringify(r.nums), 'Numbers drawn', `SHA-256("LOTOASE|${id}|operator secret|collaborator secret|fingerprint") gives <span class="balls tiny" style="display:inline-flex;vertical-align:middle">${nums.map((n) => ballHtml(n, 'gold')).join('')}</span>`);
     // 4) Gagnants
     const cnt = [0, 0, 0];
     for (const p of list) for (const g of p.g) { const k = L.matches(g, nums); if (k >= 3) cnt[k - 3]++; }
-    step(JSON.stringify(cnt) === JSON.stringify(r.cnt), 'Nombre de gagnants', `5 bons : ${cnt[2]}, 4 bons : ${cnt[1]}, 3 bons : ${cnt[0]}`);
+    step(JSON.stringify(cnt) === JSON.stringify(r.cnt), 'Number of winners', `5 matches: ${cnt[2]}, 4 matches: ${cnt[1]}, 3 matches: ${cnt[0]}`);
     // 5) Répartition
-    const Sales = BigInt(r.sales), C = (Sales * 500n) / 10000n;
-    const pools = [(Sales * 3500n) / 10000n, (Sales * 2000n) / 10000n];
-    pools.push(Sales - C - pools[0] - pools[1] + BigInt(r.jackpotIn));
-    const per = pools.map((p, k) => (cnt[k] ? p / BigInt(cnt[k]) : 0n));
-    step(per.every((x, k) => x.toString() === r.per[k]) && C.toString() === r.commission, 'Répartition des gains', `Commission ${L.fmtAse(C)} ASE (5 %). Gain par grille : 5 bons ${L.fmtAse(per[2])}, 4 bons ${L.fmtAse(per[1])}, 3 bons ${L.fmtAse(per[0])} ASE.`);
-    body.innerHTML = steps.join('') + `<p class="small muted" style="margin-top:12px">Tout est recalculé ici, dans ton navigateur, à partir des données publiques du contrat. <a href="${CONFIG.EXPLORER}/address/${L.toAse1(S.contract)}" target="_blank" rel="noopener">Code source du contrat</a>.</p>`;
-  } catch (e) { body.innerHTML = `<p class="error">Vérification impossible : ${esc(cleanError(e))}</p>`; }
+    const { per, commission: C } = L.payouts(r.sales, r.price, r.jackpotIn, cnt);
+    step(per.every((x, k) => x.toString() === r.per[k]) && C.toString() === r.commission, 'Prize distribution', `Commission ${L.fmtAse(C)} ASE (20%). Prize per ticket: 5 matches ${L.fmtAse(per[2])}, 4 matches ${L.fmtAse(per[1])}, 3 matches ${L.fmtAse(per[0])} ASE.`);
+    body.innerHTML = steps.join('') + `<p class="small muted" style="margin-top:12px">Everything is recomputed here, in your browser, from the contract's public data. <a href="${CONFIG.EXPLORER}/address/${L.toAse1(S.contract)}" target="_blank" rel="noopener">Contract source code</a>.</p>`;
+  } catch (e) { body.innerHTML = `<p class="error">Verification failed: ${esc(cleanError(e))}</p>`; }
 }
 
 // ------------------------------------------------------------- admin
@@ -343,34 +360,35 @@ function renderAdmin() {
   if (!isAdmin) { if ($('#adminTab').getAttribute('aria-selected') === 'true') selectTab('mine'); return; }
   const players = new Set(); for (const l of S.purchases.values()) for (const p of l) players.add(p.b);
   const now = chainNow();
-  let croupier = 'En attente du prochain tirage', alert = false;
+  let croupier = 'Waiting for the next draw', alert = false;
   const pend = S.rounds.get(S.st.next);
   if (pend && ['closed', 'tally'].includes(pend.status)) {
     const late = Math.round((now - Number(pend.closeTs)) / 60000);
-    croupier = `Tirage n°${pend.id} : ${!pend.sO ? 'secret opérateur attendu' : !pend.sC ? 'secret collaborateur attendu' : 'comptage en cours'} (${late} min)`;
+    croupier = `Draw #${pend.id}: ${!pend.sO ? 'waiting for operator secret' : !pend.sC ? 'waiting for collaborator secret' : 'counting in progress'} (${late} min)`;
     alert = late > 15;
   } else {
     const last = [...S.rounds.values()].filter((r) => r.status === 'done').sort((a, b) => b.id - a.id)[0];
-    if (last) croupier = `Dernier tirage n°${last.id} terminé`;
+    if (last) croupier = `Last draw #${last.id} completed`;
   }
   const t = S.st.tot;
   const stat = (label, val, a = false) => `<dl class="stat ${a ? 'alert' : ''}"><dt>${label}</dt><dd>${val}</dd></dl>`;
   $('#adminStats').innerHTML = [
-    stat('Volume total', L.fmtAse(t.sales, 0) + ' ASE'),
-    stat('Commissions versées', L.fmtAse(t.commission) + ' ASE'),
-    stat('Joueurs uniques', `${players.size} <span class="small muted">(${S.rounds.size} tirages)</span>`),
-    stat('Jackpot reporté', L.fmtAse(S.st.jackpot, 0) + ' ASE'),
-    stat('Grilles vendues', t.grids.toLocaleString('fr-FR')),
-    stat('Gains versés', L.fmtAse(t.prizes, 0) + ' ASE'),
-    stat('Gains à verser', L.fmtAse(S.st.owed) + ' ASE', BigInt(S.st.owed) > 0n),
+    stat('Total volume', L.fmtAse(t.sales, 0) + ' ASE'),
+    stat('Commissions paid', L.fmtAse(t.commission) + ' ASE'),
+    stat('Unique players', `${players.size} <span class="small muted">(${plural(S.rounds.size, 'draw', 'draws')})</span>`),
+    stat('Jackpot rollover', L.fmtAse(S.st.jackpot, 0) + ' ASE'),
+    stat('Tickets sold', t.grids.toLocaleString('en-GB')),
+    stat('Prizes paid', L.fmtAse(t.prizes, 0) + ' ASE'),
+    stat('Prizes owed', L.fmtAse(S.st.owed) + ' ASE', BigInt(S.st.owed) > 0n),
     stat('Croupier', croupier, alert),
   ].join('');
-  $('#pauseState').textContent = S.cfg.paused ? 'Le jeu est en pause.' : 'Le jeu est ouvert.';
-  $('#pauseBtn').textContent = S.cfg.paused ? 'Reprendre le jeu' : 'Mettre en pause';
+  $('#pauseState').textContent = S.cfg.paused ? 'The game is paused.' : 'The game is open.';
+  $('#pauseBtn').textContent = S.cfg.paused ? 'Resume game' : 'Pause game';
   const setIfIdle = (sel, v) => { const el = $(sel); if (document.activeElement !== el && !el.dataset.touched) el.value = v; };
-  setIfIdle('#fPrice [name=price]', L.fmtAse(S.cfg.price, 4).replace(/ /g, '').replace(/,?0+$/, ''));
+  setIfIdle('#fPrice [name=price]', L.fmtAse(S.cfg.price, 4).replace(/,/g, '').replace(/\.?0+$/, ''));
   setIfIdle('#fTime [name=h]', S.cfg.drawH); setIfIdle('#fTime [name=m]', S.cfg.drawM);
   setIfIdle('#fMax [name=n]', S.cfg.maxGrids);
+  setIfIdle('#fMax [name=t]', S.cfg.maxRound);
   setIfIdle('#fTimings [name=close]', S.cfg.closeMin); setIfIdle('#fTimings [name=reveal]', S.cfg.revealMin);
   setIfIdle('#fPayouts [name=o]', L.toAse1(S.cfg.payOwner)); setIfIdle('#fPayouts [name=c]', L.toAse1(S.cfg.payCollab));
 }
@@ -384,27 +402,27 @@ function adminForm(sel, fn) {
     } catch (err) { toast(cleanError(err), 'err'); }
   });
 }
-adminForm('#fPause', () => [S.cfg.paused ? 'Jeu repris' : 'Jeu en pause', 'setPaused', [!S.cfg.paused]]);
+adminForm('#fPause', () => [S.cfg.paused ? 'Game resumed' : 'Game paused', 'setPaused', [!S.cfg.paused]]);
 // Le contrat reçoit tous les réglages du jeu en un seul appel : on renvoie
 // les valeurs actuelles avec seulement celle(s) modifiée(s).
-const gameArgs = (patch) => { const c = { ...S.cfg, ...patch }; return [String(c.price), c.drawH, c.drawM, c.maxGrids, c.closeMin, c.revealMin]; };
-adminForm('#fPrice', (f) => ['Prix enregistré', 'setConfig', gameArgs({ price: L.parseAse(f.get('price')).toString() })]);
-adminForm('#fTime', (f) => ['Heure enregistrée', 'setConfig', gameArgs({ drawH: Number(f.get('h')), drawM: Number(f.get('m')) })]);
-adminForm('#fMax', (f) => ['Plafond enregistré', 'setConfig', gameArgs({ maxGrids: Number(f.get('n')) })]);
-adminForm('#fTimings', (f) => ['Délais enregistrés', 'setConfig', gameArgs({ closeMin: Number(f.get('close')), revealMin: Number(f.get('reveal')) })]);
-adminForm('#fPayouts', (f) => ['Wallets enregistrés', 'setPayouts', [L.toHex(f.get('o')), L.toHex(f.get('c'))]]);
+const gameArgs = (patch) => { const c = { ...S.cfg, ...patch }; return [String(c.price), c.drawH, c.drawM, c.maxGrids, c.closeMin, c.revealMin, c.maxRound]; };
+adminForm('#fPrice', (f) => ['Price saved', 'setConfig', gameArgs({ price: L.parseAse(f.get('price')).toString() })]);
+adminForm('#fTime', (f) => ['Draw time saved', 'setConfig', gameArgs({ drawH: Number(f.get('h')), drawM: Number(f.get('m')) })]);
+adminForm('#fMax', (f) => ['Limits saved', 'setConfig', gameArgs({ maxGrids: Number(f.get('n')), maxRound: Number(f.get('t')) })]);
+adminForm('#fTimings', (f) => ['Timings saved', 'setConfig', gameArgs({ closeMin: Number(f.get('close')), revealMin: Number(f.get('reveal')) })]);
+adminForm('#fPayouts', (f) => ['Wallets saved', 'setPayouts', [L.toHex(f.get('o')), L.toHex(f.get('c'))]]);
 let cancelArmed = 0;
 adminForm('#fCancel', () => {
   const id = S.st.next < S.st.cur ? S.st.next : S.info.round;
   const btn = $('#fCancel button');
   if (Date.now() - cancelArmed > 8000) {
     cancelArmed = Date.now();
-    btn.textContent = `Confirmer : annuler le tirage n°${id}`;
-    setTimeout(() => { if (Date.now() - cancelArmed >= 8000) btn.textContent = 'Annuler et rembourser'; }, 8100);
-    throw new Error(`Clique encore une fois dans les 8 s pour annuler le tirage n°${id}.`);
+    btn.textContent = `Confirm: cancel draw #${id}`;
+    setTimeout(() => { if (Date.now() - cancelArmed >= 8000) btn.textContent = 'Cancel and refund'; }, 8100);
+    throw new Error(`Click again within 8 s to cancel draw #${id}.`);
   }
-  cancelArmed = 0; btn.textContent = 'Annuler et rembourser';
-  return ['Tirage annulé, remboursements disponibles', 'emergencyCancel', [id]];
+  cancelArmed = 0; btn.textContent = 'Cancel and refund';
+  return ['Draw cancelled, refunds available', 'emergencyCancel', [id]];
 });
 
 // ------------------------------------------------------------- onglets
@@ -417,12 +435,12 @@ $$('.tabs [role=tab]').forEach((b) => (b.onclick = () => selectTab(b.dataset.tab
 // ------------------------------------------------------------- wallet
 function renderWallet() {
   const b = $('#walletBtn');
-  if (!S.wallet) { b.textContent = 'Connecter mon wallet'; return; }
+  if (!S.wallet) { b.textContent = 'Connect wallet'; return; }
   b.textContent = `${L.shortAddr(S.wallet.address)}${S.balance !== null ? ' · ' + L.fmtAse(S.balance) + ' ASE' : ''}`;
 }
 let pairing = false;
 function openWallet() {
-  if (S.demo) { toast('Mode démo : tu joues avec un wallet fictif de 100 000 ASE.'); return; }
+  if (S.demo) { toast('Demo mode: you are playing with a mock wallet holding 100,000 ASE.'); return; }
   $('#walletErr').hidden = true; $('#tgPair').hidden = true;
   if (S.wallet) {
     $('#walletConnected').hidden = false; $('#walletChoices').hidden = true;
@@ -432,7 +450,7 @@ function openWallet() {
   }
   $('#walletConnected').hidden = true; $('#walletChoices').hidden = false;
   $('#useExt').disabled = !ExtensionWallet.available();
-  $('#extHint').textContent = ExtensionWallet.available() ? 'Détectée dans ce navigateur' : 'Non détectée : installe-la ou utilise Telegram';
+  $('#extHint').textContent = ExtensionWallet.available() ? 'Detected in this browser' : 'Not detected: install it or use Telegram';
   $('#dlgWallet').showModal();
 }
 $('#dlgWallet').addEventListener('close', () => { pairing = false; });
@@ -473,9 +491,11 @@ function renderRulesValues() {
   if (!S.cfg) return;
   const p = BigInt(S.cfg.price);
   $$('.js-price').forEach((e) => (e.textContent = L.fmtAse(p, p % L.WEI === 0n ? 0 : 2) + ' ASE'));
-  $$('.js-drawtime').forEach((e) => (e.textContent = `${S.cfg.drawH}h${String(S.cfg.drawM).padStart(2, '0')}`));
+  $$('.js-drawtime').forEach((e) => (e.textContent = `${String(S.cfg.drawH).padStart(2, '0')}:${String(S.cfg.drawM).padStart(2, '0')}`));
   $$('.js-close').forEach((e) => (e.textContent = plural(S.cfg.closeMin, 'minute', 'minutes')));
-  $$('.js-reveal').forEach((e) => (e.textContent = S.cfg.revealMin % 60 === 0 ? plural(S.cfg.revealMin / 60, 'heure', 'heures') : plural(S.cfg.revealMin, 'minute', 'minutes')));
+  $$('.js-reveal').forEach((e) => (e.textContent = S.cfg.revealMin % 60 === 0 ? plural(S.cfg.revealMin / 60, 'hour', 'hours') : plural(S.cfg.revealMin, 'minute', 'minutes')));
+  $$('.js-g4').forEach((e) => (e.textContent = L.fmtAse(p * 25n) + ' ASE'));
+  $$('.js-g3').forEach((e) => (e.textContent = L.fmtAse((p * 5n) / 2n) + ' ASE'));
 }
 function renderAll() {
   renderWallet(); renderHero(); renderCart(); renderMine(); renderResults(); renderRanking(); renderAdmin(); renderRulesValues();
@@ -490,7 +510,7 @@ function renderAll() {
     S.demo = await startDemo(new URL('contrat/loto.js', document.baseURI));
     S.rpc = S.demo.rpc; S.contract = S.demo.contractAddress; S.wallet = S.demo.wallet;
     $('#demoBar').hidden = false;
-    $('#demoWarp').onclick = async () => { S.demo.goToDraw(); await refresh(); toast('Horloge avancée : le croupier démo vient de faire le tirage.', 'ok'); };
+    $('#demoWarp').onclick = async () => { S.demo.goToDraw(); await refresh(); toast('Clock fast-forwarded: the demo croupier just ran the draw.', 'ok'); };
     S.wallet.address = S.wallet.address.toLowerCase();
   } else {
     S.rpc = new Rpc(CONFIG.RPC);
@@ -498,7 +518,7 @@ function renderAll() {
     await restoreWallet();
   }
   const link = $('#contractLink');
-  link.textContent = S.demo ? 'démo locale' : L.shortAddr(S.contract);
+  link.textContent = S.demo ? 'local demo' : L.shortAddr(S.contract);
   if (!S.demo) link.href = `${CONFIG.EXPLORER}/address/${L.toAse1(S.contract)}`;
   $('#rpcLabel').textContent = S.rpc.url;
   await refresh();

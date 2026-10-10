@@ -64,9 +64,15 @@ for (let k = 0; k < ROUNDS; k++) {
       const f = c.view('getRound', [id]);
       for (let q = 0; q < 3; q++) { winners[q] += f.cnt[q]; won[q] += BigInt(f.cnt[q]) * BigInt(f.per[q]); }
       if (f.cnt[2] > 0) { jackpots++; const jp = BigInt(f.per[2]) * BigInt(f.cnt[2]); if (jp > maxJackpot) maxJackpot = jp; }
-      // Paiement automatique, mais ~10 % des gagnants réclament eux-mêmes avant
+      // Vérifie les gains contre la référence et l'ordre 5 > 4 > 3
+      const ex = ref.payouts(f.sales, f.price, f.jackpotIn, f.cnt);
+      if (JSON.stringify(f.per) !== JSON.stringify(ex.per.map(String))) throw new Error(`Tour ${id} : gains ≠ référence`);
+      const g = f.per.map(BigInt);
+      if (f.cnt[1] && f.cnt[0] && !(g[1] > g[0])) throw new Error(`Tour ${id} : 4 bons ≤ 3 bons`);
+      if (f.cnt[2] && f.cnt[1] && !(g[2] > g[1])) throw new Error(`Tour ${id} : 5 bons ≤ 4 bons`);
+      // Paiement automatique, mais ~10 % des gagnants règlent eux-mêmes leur achat avant
       const list = c.view('getPurchases', [id, 0, Math.min(400, f.buys)]);
-      for (const p of list) if (p.prize !== '0' && rnd() < 0.1) must(c.call(p.b, 'claim', [id, p.idx]), 'claim');
+      for (const p of list) if (p.prize !== '0' && rnd() < 0.1) must(c.call(p.b, 'settle', [id, p.idx, 1]), 'settle soi-même');
       let i = 0;
       while (i < f.buys) { const x = must(c.call(ADMIN, 'settle', [id, i, 100]), 'pay'); maxGas = Math.max(maxGas, x.gas); i = x.returnValue.next; }
     }
@@ -93,8 +99,8 @@ console.log(`Simulation de ${ROUNDS} tirages quotidiens (${T.grids} grilles, ${T
 console.log(`  Ventes totales           : ${fmt(BigInt(T.sales))} ASE`);
 const drawnSales = BigInt(T.sales) - BigInt(T.refunds) - (() => { let p = 0n; for (let j = s.next; j <= s.cur; j++) { const x = c.view('getRound', [j]); if (['open', 'closed', 'tally'].includes(x.status)) p += BigInt(x.sales); } return p; })();
 console.log(`  Commission               : ${fmt(commission)} ASE = ${(Number(commission * 100000n / drawnSales) / 1000).toFixed(3)} % des ventes tirées (rien sur les tirages annulés)`);
-console.log(`    → owner (80 %)         : ${fmt(toOwner)} ASE   → collaborateur (20 %) : ${fmt(toCollab)} ASE`);
-console.log(`    → 80/20 exact          : ${toOwner + toCollab === commission && toOwner * 2n === commission * 8n / 5n ? 'oui' : 'ÉCART : ' + (toOwner * 10000n / commission)}`);
+console.log(`    → owner (75 %)         : ${fmt(toOwner)} ASE   → collaborateur (25 %) : ${fmt(toCollab)} ASE`);
+console.log(`    → 75/25 exact          : ${toOwner + toCollab === commission && toOwner * 4n >= commission * 3n - 4n * BigInt(ROUNDS) && toOwner * 4n <= commission * 3n ? 'oui (à l\'arrondi près)' : 'ÉCART : ' + (toOwner * 10000n / commission)}`);
 console.log(`  Gains versés             : ${fmt(BigInt(T.prizes))} ASE   (à verser : ${fmt(BigInt(s.owed))})`);
 console.log(`  Remboursements           : ${fmt(BigInt(T.refunds))} ASE   (${cancelled} tirages annulés)`);
 console.log(`  Jackpot reporté actuel   : ${fmt(BigInt(s.jackpot))} ASE`);

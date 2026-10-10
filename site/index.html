@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ASE Loto</title>
-<meta name="description" content="Loto à numéros sur le testnet Asentum : 5 numéros sur 18, un tirage par jour, hasard vérifiable.">
+<meta name="description" content="Number lottery on the Asentum testnet: 5 numbers out of 20, one draw every day at 21:00 Paris time, verifiable randomness, prizes paid automatically.">
 <meta name="theme-color" content="#14143A">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%234949DF'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23F4C542'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14,22 +14,22 @@
 </head>
 <body>
 <div id="demoBar" class="demobar" hidden>
-  <span>Mode démo : le contrat tourne dans ton navigateur, rien n'est envoyé sur Asentum.</span>
-  <button id="demoWarp" class="btn btn-small">Aller au tirage</button>
+  <span>Demo mode: the contract runs in your browser, nothing is sent to Asentum.</span>
+  <button id="demoWarp" class="btn btn-small">Skip to the draw</button>
 </div>
 
 <header class="top">
-  <a class="brand" href="../" aria-label="ASE Game, tous les jeux">
+  <a class="brand" href="../" aria-label="ASE Game, all games">
     <span class="brand-balls" aria-hidden="true"><i></i><i></i><i></i></span>
     <span class="brand-name">ASE Loto</span>
   </a>
-  <span class="net" title="Testnet Asentum : les ASE n'ont pas de valeur réelle">Testnet</span>
+  <span class="net" title="Asentum testnet: ASE has no real value">Testnet</span>
   <div class="top-actions">
-    <a class="all-games" href="../">Tous les jeux</a>
-    <button id="themeBtn" class="icon-btn" aria-label="Changer de thème" title="Thème clair / sombre">
+    <a class="all-games" href="../">All games</a>
+    <button id="themeBtn" class="icon-btn" aria-label="Toggle theme" title="Light / dark theme">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>
     </button>
-    <button id="walletBtn" class="btn btn-wallet">Connecter mon wallet</button>
+    <button id="walletBtn" class="btn btn-wallet">Connect wallet</button>
   </div>
 </header>
 
@@ -37,78 +37,78 @@
   <!-- ===== Jackpot + compte à rebours ===== -->
   <section class="hero" aria-labelledby="jpLabel">
     <div class="hero-main">
-      <p id="jpLabel" class="hero-label">Jackpot du prochain tirage</p>
+      <p id="jpLabel" class="hero-label">Next draw jackpot</p>
       <p class="jackpot"><span id="jackpot">…</span> <span class="unit">ASE</span></p>
       <p class="hero-sub"><span id="drawWhen">…</span></p>
     </div>
     <dl class="hero-stats">
-      <div><dt id="countdownLabel">Fin des ventes dans</dt><dd id="countdown" class="mono-num">--:--:--</dd></div>
-      <div><dt>Grilles jouées</dt><dd id="gridsPlayed" class="mono-num">–</dd></div>
-      <div><dt>Prix d'une grille</dt><dd id="priceLabel" class="mono-num">–</dd></div>
+      <div><dt id="countdownLabel">Sales close in</dt><dd id="countdown" class="mono-num">--:--:--</dd></div>
+      <div><dt>Tickets played</dt><dd id="gridsPlayed" class="mono-num">–</dd></div>
+      <div><dt>Ticket price</dt><dd id="priceLabel" class="mono-num">–</dd></div>
     </dl>
     <div class="last-draw" id="lastDraw" hidden>
-      <p class="last-title">Dernier tirage <span id="lastDrawId"></span></p>
+      <p class="last-title">Last draw <span id="lastDrawId"></span></p>
       <div class="balls" id="lastBalls"></div>
-      <button class="link-btn" id="lastVerify">Vérifier ce tirage</button>
+      <button class="link-btn" id="lastVerify">Verify this draw</button>
     </div>
-    <p class="banner" id="pausedBanner" hidden>Le jeu est en pause : les achats sont suspendus. Les tirages et paiements continuent.</p>
+    <p class="banner" id="pausedBanner" hidden>The game is paused: ticket sales are suspended. Draws and payouts continue.</p>
   </section>
 
   <!-- ===== Jouer ===== -->
   <section class="play" aria-labelledby="playTitle">
     <div class="picker">
-      <h2 id="playTitle">Choisis 5 numéros</h2>
-      <p class="pick-count" id="pickCount" aria-live="polite">0 sur 5</p>
-      <div class="grid18" id="grid18" role="group" aria-label="Numéros de 1 à 18"></div>
+      <h2 id="playTitle">Pick 5 numbers</h2>
+      <p class="pick-count" id="pickCount" aria-live="polite">0 of 5</p>
+      <div class="grid20" id="grid20" role="group" aria-label="Numbers 1 to 20"></div>
       <div class="pick-actions">
-        <button class="btn btn-ghost" id="flashBtn" title="5 numéros au hasard">Flash</button>
-        <button class="btn btn-ghost" id="clearBtn">Effacer</button>
-        <button class="btn btn-primary" id="addBtn" disabled>Ajouter la grille</button>
+        <button class="btn btn-ghost" id="flashBtn" title="5 random numbers">Quick pick</button>
+        <button class="btn btn-ghost" id="clearBtn">Clear</button>
+        <button class="btn btn-primary" id="addBtn" disabled>Add ticket</button>
       </div>
-      <p class="quick">Ou ajoute directement
-        <button class="chip" data-flash="1">1 flash</button>
-        <button class="chip" data-flash="5">5 flash</button>
-        <button class="chip" data-flash="10">10 flash</button>
+      <p class="quick">Or add instantly
+        <button class="chip" data-flash="1">1 quick pick</button>
+        <button class="chip" data-flash="5">5 quick picks</button>
+        <button class="chip" data-flash="10">10 quick picks</button>
       </p>
     </div>
 
     <aside class="cart" aria-labelledby="cartTitle">
-      <h2 id="cartTitle">Mon panier</h2>
+      <h2 id="cartTitle">My cart</h2>
       <ol class="cart-list" id="cartList"></ol>
-      <p class="cart-empty" id="cartEmpty">Ton panier est vide. Choisis 5 numéros ou ajoute des grilles flash.</p>
+      <p class="cart-empty" id="cartEmpty">Your cart is empty. Pick 5 numbers or add quick picks.</p>
       <div class="cart-foot">
-        <p class="cart-total"><span id="cartCount">0 grille</span><strong id="cartSum">0 ASE</strong></p>
-        <button class="btn btn-primary btn-wide" id="playBtn" disabled>Valider mes grilles</button>
-        <p class="cart-note" id="cartNote">Une seule transaction pour tout le panier.</p>
+        <p class="cart-total"><span id="cartCount">0 tickets</span><strong id="cartSum">0 ASE</strong></p>
+        <button class="btn btn-primary btn-wide" id="playBtn" disabled>Confirm my tickets</button>
+        <p class="cart-note" id="cartNote">One single transaction for the whole cart.</p>
       </div>
     </aside>
   </section>
 
   <!-- ===== Onglets ===== -->
   <nav class="tabs" role="tablist" aria-label="Sections">
-    <button role="tab" aria-selected="true" data-tab="mine">Mes grilles</button>
-    <button role="tab" aria-selected="false" data-tab="results">Résultats</button>
-    <button role="tab" aria-selected="false" data-tab="ranking">Classement</button>
-    <button role="tab" aria-selected="false" data-tab="rules">Règles</button>
+    <button role="tab" aria-selected="true" data-tab="mine">My tickets</button>
+    <button role="tab" aria-selected="false" data-tab="results">Results</button>
+    <button role="tab" aria-selected="false" data-tab="ranking">Leaderboard</button>
+    <button role="tab" aria-selected="false" data-tab="rules">Rules</button>
     <button role="tab" aria-selected="false" data-tab="admin" id="adminTab" hidden>Admin</button>
   </nav>
 
   <section class="panel" id="tab-mine" role="tabpanel">
-    <div id="mineBody"><p class="muted">Connecte ton wallet pour voir tes grilles.</p></div>
+    <div id="mineBody"><p class="muted">Connect your wallet to see your tickets.</p></div>
   </section>
 
   <section class="panel" id="tab-results" role="tabpanel" hidden>
-    <div id="resultsBody"><p class="muted">Chargement…</p></div>
+    <div id="resultsBody"><p class="muted">Loading…</p></div>
   </section>
 
   <section class="panel" id="tab-ranking" role="tabpanel" hidden>
     <div class="ranking">
       <div>
-        <h3>Plus gros gains</h3>
+        <h3>Biggest wins</h3>
         <ol class="rank-list" id="rankWins"></ol>
       </div>
       <div>
-        <h3>Plus de grilles jouées</h3>
+        <h3>Most tickets played</h3>
         <ol class="rank-list" id="rankGrids"></ol>
       </div>
     </div>
@@ -116,74 +116,75 @@
   </section>
 
   <section class="panel rules" id="tab-rules" role="tabpanel" hidden>
-    <h3>Le jeu</h3>
-    <p>Tu choisis 5 numéros entre 1 et 18 (ou tu laisses le site les tirer au hasard avec « Flash »). Une grille coûte <strong class="js-price">2 ASE</strong>. Un tirage a lieu chaque jour à <strong class="js-drawtime">21h00</strong> (heure de Paris). Les ventes ferment <strong class="js-close">10 minutes</strong> avant, puis le tirage suivant est ouvert.</p>
-    <h3>Les gains</h3>
-    <p>Tout l'argent des grilles d'un tirage est redistribué, sauf 5 % de commission. La maison n'ajoute rien et ne prend rien d'autre.</p>
+    <h3>The game</h3>
+    <p>Pick 5 numbers from 1 to 20 (or let the site pick them at random with “Quick pick”). A ticket costs <strong class="js-price">2 ASE</strong>. One draw takes place every day at <strong class="js-drawtime">21:00</strong> (Paris time). Sales close <strong class="js-close">10 minutes</strong> before, then the next draw opens.</p>
+    <h3>Prizes</h3>
+    <p>80% of sales go back to players. The remaining 20% is the commission (75% operator, 25% collaborator).</p>
     <table class="odds">
-      <thead><tr><th scope="col">Rang</th><th scope="col">Chances par grille</th><th scope="col">Part des ventes</th></tr></thead>
+      <thead><tr><th scope="col">Tier</th><th scope="col">Odds per ticket</th><th scope="col">Prize</th></tr></thead>
       <tbody>
-        <tr><th scope="row">5 bons numéros</th><td>1 sur 8 568</td><td>40 % + jackpot reporté</td></tr>
-        <tr><th scope="row">4 bons numéros</th><td>1 sur 132</td><td>20 %</td></tr>
-        <tr><th scope="row">3 bons numéros</th><td>1 sur 11</td><td>35 %</td></tr>
-        <tr><th scope="row">Commission</th><td>–</td><td>5 % (80 % opérateur, 20 % collaborateur)</td></tr>
+        <tr><th scope="row">5 matches</th><td>1 in 15,504</td><td>Jackpot: 35% of the draw's sales + rollover, split among the winners</td></tr>
+        <tr><th scope="row">4 matches</th><td>1 in 207</td><td>25× ticket price (<span class="js-g4">50 ASE</span>) + bonus</td></tr>
+        <tr><th scope="row">3 matches</th><td>1 in 15</td><td>2.5× ticket price (<span class="js-g3">5 ASE</span>) + bonus</td></tr>
+        <tr><th scope="row">Commission</th><td>–</td><td>20% (75% operator, 25% collaborator)</td></tr>
       </tbody>
     </table>
-    <p>Chaque rang est partagé à parts égales entre ses gagnants. Si un rang n'a aucun gagnant, sa part s'ajoute au jackpot du tirage suivant. Environ une grille sur 10 gagne quelque chose.</p>
-    <p>Les gains sont envoyés automatiquement après le tirage. Si ce n'est pas encore fait, tu peux les réclamer toi-même dans « Mes grilles ».</p>
-    <h3>Le hasard, et comment le vérifier</h3>
-    <p>Une blockchain n'a pas de hasard intégré. Ici, deux personnes indépendantes (l'opérateur et un collaborateur) ont chacune préparé une longue chaîne de secrets, dont seul le bout est inscrit dans le contrat. Après la fermeture des ventes, chacune révèle son secret du jour ; le contrat vérifie qu'il correspond bien à sa chaîne. Les numéros sont alors calculés à partir des deux secrets et de l'empreinte de toutes les grilles jouées.</p>
-    <p>Résultat : personne ne peut connaître les numéros avant la fermeture des ventes, ni l'opérateur seul, ni le collaborateur seul, ni un joueur. Le bouton « Vérifier ce tirage » refait tout le calcul dans ton navigateur.</p>
-    <p class="muted">Limite à connaître : si l'opérateur et le collaborateur s'entendaient, ils pourraient prévoir le résultat. Le système repose sur leur indépendance.</p>
-    <h3>Si un secret n'est pas révélé</h3>
-    <p>Si les deux secrets ne sont pas publiés dans les <strong class="js-reveal">2 heures</strong> après la fermeture, le tirage est annulé et chaque joueur récupère 100 % de sa mise (envoi automatique, ou bouton « Me faire rembourser »).</p>
-    <h3>Sécurité</h3>
-    <p>Le contrat ne contient aucune fonction de retrait : l'opérateur ne peut toucher ni aux mises, ni au jackpot, ni aux gains. Seule la commission de 5 % lui est versée, automatiquement, à chaque tirage. Le code du contrat est public et lisible dans l'explorateur.</p>
-    <p class="muted small">Testnet Asentum : les ASE de test n'ont aucune valeur monétaire.</p>
+    <p><strong>Bonus</strong>: if nobody hits 5 matches, half of the draw's 35% jackpot share is split among the 4- and 3-match winners; the other half rolls over to the next draw's jackpot.</p>
+    <p>Fixed prizes are paid from a pool of 45% of sales. On nights with so many winners that the pool isn't enough, both fixed prizes are reduced proportionally: 4 matches always win more than 3 matches, and 5 matches more than 4. Whatever is left in the pool goes to the jackpot.</p>
+    <p><strong>Nothing to do on your side</strong>: prizes are sent automatically to your wallet after the draw, and the site shows “You won X ASE with N matches…”.</p>
+    <h3>Randomness, and how to verify it</h3>
+    <p>A blockchain has no built-in randomness. Here, two independent parties (the operator and a collaborator) each prepared a long chain of secrets, and only the tip of each chain is stored in the contract. After sales close, each one reveals the day's secret; the contract checks it matches their chain. The numbers are then computed from both secrets and the fingerprint of every ticket played.</p>
+    <p>Result: nobody can know the numbers before sales close: not the operator alone, not the collaborator alone, not any player. The “Verify this draw” button redoes the whole computation in your browser.</p>
+    <p class="muted">Known limitation: if the operator and the collaborator colluded, they could predict the result. The system relies on their independence.</p>
+    <h3>If a secret isn't revealed</h3>
+    <p>If both secrets aren't published within <strong class="js-reveal">2 hours</strong> after sales close, the draw is cancelled and every player gets a 100% refund (sent automatically, or via the “Refund me” button).</p>
+    <h3>Security</h3>
+    <p>The contract has no withdrawal function: the operator can't touch ticket sales, the jackpot or prizes. Only the 20% commission (75% operator, 25% collaborator) is paid out, automatically, at each draw. The contract code is public and readable in the explorer.</p>
+    <p class="muted small">Asentum testnet: testnet ASE has no monetary value.</p>
   </section>
 
   <section class="panel" id="tab-admin" role="tabpanel" hidden>
     <div class="admin-stats" id="adminStats"></div>
     <div class="admin-grid">
-      <form class="admin-box" id="fPause"><h3>Pause d'urgence</h3><p class="muted small" id="pauseState"></p><button class="btn" type="submit" id="pauseBtn">Mettre en pause</button></form>
-      <form class="admin-box" id="fPrice"><h3>Prix d'une grille</h3><label>Prix en ASE <input name="price" inputmode="decimal" required></label><p class="muted small">S'applique au tirage suivant.</p><button class="btn" type="submit">Enregistrer</button></form>
-      <form class="admin-box" id="fTime"><h3>Heure du tirage (Paris)</h3><div class="row"><label>Heure <input name="h" type="number" min="6" max="23" required></label><label>Minutes <input name="m" type="number" min="0" max="59" required></label></div><p class="muted small">S'applique au tirage suivant.</p><button class="btn" type="submit">Enregistrer</button></form>
-      <form class="admin-box" id="fMax"><h3>Grilles par achat (max)</h3><label>Plafond <input name="n" type="number" min="1" max="50" required></label><button class="btn" type="submit">Enregistrer</button></form>
-      <form class="admin-box" id="fTimings"><h3>Délais</h3><div class="row"><label>Fermeture (min avant) <input name="close" type="number" min="2" max="60" required></label><label>Révélation (min) <input name="reveal" type="number" min="30" max="1440" required></label></div><button class="btn" type="submit">Enregistrer</button></form>
-      <form class="admin-box wide" id="fPayouts"><h3>Wallets de commission</h3><label>Owner (80 %) <input name="o" required spellcheck="false"></label><label>Collaborateur (20 %) <input name="c" required spellcheck="false"></label><button class="btn" type="submit">Enregistrer</button></form>
-      <form class="admin-box" id="fCancel"><h3>Annuler le tirage en cours</h3><p class="muted small">Possible seulement avant toute révélation. Tous les joueurs du tirage sont remboursés à 100 %.</p><button class="btn btn-danger" type="submit">Annuler et rembourser</button></form>
+      <form class="admin-box" id="fPause"><h3>Emergency pause</h3><p class="muted small" id="pauseState"></p><button class="btn" type="submit" id="pauseBtn">Pause game</button></form>
+      <form class="admin-box" id="fPrice"><h3>Ticket price</h3><label>Price in ASE <input name="price" inputmode="decimal" required></label><p class="muted small">Applies from the next draw.</p><button class="btn" type="submit">Save</button></form>
+      <form class="admin-box" id="fTime"><h3>Draw time (Paris)</h3><div class="row"><label>Hour <input name="h" type="number" min="6" max="23" required></label><label>Minutes <input name="m" type="number" min="0" max="59" required></label></div><p class="muted small">Applies from the next draw.</p><button class="btn" type="submit">Save</button></form>
+      <form class="admin-box" id="fMax"><h3>Ticket limits</h3><div class="row"><label>Per purchase <input name="n" type="number" min="1" max="50" required></label><label>Per draw <input name="t" type="number" min="1" max="100000" required></label></div><p class="muted small">The per-draw limit prevents buying every combination (15,504).</p><button class="btn" type="submit">Save</button></form>
+      <form class="admin-box" id="fTimings"><h3>Timings</h3><div class="row"><label>Sales close (min before) <input name="close" type="number" min="2" max="60" required></label><label>Reveal window (min) <input name="reveal" type="number" min="30" max="1440" required></label></div><button class="btn" type="submit">Save</button></form>
+      <form class="admin-box wide" id="fPayouts"><h3>Commission wallets</h3><label>Owner (75%) <input name="o" required spellcheck="false"></label><label>Collaborator (25%) <input name="c" required spellcheck="false"></label><button class="btn" type="submit">Save</button></form>
+      <form class="admin-box" id="fCancel"><h3>Cancel the current draw</h3><p class="muted small">Only possible before any secret is revealed. All players in the draw get a 100% refund.</p><button class="btn btn-danger" type="submit">Cancel and refund</button></form>
     </div>
   </section>
 </main>
 
 <footer class="foot">
-  <p><a href="../">ASE Game</a>. Contrat <a id="contractLink" target="_blank" rel="noopener"></a> sur le testnet Asentum. Données lues sur <span id="rpcLabel"></span>.</p>
+  <p><a href="../">ASE Game</a>. Contract <a id="contractLink" target="_blank" rel="noopener"></a> on the Asentum testnet. Data read from <span id="rpcLabel"></span>.</p>
 </footer>
 
 <!-- Fenêtres -->
 <dialog id="dlgWallet" class="dlg" aria-labelledby="dlgWalletTitle">
-  <h2 id="dlgWalletTitle">Connecter un wallet</h2>
+  <h2 id="dlgWalletTitle">Connect a wallet</h2>
   <div id="walletConnected" hidden>
-    <p>Connecté avec <strong id="walletAddrFull" class="small"></strong></p>
-    <button class="btn btn-danger btn-wide" id="disconnectBtn" type="button">Déconnecter ce wallet</button>
+    <p>Connected as <strong id="walletAddrFull" class="small"></strong></p>
+    <button class="btn btn-danger btn-wide" id="disconnectBtn" type="button">Disconnect this wallet</button>
   </div>
   <div id="walletChoices">
-    <button class="choice" id="useExt"><strong>Extension Asentum Wallet</strong><span id="extHint">Dans ce navigateur</span></button>
-    <button class="choice" id="useTg"><strong>Wallet Telegram</strong><span>Avec un code à 6 chiffres</span></button>
+    <button class="choice" id="useExt"><strong>Asentum Wallet extension</strong><span id="extHint">In this browser</span></button>
+    <button class="choice" id="useTg"><strong>Telegram wallet</strong><span>With a 6-digit code</span></button>
   </div>
   <div id="tgPair" hidden>
-    <p>Dans le bot Telegram Asentum Wallet, ouvre « Connect » et saisis ce code :</p>
+    <p>In the Asentum Wallet Telegram bot, open “Connect” and enter this code:</p>
     <p class="pair-code" id="tgCode">······</p>
-    <p class="muted small">En attente de ta validation…</p>
+    <p class="muted small">Waiting for your approval…</p>
   </div>
   <p class="error" id="walletErr" hidden></p>
-  <form method="dialog"><button class="btn btn-ghost btn-wide">Fermer</button></form>
+  <form method="dialog"><button class="btn btn-ghost btn-wide">Close</button></form>
 </dialog>
 
 <dialog id="dlgVerify" class="dlg dlg-wide" aria-labelledby="dlgVerifyTitle">
-  <h2 id="dlgVerifyTitle">Vérification du tirage</h2>
+  <h2 id="dlgVerifyTitle">Draw verification</h2>
   <div id="verifyBody"></div>
-  <form method="dialog"><button class="btn btn-ghost btn-wide">Fermer</button></form>
+  <form method="dialog"><button class="btn btn-ghost btn-wide">Close</button></form>
 </dialog>
 
 <div class="toasts" id="toasts" aria-live="polite"></div>

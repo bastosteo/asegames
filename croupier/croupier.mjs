@@ -299,7 +299,8 @@ async function announce(id) {
   await alert(
     `✅ Tirage n°${id} : ${r.nums.join(' - ')}\n` +
     `${r.grids} grilles, ventes ${ase(r.sales)} ASE\n` +
-    `5 bons : ${c5}${c5 ? ` (${ase(r.per[2])} ASE chacun)` : ''} · 4 bons : ${c4} · 3 bons : ${c3}\n` +
+    `5 bons : ${c5}${c5 ? ` (${ase(r.per[2])} ASE chacun)` : ''} · 4 bons : ${c4}${c4 ? ` (${ase(r.per[1])} ASE)` : ''} · 3 bons : ${c3}${c3 ? ` (${ase(r.per[0])} ASE)` : ''}\n` +
+    `Gains envoyés automatiquement aux gagnants.\n` +
     `Commission : ${ase(r.commission)} ASE · jackpot reporté : ${ase(r.carryOut)} ASE`, 'drawn' + id, 1e12);
 }
 
