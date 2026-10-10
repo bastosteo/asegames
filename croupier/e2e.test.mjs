@@ -73,9 +73,16 @@ buyRandom(40);
 const r1 = view('getRound', [1]);
 await fetch(mock.url + '/__warp', { method: 'POST', body: JSON.stringify({ to: r1.closeTs - 20000 }) });
 const pO = startCroupier(envO, 'owner'), pC = startCroupier(envC, 'collab');
-const done1 = await waitFor(() => view('getRound', [1]).status === 'done' && view('getState').owed === '0', 60000, 'tour 1 tiré et payé');
+// Les gains se réclament : le croupier ne les envoie pas ; chaque gagnant clique « Claim » (settle de son achat).
+const claimAll = (id) => { for (const p of C.view('getPurchases', [id, 0, 400])) if (p.prize !== '0' && !p.paid) C.call(p.b, 'settle', [id, p.idx, 1]); };
+const drawn1 = await waitFor(() => view('getRound', [1]).status === 'done', 60000, 'tour 1 tiré');
+await sleep(3000);
+const unpaid1 = C.view('getPurchases', [1, 0, 400]).filter((p) => p.prize !== '0');
+t('le croupier n\'envoie pas les gains (ils attendent le Claim)', unpaid1.every((p) => !p.paid) && BigInt(view('getState').owed) === unpaid1.reduce((a, p) => a + BigInt(p.prize), 0n));
+claimAll(1);
+const done1 = drawn1 && view('getState').owed === '0';
 t('tour 1 fermé, révélé (owner puis collab), compté, finalisé', view('getRound', [1]).status === 'done');
-t('tous les gains payés automatiquement (dettes = 0)', done1);
+t('chaque gagnant a réclamé son gain (dettes = 0)', done1);
 const rd1 = view('getRound', [1]);
 t('numéros = référence indépendante', JSON.stringify(rd1.nums) === JSON.stringify(ref.drawNumbers(1, rd1.sO, rd1.sC, rd1.digest)));
 t('commission owner reçue (75 %)', mock.chain.balanceOf(OWN_PAY) === BigInt(rd1.commission) * 7500n / 10000n);
@@ -98,7 +105,7 @@ await waitFor(() => mock.alerts.some((a) => a.includes('collaborateur n\'est tou
 t('alerte "secret collaborateur en retard" envoyée', mock.alerts.some((a) => a.includes('collaborateur n\'est toujours pas révélé')));
 const balsBefore = players.map((p) => mock.chain.balanceOf(p));
 await fetch(mock.url + '/__warp', { method: 'POST', body: JSON.stringify({ to: r2.closeTs + 121 * 60000 }) });
-const refunded = await waitFor(() => view('getRound', [cur2]).status === 'cancelled' && view('getState').owed === '0', 30000, 'annulation + remboursements');
+const refunded = await waitFor(() => view('getRound', [cur2]).status === 'cancelled' && C.view('getPurchases', [cur2, 0, 400]).every((p) => p.paid), 30000, 'annulation + remboursements');
 t('tour annulé après 2 h', view('getRound', [cur2]).status === 'cancelled');
 t('tous les joueurs remboursés automatiquement', refunded);
 const gained = players.reduce((s, p, i) => s + (mock.chain.balanceOf(p) - balsBefore[i]), 0n);
@@ -112,7 +119,7 @@ const cur3 = view('getState').cur;
 buyRandom(15);
 const r3 = view('getRound', [cur3]);
 await fetch(mock.url + '/__warp', { method: 'POST', body: JSON.stringify({ to: r3.closeTs + 1000 }) });
-const done3 = await waitFor(() => view('getRound', [cur3]).status === 'done' && view('getState').owed === '0', 60000, 'tour 3');
+const done3 = await waitFor(() => view('getRound', [cur3]).status === 'done', 60000, 'tour 3') && (claimAll(cur3), view('getState').owed === '0');
 t(`tour ${cur3} tiré et payé normalement (chaîne owner avancée d'un cran de plus)`, done3);
 
 pO.kill(); pC2.kill();
@@ -147,7 +154,9 @@ t('passage owner : fermeture + secret owner révélé', q1.code === 0 && !!view(
 const q2 = await once(ghC);
 t('passage collab : secret collaborateur révélé', q2.code === 0 && !!view('getRound', [cur4]).sC, q2.out.slice(-300));
 const q3 = await once(ghO);
-t('passage owner : comptage, tirage et paiements terminés', q3.code === 0 && view('getRound', [cur4]).status === 'done' && view('getState').owed === '0', q3.out.slice(-400));
+t('passage owner : comptage et tirage terminés', q3.code === 0 && view('getRound', [cur4]).status === 'done', q3.out.slice(-400));
+claimAll(cur4);
+t('gains réclamés par les joueurs, rien ne reste dû', view('getState').owed === '0');
 const rd4 = view('getRound', [cur4]);
 t('numéros du mode GitHub = référence indépendante', JSON.stringify(rd4.nums) === JSON.stringify(ref.drawNumbers(cur4, rd4.sO, rd4.sC, rd4.digest)));
 t('aucun fichier de chaîne utilisé (dossiers vides de chaîne)', !readdirSync(ghO.DATA_DIR).some((f) => f.includes('chain')));

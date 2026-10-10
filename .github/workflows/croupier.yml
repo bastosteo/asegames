@@ -57,3 +57,22 @@ jobs:
           SIGNER_SEED: ${{ secrets.OWNER_SIGNER_SEED }}
           CHAIN_SEED: ${{ secrets.OWNER_CHAIN_SEED }}
         run: node croupier/croupier.mjs once
+      # ---- ASE Raffle (tombola), une fois installée (variable RAFFLE_CONTRACT) ----
+      - name: Tombola owner
+        if: ${{ !cancelled() && vars.RAFFLE_CONTRACT != '' }}
+        env:
+          ROLE: owner
+          CROUPIER_NAME: tombola-owner-github
+          CONTRACT: ${{ vars.RAFFLE_CONTRACT }}
+          SIGNER_SEED: ${{ secrets.OWNER_SIGNER_SEED }}
+          CHAIN_SEED: ${{ secrets.RAFFLE_OWNER_CHAIN_SEED }}
+        run: node croupier/croupier.mjs once
+      - name: Tombola collaborateur
+        if: ${{ !cancelled() && vars.RAFFLE_CONTRACT != '' }}
+        env:
+          ROLE: collab
+          CROUPIER_NAME: tombola-collab-github
+          CONTRACT: ${{ vars.RAFFLE_CONTRACT }}
+          SIGNER_SEED: ${{ secrets.COLLAB_SIGNER_SEED }}
+          CHAIN_SEED: ${{ secrets.RAFFLE_COLLAB_CHAIN_SEED }}
+        run: node croupier/croupier.mjs once

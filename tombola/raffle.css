@@ -1,0 +1,77 @@
+/* ================= ASE Raffle — compléments au style du loto ================= */
+.brand-ticket { width: 30px; height: 18px; border-radius: 4px; background: var(--gold); position: relative; display: inline-block;
+  -webkit-mask: radial-gradient(circle at 0 50%, transparent 4px, #000 4.5px) left / 51% 100% no-repeat, radial-gradient(circle at 100% 50%, transparent 4px, #000 4.5px) right / 51% 100% no-repeat;
+          mask: radial-gradient(circle at 0 50%, transparent 4px, #000 4.5px) left / 51% 100% no-repeat, radial-gradient(circle at 100% 50%, transparent 4px, #000 4.5px) right / 51% 100% no-repeat; }
+
+/* Podium des 3 prix */
+.podium { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.podium li { background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 16px; padding: 12px; display: grid; gap: 2px; }
+:root[data-theme="light"] .podium li { background: var(--deeper); }
+.podium strong { font-family: var(--display); font-size: clamp(1.05rem, 4vw, 1.5rem); font-variant-numeric: tabular-nums; }
+.p-label { font-size: .8rem; color: var(--muted); }
+.medal { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: .8rem; font-family: var(--display); }
+.m1 { background: linear-gradient(135deg, #FFE68A, #C99A1A); color: #3A2A00; }
+.m2 { background: linear-gradient(135deg, #F1F2FF, #9EA2C8); color: #23245A; }
+.m3 { background: linear-gradient(135deg, #F3C49B, #A86A3A); color: #3A1E00; }
+
+/* Achat */
+.buy { margin-top: 22px; display: grid; gap: 18px; background: var(--deep); border: 1px solid var(--line); border-radius: var(--r-panel); padding: 20px 18px; box-shadow: var(--shadow); }
+.buy h2 { margin: 0 0 .2em; }
+.stepper { display: inline-flex; align-items: center; gap: 14px; margin: 14px 0 6px; }
+.step { width: 52px; height: 52px; border-radius: 50%; border: 1px solid var(--line); background: var(--deeper); color: var(--ink); font-size: 1.6rem; cursor: pointer; line-height: 1; }
+.step:hover:not(:disabled) { border-color: var(--gold); }
+.step:disabled { opacity: .4; cursor: not-allowed; }
+#qty { min-width: 2.2ch; text-align: center; font-family: var(--display); font-weight: 800; font-size: 2.6rem; font-variant-numeric: tabular-nums; }
+.buy-total { display: flex; justify-content: space-between; align-items: baseline; margin: 6px 0 12px; color: var(--muted); }
+.buy-total strong { font-family: var(--display); font-size: 1.5rem; color: var(--ink); }
+.btn-big { padding: .85em 1em; font-size: 1.05rem; }
+select { font: inherit; color: var(--ink); background: var(--deep); border: 1px solid var(--line); border-radius: 10px; padding: .5em .7em; width: 100%; }
+
+/* Imprimante à tickets */
+.printer { position: relative; display: grid; justify-items: center; align-content: start; min-height: 230px; }
+.printer-head { width: min(260px, 90%); height: 64px; border-radius: 18px 18px 8px 8px; background: linear-gradient(180deg, #5C5CF0, #3434A8); color: #fff;
+  display: flex; align-items: center; justify-content: center; gap: 10px; font-family: var(--display); font-weight: 800; letter-spacing: .14em; font-size: .85rem; box-shadow: 0 14px 24px -14px rgba(0,0,0,.6); position: relative; z-index: 2; }
+.printer-light { width: 10px; height: 10px; border-radius: 50%; background: #2E2F6E; box-shadow: inset 0 0 0 2px rgba(255,255,255,.2); }
+.printer-light.on { background: var(--ok); box-shadow: 0 0 10px var(--ok); animation: blink .6s steps(2) infinite; }
+@keyframes blink { 50% { opacity: .35; } }
+.printer-slot { width: min(220px, 78%); height: 10px; margin-top: -4px; border-radius: 0 0 8px 8px; background: #101030; position: relative; z-index: 2; }
+.printer-out { width: min(210px, 74%); display: grid; gap: 6px; margin-top: -2px; position: relative; z-index: 1; min-height: 120px; align-content: start; }
+.rticket { --c: var(--gold); position: relative; height: 54px; border-radius: 8px; background: linear-gradient(135deg, #FFE68A, #F4C542 55%, #D9A92A);
+  color: #3A2A00; display: flex; align-items: center; justify-content: space-between; padding: 0 16px 0 18px; font-family: var(--display); font-weight: 800;
+  -webkit-mask: radial-gradient(circle at 0 50%, transparent 7px, #000 7.5px) left / 51% 100% no-repeat, radial-gradient(circle at 100% 50%, transparent 7px, #000 7.5px) right / 51% 100% no-repeat;
+          mask: radial-gradient(circle at 0 50%, transparent 7px, #000 7.5px) left / 51% 100% no-repeat, radial-gradient(circle at 100% 50%, transparent 7px, #000 7.5px) right / 51% 100% no-repeat; }
+.rticket::after { content: ""; position: absolute; top: 8px; bottom: 8px; right: 62px; border-left: 2px dashed rgba(58,42,0,.35); }
+.rticket .no { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.rticket .lbl { font-size: .62rem; letter-spacing: .14em; opacity: .75; }
+.rticket.idle { background: repeating-linear-gradient(135deg, var(--deeper) 0 8px, var(--deep) 8px 16px); color: var(--muted); }
+.rticket.idle::after { border-color: var(--line); }
+.rticket.print { animation: print .7s cubic-bezier(.2,.8,.3,1) both; transform-origin: top center; }
+@keyframes print { 0% { transform: translateY(-62px) scaleY(.2); opacity: 0; } 60% { opacity: 1; } 100% { transform: none; opacity: 1; } }
+.rticket.printing { background: repeating-linear-gradient(90deg, #FFF1B8 0 10px, #F4C542 10px 20px); background-size: 200% 100%; animation: shimmer .8s linear infinite; color: transparent; }
+@keyframes shimmer { to { background-position: -40px 0; } }
+
+/* Mes tickets */
+.stubs { display: flex; flex-wrap: wrap; gap: 6px; }
+.stub { font-family: var(--display); font-weight: 700; font-size: .85rem; padding: .2em .6em; border-radius: 6px; background: var(--deeper); border: 1px dashed var(--line); font-variant-numeric: tabular-nums; }
+.stub.win { background: var(--gold); color: var(--gold-ink); border-color: var(--gold); }
+.claim-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 16px; margin-bottom: 16px; border-radius: var(--r-ctl); background: linear-gradient(135deg, rgba(244,197,66,.18), rgba(244,197,66,.06)); border: 1px solid rgba(244,197,66,.45); }
+.claim-banner strong { font-family: var(--display); font-size: 1.3rem; color: var(--gold); }
+:root[data-theme="light"] .claim-banner strong { color: #8A6408; }
+.winners { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; }
+.winners li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.winners .who { font-variant-numeric: tabular-nums; }
+.winners .amount { margin-left: auto; }
+
+/* Confettis */
+.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 60; overflow: hidden; }
+.confetti i { position: absolute; top: -12px; width: 8px; height: 14px; border-radius: 2px; animation: fall var(--d, 1.6s) cubic-bezier(.25,.6,.4,1) forwards; }
+@keyframes fall { to { transform: translate(var(--x, 0), 105vh) rotate(var(--r, 540deg)); opacity: .9; } }
+
+@media (min-width: 760px) {
+  .buy { grid-template-columns: 1.1fr 1fr; align-items: center; padding: 26px; }
+  .hero { grid-template-columns: 1.25fr 1fr; align-items: center; }
+  .hero .hero-main { grid-column: 1; grid-row: 1; }
+  .hero .podium { grid-column: 2; grid-row: 1 / span 2; grid-template-columns: 1fr; }
+  .hero .hero-stats { grid-column: 1; grid-row: 2; grid-template-columns: repeat(3, minmax(0, 1fr)); align-self: end; }
+  .hero .banner { grid-column: 1 / -1; }
+}

@@ -18,7 +18,7 @@ const S = {
   demo: null, rpc: null, contract: '', wallet: null, balance: null,
   info: null, cfg: null, st: null, clockOffset: 0,
   rounds: new Map(), purchases: new Map(), purchasesAt: new Map(),
-  selected: new Set(), cart: store.get('loto.cart', []),
+  rolling: false, cart: store.get('loto.cart', []),
   busy: false, lastAnnounced: store.get('loto.lastAnnounced', 0),
 };
 const chainNow = () => Date.now() + S.clockOffset;
@@ -42,6 +42,7 @@ $('#themeBtn').onclick = () => {
 function toast(text, kind = '', ms = 6000) {
   const el = document.createElement('div');
   el.className = 'toast ' + kind; el.textContent = text;
+  if (!ms) { el.title = 'Click to close'; el.style.cursor = 'pointer'; el.onclick = () => el.remove(); }
   $('#toasts').append(el);
   if (ms) setTimeout(() => el.remove(), ms);
   return el;
@@ -136,40 +137,67 @@ function tickCountdown() {
 }
 setInterval(tickCountdown, 1000);
 
-// ------------------------------------------------------------- grille et panier
-function buildGrid() {
-  const g = $('#grid20');
-  g.innerHTML = '';
-  for (let n = 1; n <= L.MAXN; n++) {
-    const b = document.createElement('button');
-    b.className = 'ball'; b.type = 'button'; b.textContent = n;
-    b.setAttribute('aria-pressed', 'false'); b.setAttribute('aria-label', 'Number ' + n);
-    b.onclick = () => {
-      if (S.selected.has(n)) S.selected.delete(n);
-      else if (S.selected.size < L.PICK) S.selected.add(n);
-      renderPicker();
-    };
-    g.append(b);
-  }
+// ------------------------------------------------------------- dé à 20 faces et panier
+// Les numéros sont tirés par le dé (hasard du navigateur, crypto.getRandomValues) :
+// le joueur ne choisit pas. Un numéro déjà sorti sur la grille est relancé.
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function rollD20() {
+  const b = new Uint8Array(1);
+  for (;;) { crypto.getRandomValues(b); if (b[0] < 240) return (b[0] % 20) + 1; }
 }
-function renderPicker() {
-  const full = S.selected.size >= L.PICK;
-  $$('#grid20 .ball').forEach((b, i) => {
-    const on = S.selected.has(i + 1);
-    b.setAttribute('aria-pressed', String(on));
-    b.disabled = full && !on;
-  });
-  $('#pickCount').textContent = `${S.selected.size} of ${L.PICK}`;
-  $('#addBtn').disabled = !full;
+function renderSlots(nums, active = -1) {
+  $('#rollSlots').innerHTML = Array.from({ length: L.PICK }, (_, i) =>
+    nums[i] ? ballHtml(nums[i], 'gold') : `<span class="ball slot${i === active ? ' next' : ''}" aria-hidden="true">?</span>`).join('');
+}
+async function spinDie(final, ms) {
+  const die = $('#d20'), num = $('#d20num');
+  if (reduceMotion || ms <= 0) { num.textContent = final; return; }
+  die.classList.remove('landed'); die.classList.add('rolling');
+  die.style.setProperty('--roll-ms', ms + 'ms');
+  const t0 = performance.now();
+  while (performance.now() - t0 < ms - 60) { num.textContent = 1 + Math.floor(Math.random() * 20); await sleep(55); }
+  num.textContent = final;
+  die.classList.remove('rolling'); void die.offsetWidth; die.classList.add('landed');
+  await sleep(Math.min(220, ms / 3));
+}
+async function rollTicket(ms) {
+  const nums = [];
+  renderSlots(nums, 0);
+  while (nums.length < L.PICK) {
+    const r = rollD20();
+    await spinDie(r, ms);
+    if (nums.includes(r)) { $('#pickCount').textContent = `${r} is already on this ticket: rolling again…`; continue; }
+    nums.push(r);
+    renderSlots(nums, nums.length);
+    $('#pickCount').textContent = `Number ${nums.length} of ${L.PICK}: ${r}`;
+  }
+  const grid = [...nums].sort((a, b) => a - b);
+  addToCart(grid);
+  return grid;
+}
+async function rollTickets(n) {
+  if (S.rolling) return;
+  S.rolling = true;
+  $$('#rollBtn, [data-roll]').forEach((b) => (b.disabled = true));
+  try {
+    for (let k = 0; k < n; k++) {
+      await rollTicket(n === 1 ? 650 : n <= 5 ? 260 : 160);
+      if (n > 1) $('#pickCount').textContent = `Ticket ${k + 1} of ${n} added to your cart`;
+    }
+    if (n === 1) $('#pickCount').textContent = 'Ticket added to your cart. Roll again for another one!';
+  } finally {
+    S.rolling = false;
+    $$('#rollBtn, [data-roll]').forEach((b) => (b.disabled = false));
+    $('#rollBtn').textContent = 'Roll another ticket';
+  }
 }
 function addToCart(grid) {
   if (S.cart.length >= 200) { toast('Cart full (200 tickets).', 'err'); return; }
   S.cart.push(grid); store.set('loto.cart', S.cart); renderCart();
 }
-$('#flashBtn').onclick = () => { S.selected = new Set(L.flashGrid()); renderPicker(); };
-$('#clearBtn').onclick = () => { S.selected.clear(); renderPicker(); };
-$('#addBtn').onclick = () => { addToCart([...S.selected].sort((a, b) => a - b)); S.selected.clear(); renderPicker(); };
-$$('[data-flash]').forEach((b) => (b.onclick = () => { for (let k = 0; k < Number(b.dataset.flash); k++) addToCart(L.flashGrid()); }));
+$('#rollBtn').onclick = () => rollTickets(1);
+$$('[data-roll]').forEach((b) => (b.onclick = () => rollTickets(Number(b.dataset.roll))));
 
 function currentPrice() { return S.info ? BigInt(S.info.status === 'closing' ? S.cfg.price : S.info.price) : 2n * L.WEI; }
 function renderCart() {
@@ -216,6 +244,7 @@ async function sendTx(doneLabel, method, args, value = 0n) {
     t1.remove();
     if (!rc.success) throw new Error(rc.error || 'rejected by the contract');
     toast(doneLabel + ' ✓', 'ok');
+    if (method === 'settle') S.purchasesAt.delete(Number(args[0]));   // relire l'achat réglé tout de suite
     await refresh();
     return true;
   } catch (e) {
@@ -249,7 +278,7 @@ function renderMine() {
       let right = '';
       if (r.status === 'done') {
         const prize = BigInt(p.prize);
-        if (prize > 0n) right = p.paid ? `<span class="tag ok">Sent to your wallet</span><span class="amount">+${L.fmtAse(prize)} ASE</span>` : `<span class="amount">+${L.fmtAse(prize)} ASE</span><span class="muted small">Automatic payout in progress</span><button class="btn btn-ghost btn-small" data-claim="${id}:${p.idx}">Claim now</button>`;
+        if (prize > 0n) right = p.paid ? `<span class="tag ok">Claimed</span><span class="amount">+${L.fmtAse(prize)} ASE</span>` : `<span class="amount">+${L.fmtAse(prize)} ASE</span><button class="btn btn-primary btn-small" data-claim="${id}:${p.idx}">Claim</button>`;
         else right = '<span class="muted small">No prize</span>';
       } else if (r.status === 'cancelled') {
         right = p.paid ? '<span class="tag ok">Refunded</span>' : `<button class="btn btn-small" data-refund="${id}:${p.idx}">Refund me</button>`;
@@ -258,8 +287,35 @@ function renderMine() {
     }
     html += '</div>';
   }
-  box.innerHTML = html || '<p class="muted">You haven\'t played in recent draws yet. Pick your numbers just above.</p>';
-  box.querySelectorAll('[data-claim]').forEach((b) => (b.onclick = () => { const [id, i] = b.dataset.claim.split(':').map(Number); sendTx('Prize received', 'settle', [id, i, 1]); }));
+  // Gains à réclamer (sans limite de temps) : bandeau + « tout réclamer »
+  const todo = [];
+  for (const id of ids) {
+    const r = S.rounds.get(id);
+    if (r.status !== 'done' && r.status !== 'cancelled') continue;
+    for (const p of S.purchases.get(id) || []) if (p.b === me && !p.paid && (r.status === 'cancelled' || p.prize !== '0')) todo.push([id, p.idx, r.status === 'cancelled' ? BigInt(r.price) * BigInt(p.g.length) : BigInt(p.prize)]);
+  }
+  const total = todo.reduce((a, x) => a + x[2], 0n);
+  const head = todo.length ? `<div class="claim-banner"><div><strong>${L.fmtAse(total)} ASE</strong> to claim <span class="muted small">(${plural(todo.length, 'prize', 'prizes')}, no time limit)</span></div><button class="btn btn-primary" id="claimAll">${todo.length > 1 ? 'Claim all' : 'Claim'}</button></div>` : '';
+  const oldest = ids.length ? ids[ids.length - 1] : 1;
+  const more = oldest > 1 ? `<p class="small muted older">Looking for an older prize? <button class="link-btn" id="olderBtn">Search older draws</button></p>` : '';
+  box.innerHTML = head + (html || '<p class="muted">You haven\'t played in recent draws yet. Roll the die just above.</p>') + more;
+  const ca = $('#claimAll');
+  if (ca) ca.onclick = async () => {
+    for (let k = 0; k < todo.length; k++) {
+      const [id, i] = todo[k];
+      const ok = await sendTx(todo.length > 1 ? `Prize ${k + 1} of ${todo.length} claimed` : 'Prize claimed', 'settle', [id, i, 1]);
+      if (!ok) break;
+    }
+  };
+  const ob = $('#olderBtn');
+  if (ob) ob.onclick = async () => {
+    ob.disabled = true; ob.textContent = 'Searching…';
+    const ids2 = []; for (let id = oldest - 1; id >= Math.max(1, oldest - 60); id--) ids2.push(id);
+    await pool(ids2, 6, (id) => loadRound(id));
+    await pool(ids2, 4, (id) => loadPurchases(id));
+    renderAll();
+  };
+  box.querySelectorAll('[data-claim]').forEach((b) => (b.onclick = () => { const [id, i] = b.dataset.claim.split(':').map(Number); sendTx('Prize claimed', 'settle', [id, i, 1]); }));
   box.querySelectorAll('[data-refund]').forEach((b) => (b.onclick = () => { const [id, i] = b.dataset.refund.split(':').map(Number); sendTx('Refund received', 'settle', [id, i, 1]); }));
   announceWins();
 }
@@ -277,7 +333,7 @@ function announceWins() {
       seen.add(id + ':' + p.idx);
       const best = Math.max(...p.g.map((g) => L.matches(g, r.nums)));
       toast(`🎉 You won ${L.fmtAse(p.prize)} ASE with ${plural(best, 'match', 'matches')} in draw #${id}! ` +
-        (p.paid ? 'Your winnings have been sent to your wallet.' : 'Your winnings are on their way to your wallet automatically.'), 'ok', 0);
+        (p.paid ? 'Already claimed.' : 'Claim it in “My tickets” whenever you like, it never expires.'), 'ok', 0);
     }
   }
   store.set(key, [...seen].slice(-300));
@@ -504,7 +560,7 @@ function renderAll() {
 
 // ------------------------------------------------------------- démarrage
 (async function start() {
-  buildGrid(); renderPicker(); renderCart();
+  renderSlots([]); renderCart();
   const wantDemo = !CONFIG.CONTRACT || new URLSearchParams(location.search).has('demo');
   if (wantDemo) {
     const { startDemo } = await import('./demo/demo.js');

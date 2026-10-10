@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASE Raffle</title>
+<meta name="description" content="Weekly on-chain raffle on the Asentum testnet: 5 ASE per ticket, 3 winners every Sunday at 21:00 Paris time, verifiable draw.">
+<meta name="theme-color" content="#14143A">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='8' width='26' height='16' rx='3' fill='%23F4C542'/%3E%3Ccircle cx='3' cy='16' r='3' fill='%2314143A'/%3E%3Ccircle cx='29' cy='16' r='3' fill='%2314143A'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../loto/style.css">
+<link rel="stylesheet" href="raffle.css">
+</head>
+<body>
+<div id="demoBar" class="demobar" hidden>
+  <span>Demo mode: the contract runs in your browser, nothing is sent to Asentum.</span>
+  <button id="demoWarp" class="btn btn-small">Skip to Sunday's draw</button>
+</div>
+
+<header class="top">
+  <a class="brand" href="../" aria-label="ASE Game, all games">
+    <span class="brand-ticket" aria-hidden="true"></span>
+    <span class="brand-name">ASE Raffle</span>
+  </a>
+  <span class="net" title="Asentum testnet: ASE has no real value">Testnet</span>
+  <div class="top-actions">
+    <a class="all-games" href="../">All games</a>
+    <button id="themeBtn" class="icon-btn" aria-label="Toggle theme" title="Light / dark theme">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>
+    </button>
+    <button id="walletBtn" class="btn btn-wallet">Connect wallet</button>
+  </div>
+</header>
+
+<main>
+  <section class="hero" aria-labelledby="potLabel">
+    <div class="hero-main">
+      <p id="potLabel" class="hero-label">This week's prize pot</p>
+      <p class="jackpot"><span id="pot">…</span> <span class="unit">ASE</span></p>
+      <p class="hero-sub"><span id="drawWhen">…</span> <span id="rolled" class="tag win" hidden></span></p>
+    </div>
+    <ol class="podium" aria-label="Prizes">
+      <li><span class="medal m1">1</span><span class="p-label">1st prize</span><strong id="prize1">–</strong></li>
+      <li><span class="medal m2">2</span><span class="p-label">2nd prize</span><strong id="prize2">–</strong></li>
+      <li><span class="medal m3">3</span><span class="p-label">3rd prize</span><strong id="prize3">–</strong></li>
+    </ol>
+    <dl class="hero-stats">
+      <div><dt id="countdownLabel">Sales close in</dt><dd id="countdown" class="mono-num">--:--:--</dd></div>
+      <div><dt>Tickets sold</dt><dd id="ticketsSold" class="mono-num">–</dd></div>
+      <div><dt>Players</dt><dd id="players" class="mono-num">–</dd></div>
+    </dl>
+    <p class="banner" id="pausedBanner" hidden>The raffle is paused: ticket sales are suspended.</p>
+  </section>
+
+  <section class="buy panel-like" aria-labelledby="buyTitle">
+    <div class="buy-left">
+      <h2 id="buyTitle">Get your tickets</h2>
+      <p class="muted" id="buyHint">Each ticket is one chance to win. Up to <span class="js-max">10</span> tickets per wallet each week.</p>
+      <div class="stepper" role="group" aria-label="Number of tickets">
+        <button class="step" id="minusBtn" type="button" aria-label="One less ticket">−</button>
+        <output id="qty" aria-live="polite">1</output>
+        <button class="step" id="plusBtn" type="button" aria-label="One more ticket">+</button>
+      </div>
+      <p class="buy-total"><span id="qtyLabel">1 ticket</span><strong id="buyCost">5 ASE</strong></p>
+      <button class="btn btn-primary btn-wide btn-big" id="buyBtn">Connect wallet to play</button>
+      <p class="small muted" id="mineNow"></p>
+    </div>
+    <div class="printer" aria-hidden="true">
+      <div class="printer-head"><span class="printer-light" id="printerLight"></span><span>ASE RAFFLE</span></div>
+      <div class="printer-slot"></div>
+      <div class="printer-out" id="printerOut"></div>
+    </div>
+  </section>
+
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button role="tab" aria-selected="true" data-tab="mine">My tickets</button>
+    <button role="tab" aria-selected="false" data-tab="results">Winners</button>
+    <button role="tab" aria-selected="false" data-tab="rules">Rules</button>
+    <button role="tab" aria-selected="false" data-tab="admin" id="adminTab" hidden>Admin</button>
+  </nav>
+
+  <section class="panel" id="tab-mine" role="tabpanel">
+    <div id="mineBody"><p class="muted">Connect your wallet to see your tickets.</p></div>
+  </section>
+  <section class="panel" id="tab-results" role="tabpanel" hidden>
+    <div id="resultsBody"><p class="muted">Loading…</p></div>
+  </section>
+  <section class="panel rules" id="tab-rules" role="tabpanel" hidden>
+    <h3>The game</h3>
+    <p>Buy tickets during the week: one ticket costs <strong class="js-price">5 ASE</strong>, and each ticket is one chance to win. You can hold up to <strong class="js-max">10</strong> tickets per wallet for each raffle. The draw takes place every <strong class="js-drawtime">Sunday at 21:00</strong> (Paris time); sales close <strong class="js-close">10 minutes</strong> before.</p>
+    <h3>The prizes</h3>
+    <table class="odds">
+      <thead><tr><th scope="col">Winner</th><th scope="col">Prize</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">1st</th><td>50% of the prize pot</td></tr>
+        <tr><th scope="row">2nd</th><td>30% of the prize pot</td></tr>
+        <tr><th scope="row">3rd</th><td>20% of the prize pot</td></tr>
+      </tbody>
+    </table>
+    <p>The prize pot is made of the week's ticket sales. Three <strong>different wallets</strong> win every week: a wallet can't win twice in the same draw.</p>
+    <p>If fewer than 3 wallets took part when sales close, the raffle is extended by one week: your tickets stay valid and the pot keeps growing.</p>
+    <p><strong>Claiming</strong>: winners click <strong>Claim</strong> in “My tickets” to receive their prize. Prizes never expire.</p>
+    <h3>Randomness, and how to verify it</h3>
+    <p>Two independent parties each prepared a long chain of secrets, and only the tip of each chain is stored in the contract. After sales close, both reveal the week's secret; the winning tickets are then computed from both secrets and the fingerprint of every purchase. The “Verify” button redoes the whole computation in your browser.</p>
+    <h3>If a secret isn't revealed</h3>
+    <p>If both secrets aren't published within <strong class="js-reveal">2 hours</strong> after sales close, the raffle is cancelled and every player gets a 100% refund.</p>
+    <p class="muted small">Asentum testnet: testnet ASE has no monetary value.</p>
+  </section>
+
+  <section class="panel" id="tab-admin" role="tabpanel" hidden>
+    <div class="admin-stats" id="adminStats"></div>
+    <div class="admin-grid">
+      <form class="admin-box" id="fPause"><h3>Emergency pause</h3><p class="muted small" id="pauseState"></p><button class="btn" type="submit" id="pauseBtn">Pause</button></form>
+      <form class="admin-box" id="fPrice"><h3>Ticket price</h3><label>Price in ASE <input name="price" inputmode="decimal" required></label><p class="muted small">Applies to the next raffle (or now if no ticket was sold yet).</p><button class="btn" type="submit">Save</button></form>
+      <form class="admin-box" id="fTime"><h3>Draw day and time (Paris)</h3><div class="row"><label>Day <select name="d"><option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option></select></label><label>Hour <input name="h" type="number" min="6" max="23" required></label></div><label>Minutes <input name="m" type="number" min="0" max="59" required></label><button class="btn" type="submit">Save</button></form>
+      <form class="admin-box" id="fMax"><h3>Ticket limits</h3><div class="row"><label>Per wallet <input name="w" type="number" min="1" max="20" required></label><label>Per raffle <input name="t" type="number" min="3" max="100000" required></label></div><button class="btn" type="submit">Save</button></form>
+      <form class="admin-box" id="fTimings"><h3>Timings</h3><div class="row"><label>Close (min before) <input name="close" type="number" min="2" max="60" required></label><label>Reveal (min) <input name="reveal" type="number" min="30" max="1440" required></label></div><button class="btn" type="submit">Save</button></form>
+      <form class="admin-box" id="fCancel"><h3>Cancel the current raffle</h3><p class="muted small">Only before any secret is revealed. Every player is refunded 100%.</p><button class="btn btn-danger" type="submit">Cancel and refund</button></form>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <p><a href="../">ASE Game</a>. Contract <a id="contractLink" target="_blank" rel="noopener"></a> on the Asentum testnet. Data read from <span id="rpcLabel"></span>.</p>
+</footer>
+
+<dialog id="dlgWallet" class="dlg" aria-labelledby="dlgWalletTitle">
+  <h2 id="dlgWalletTitle">Connect a wallet</h2>
+  <div id="walletConnected" hidden>
+    <p>Connected as <strong id="walletAddrFull" class="small"></strong></p>
+    <button class="btn btn-danger btn-wide" id="disconnectBtn" type="button">Disconnect this wallet</button>
+  </div>
+  <div id="walletChoices">
+    <button class="choice" id="useExt"><strong>Asentum Wallet extension</strong><span id="extHint">In this browser</span></button>
+    <button class="choice" id="useTg"><strong>Telegram wallet</strong><span>With a 6-digit code</span></button>
+  </div>
+  <div id="tgPair" hidden>
+    <p>In the Asentum Wallet Telegram bot, open “Connect” and enter this code:</p>
+    <p class="pair-code" id="tgCode">······</p>
+    <p class="muted small">Waiting for your approval…</p>
+  </div>
+  <p class="error" id="walletErr" hidden></p>
+  <form method="dialog"><button class="btn btn-ghost btn-wide">Close</button></form>
+</dialog>
+
+<dialog id="dlgVerify" class="dlg dlg-wide" aria-labelledby="dlgVerifyTitle">
+  <h2 id="dlgVerifyTitle">Draw verification</h2>
+  <div id="verifyBody"></div>
+  <form method="dialog"><button class="btn btn-ghost btn-wide">Close</button></form>
+</dialog>
+
+<div class="confetti" id="confetti" aria-hidden="true"></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<script type="module" src="js/raffle.js"></script>
+</body>
+</html>

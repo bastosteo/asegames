@@ -1,11 +1,12 @@
 // Produit contrat/loto.deploy.js : le contrat compacté pour le déploiement.
 // La CLI fixe la limite de gas d'un déploiement à 1000 × la taille du fichier :
 // il faut rester sous ~12 Ko pour être inclus dans un bloc (mesuré sur la chaîne).
-// Usage : node outils/compacter-contrat.mjs <chemin vers esbuild>
+// Usage : node outils/compacter-contrat.mjs <chemin vers esbuild> [loto|tombola]
 import { readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 const esbuild = process.argv[2] || 'esbuild';
-const src = readFileSync(new URL('../contrat/loto.js', import.meta.url), 'utf8');
+const NAME = process.argv[3] || 'loto';
+const src = readFileSync(new URL(`../contrat/${NAME}.js`, import.meta.url), 'utf8');
 const i = src.lastIndexOf('\n({');
 if (i < 0) throw new Error('objet final introuvable');
 // L'objet final devient "return __API__({...})" dans une fonction, pour que le
@@ -19,5 +20,5 @@ const m = body.lastIndexOf('return __API__(');
 if (m < 0 || body.indexOf('__API__') !== m + 7) throw new Error('marqueur introuvable ou en double');
 body = body.slice(0, m) + '(' + body.slice(m + 'return __API__('.length) + ';';
 const header = '';
-writeFileSync(new URL('../contrat/loto.deploy.js', import.meta.url), header + body + '\n');
-console.log('contrat/loto.deploy.js :', (header + body).length, 'octets');
+writeFileSync(new URL(`../contrat/${NAME}.deploy.js`, import.meta.url), header + body + '\n');
+console.log(`contrat/${NAME}.deploy.js :`, Buffer.byteLength(header + body), 'octets');

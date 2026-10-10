@@ -272,6 +272,7 @@ async function processRound(id, now, values) {
       const sec = secretFor(st.tipC, values);
       if (!sec) { await alert(`❌ Tour ${id} : le bout de chaîne collaborateur du contrat est introuvable dans ma chaîne !`, 'nochain'); return; }
       await send('reveal', ['collab', id, sec]);
+      await announce(id);   // tombola : les gagnants sont tirés dès ce secret
       return;
     }
     // Surveillance croisée : l'autre croupier est-il en retard ?
@@ -295,16 +296,23 @@ async function announce(id) {
   const r = await view('getRound', [id]);
   if (!r || r.status !== 'done' || STATE.lastDrawn >= id) return;
   STATE.lastDrawn = id; saveState();
+  if (r.win) {   // ASE Raffle (tombola)
+    await alert(
+      `🎟️ Tombola n°${id} : ${r.tickets} tickets, ventes ${ase(r.sales)} ASE\n` +
+      r.win.map((w, k) => `${k + 1}er prix : ticket #${w.t + 1}, ${w.b.slice(0, 8)}…${w.b.slice(-4)} → ${ase(r.prizes[k])} ASE`).join('\n').replace('2er', '2e').replace('3er', '3e') +
+      `\nCommission : ${ase(r.commission)} ASE. Les gagnants réclament leur prix sur le site.`, 'drawn' + id, 1e12);
+    return;
+  }
   const [c3, c4, c5] = r.cnt;
   await alert(
     `✅ Tirage n°${id} : ${r.nums.join(' - ')}\n` +
     `${r.grids} grilles, ventes ${ase(r.sales)} ASE\n` +
     `5 bons : ${c5}${c5 ? ` (${ase(r.per[2])} ASE chacun)` : ''} · 4 bons : ${c4}${c4 ? ` (${ase(r.per[1])} ASE)` : ''} · 3 bons : ${c3}${c3 ? ` (${ase(r.per[0])} ASE)` : ''}\n` +
-    `Gains envoyés automatiquement aux gagnants.\n` +
+    `Les gagnants réclament leurs gains sur le site (bouton Claim).\n` +
     `Commission : ${ase(r.commission)} ASE · jackpot reporté : ${ase(r.carryOut)} ASE`, 'drawn' + id, 1e12);
 }
 
-// Paie les gains (tours "done") et rembourse (tours "cancelled") récents.
+// Rembourse les joueurs des tours annulés récents (les gains, eux, se réclament).
 // Ce qui reste à payer est lu sur la chaîne : rien ne dépend d'un fichier local.
 async function settle(st, now) {
   const from = Math.max(1, st.next - 10);
@@ -312,6 +320,9 @@ async function settle(st, now) {
     const r = await view('getRound', [id]);
     if (!r || !r.buys || (r.status !== 'done' && r.status !== 'cancelled')) continue;
     const isPay = r.status === 'done';
+    // Les gains se RÉCLAMENT par les joueurs (bouton Claim, sans limite de temps) :
+    // le croupier ne fait que les remboursements des tirages annulés.
+    if (isPay) continue;
     // Le collaborateur ne paie qu'en secours (si l'owner traîne).
     if (CFG.role === 'collab' && now - Number(r.closeTs) < (CFG.backupAfterMin + 30) * 60000) continue;
     const list = [];
@@ -336,7 +347,8 @@ async function tick(values) {
   const info = await view('info');
   const now = Number(info.now);
   // 1) Fermer les ventes à l'heure (le contrat le fait aussi au prochain achat)
-  if (info.status === 'closing' && CFG.role === 'owner') await send('poke', []);
+  // (le collaborateur prend le relais si l'owner ne l'a pas fait 10 min après la fermeture)
+  if (info.status === 'closing' && (CFG.role === 'owner' || now - Number(info.closeTs) > 10 * 60000)) await send('poke', []);
   const st = await view('getState');
   // 2) Tirage du prochain tour en attente
   if (st.next < st.cur) await processRound(st.next, now, values);
@@ -437,9 +449,9 @@ async function status() {
   const values = existsSync(chainFile) ? loadChain() : [];
   const tip = CFG.role === 'owner' ? st.tipO : st.tipC;
   console.log({
-    role: CFG.role, tour: info.round, statut: info.status, ventes: ase(info.sales) + ' ASE', grilles: info.grids,
+    role: CFG.role, tour: info.round, statut: info.status, ventes: ase(info.sales) + ' ASE', grilles: info.grids ?? info.tickets,
     tirage: new Date(Number(info.drawTs)).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' }),
-    jackpotEstime: ase(info.jackpotEstimate) + ' ASE', prochainATirer: info.nextToDraw, pause: info.paused,
+    [info.pot !== undefined ? 'cagnotte' : 'jackpotEstime']: ase(info.pot ?? info.jackpotEstimate ?? 0) + ' ASE', prochainATirer: info.nextToDraw, pause: info.paused,
     maChaine: values.length ? (values.indexOf(tip) > 0 ? `OK, ${values.indexOf(tip)} secrets restants` : 'NE CORRESPOND PAS au contrat') : 'absente',
   });
 }

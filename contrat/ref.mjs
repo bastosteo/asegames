@@ -76,3 +76,25 @@ export function parisHM(ms) {
   const f = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
   return f.format(new Date(ms));
 }
+
+// --------------------------- TOMBOLA (ASE Raffle) ---------------------------
+export const raffleInitialDigest = (id) => sha('ASERAFFLE-ROUND|' + id);
+export const raffleNextDigest = (prev, buyer, n, seed, idx) => sha(prev + '|' + buyer + '|' + n + '|' + seed + '|' + idx);
+// purchases : [{ b, n, first }] dans l'ordre ; renvoie 3 gagnants { t, i, b }
+export function raffleWinners(id, sO, sC, digest, purchases) {
+  const total = purchases.reduce((a, p) => a + p.n, 0);
+  const win = [];
+  for (let k = 0; win.length < 3 && k < 3000; k++) {
+    const h = sha('ASERAFFLE|' + id + '|' + sO + '|' + sC + '|' + digest + '|' + k);
+    const t = Number(BigInt('0x' + h.slice(0, 13)) % BigInt(total));
+    const i = purchases.findIndex((p) => t >= p.first && t < p.first + p.n);
+    if (win.some((w) => w.b === purchases[i].b)) continue;
+    win.push({ t, i, b: purchases[i].b });
+  }
+  return win;
+}
+export function rafflePrizes(sales) {
+  const S = BigInt(sales), commission = S / 5n, pool = S - commission;
+  const p1 = pool / 2n, p2 = pool * 3n / 10n;
+  return { commission, owner: commission * 3n / 4n, prizes: [p1, p2, pool - p1 - p2] };
+}

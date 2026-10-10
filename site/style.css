@@ -142,11 +142,27 @@ button { font: inherit; color: inherit; }
 .picker, .cart, .panel { background: var(--deep); border: 1px solid var(--line); border-radius: var(--r-panel); padding: 20px 18px; box-shadow: var(--shadow); }
 .picker h2 { margin-bottom: .1em; }
 .pick-count { color: var(--muted); margin-bottom: 14px; font-variant-numeric: tabular-nums; }
-.grid20 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; justify-items: center; max-width: 440px; }
-.grid20 .ball { --size: min(13vw, 58px); cursor: pointer; transition: transform .12s, background .12s; }
-.grid20 .ball:hover { transform: translateY(-2px); }
-.grid20 .ball[aria-pressed="true"] { color: var(--gold-ink); background: radial-gradient(circle at 32% 28%, #FFF7D6 0 8%, var(--gold) 34%, #C99A1A 100%); transform: scale(1.06); }
-.grid20 .ball:disabled { cursor: not-allowed; opacity: .4; }
+.dice-stage { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; margin: 6px 0 4px; }
+.d20 { width: clamp(108px, 28vw, 150px); aspect-ratio: 1; filter: drop-shadow(0 14px 18px rgba(0,0,0,.45)); }
+.d20-svg { width: 100%; height: 100%; overflow: visible; }
+.d20-body { fill: url(#d20g); stroke: #8A6408; stroke-width: 1.4; stroke-linejoin: round; }
+.d20-face { fill: #FFF1B8; stroke: #8A6408; stroke-width: 1.2; stroke-linejoin: round; }
+.d20-edges path { fill: none; stroke: #8A6408; stroke-width: 1.2; stroke-linecap: round; }
+#d20num { font-family: var(--display); font-weight: 800; font-size: 22px; fill: var(--gold-ink); font-variant-numeric: tabular-nums; }
+.d20.rolling { animation: d20-roll var(--roll-ms, 650ms) cubic-bezier(.25,.7,.35,1) both; }
+.d20.landed { animation: d20-land .28s cubic-bezier(.2,.9,.3,1.4) both; }
+@keyframes d20-roll {
+  0% { transform: translateY(0) rotate(0) scale(1); }
+  30% { transform: translateY(-18px) rotate(260deg) scale(.92); }
+  60% { transform: translateY(4px) rotate(520deg) scale(1.02); }
+  100% { transform: translateY(0) rotate(720deg) scale(1); }
+}
+@keyframes d20-land { 0% { transform: scale(1.12); } 100% { transform: scale(1); } }
+.roll-slots { display: flex; gap: 8px; flex-wrap: wrap; }
+.roll-slots .ball { --size: min(12vw, 52px); }
+.roll-slots .ball.gold { animation: drop .35s cubic-bezier(.2,.9,.3,1.3) both; }
+.roll-slots .slot { background: transparent; border: 2px dashed var(--line); color: var(--muted); box-shadow: none; }
+.roll-slots .slot.next { border-color: var(--gold); color: var(--gold); }
 .pick-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
 .pick-actions .btn-primary { margin-left: auto; }
 .quick { margin: 14px 0 0; color: var(--muted); font-size: .92rem; }
@@ -252,7 +268,6 @@ input:focus-visible { outline: 2px solid var(--indigo-hi); outline-offset: 0; }
   .admin-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .admin-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .admin-box.wide { grid-column: span 2; }
-  .grid20 { gap: 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -264,3 +279,16 @@ input:focus-visible { outline: 2px solid var(--indigo-hi); outline-offset: 0; }
 .balls.reveal .ball:nth-child(3) { animation-delay: .16s; }
 .balls.reveal .ball:nth-child(4) { animation-delay: .24s; }
 .balls.reveal .ball:nth-child(5) { animation-delay: .32s; }
+
+/* ---------- Gains à réclamer ---------- */
+.claim-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 16px; margin-bottom: 16px; border-radius: var(--r-ctl); background: linear-gradient(135deg, rgba(244,197,66,.18), rgba(244,197,66,.06)); border: 1px solid rgba(244,197,66,.45); }
+.claim-banner strong { font-family: var(--display); font-size: 1.3rem; color: var(--gold); }
+:root[data-theme="light"] .claim-banner strong { color: #8A6408; }
+.older { margin-top: 14px; }
+
+/* En-tête sur petit écran : le nom ne se coupe pas, le bouton wallet reste dans l'écran */
+.brand-name { white-space: nowrap; }
+@media (max-width: 520px) {
+  .btn-wallet { max-width: 42vw; overflow: hidden; text-overflow: ellipsis; }
+  .net { display: none; }
+}

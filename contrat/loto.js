@@ -15,8 +15,8 @@
 //     bonus aux 4 et 3 bons (en proportion de leur gain fixe).
 //     Tout le reste (jackpot non gagné, reste de la caisse) → jackpot suivant.
 //     Un gagnant à 4 bons ne touche jamais plus que 80 % d'un 5 bons.
-//   - Les gains sont ENVOYÉS automatiquement par le croupier (settle) ;
-//     l'événement "Paid" indique le nombre de bons numéros.
+//   - Les gains se RÉCLAMENT (settle de son achat, bouton Claim du site),
+//     sans limite de temps ; l'événement "Paid" indique le nombre de bons numéros.
 //   - Hasard : double secret en chaîne (owner puis collaborateur),
 //     révélés APRÈS la fermeture des ventes. Numéros =
 //     SHA-256("LOTOASE|tour|secretOwner|secretCollab|empreinteDesGrilles").

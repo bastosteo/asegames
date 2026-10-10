@@ -146,6 +146,21 @@ Ensuite il met à jour le site, les croupiers du PC et GitHub, puis remet le sit
 Il peut être relancé sans risque : il ne redéploie jamais un contrat déjà en place.
 L'ancien contrat garde son jackpot de test (aucune fonction de retrait, par sécurité).
 
+## 3 ter. ASE Raffle (tombola hebdomadaire)
+
+Règles : ticket à 5 ASE, 10 maximum par wallet ; tirage chaque dimanche à 21h (Paris), ventes
+fermées 10 min avant ; commission 20 % (75 % owner, 25 % collaborateur) ; cagnotte = 80 % des
+ventes, partagée 50 / 30 / 20 % entre 3 wallets différents ; moins de 3 participants → tombola
+prolongée d'une semaine ; prix à réclamer (bouton Claim) sans limite de temps ; secrets non
+révélés en 2 h → annulation et remboursement.
+
+Installation : double-clique sur `Deployer-tombola.bat` (nouveau zip dans les Téléchargements).
+Il crée deux nouvelles chaînes de secrets propres à la tombola (`croupier/data-tombola` et
+`croupier/data-tombola-collab`, **à sauvegarder**), puis te demande (o/n) avant les 2 transactions ⚠️
+(déploiement et `init`), range les secrets dans GitHub (`RAFFLE_OWNER_CHAIN_SEED`,
+`RAFFLE_COLLAB_CHAIN_SEED`, variable `RAFFLE_CONTRACT`) et met le site en ligne. Les croupiers
+GitHub gèrent ensuite le loto et la tombola dans le même passage.
+
 ## 4 bis. Les croupiers sur GitHub (gratuit, PC éteint possible)
 
 GitHub lance les deux croupiers toutes les 10 minutes sur ses propres serveurs (gratuit pour un dépôt

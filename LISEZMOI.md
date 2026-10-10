@@ -1,4 +1,4 @@
-# ASE Game : ASE Loto
+# ASE Game : ASE Loto et ASE Raffle
 
 Loto à numéros sur le testnet Asentum : 5 numéros sur 20, une grille = 2 ASE, un tirage par jour à 21h
 (heure de Paris), jackpot partagé + gains fixes (4 et 3 bons) avec bonus, 80 % redistribués, commission
@@ -17,6 +17,10 @@ Loto à numéros sur le testnet Asentum : 5 numéros sur 20, une grille = 2 ASE,
 | `croupier/wsl/` | Service systemd pour WSL |
 | `.github/workflows/croupier.yml` | Les croupiers sur GitHub Actions (toutes les 10 min, gratuit) |
 | `outils/installer-github.sh` + `.bat` | Installation des croupiers sur GitHub en un double-clic |
+| `contrat/tombola.js` (+ `.deploy.js`, `tombola.test.mjs`) | ASE Raffle : tombola hebdomadaire (82 tests) |
+| `tombola/` | Page du site ASE Raffle (servie sur `/raffle/`) |
+| `croupier/e2e-tombola.test.mjs` | Croupier + tombola sur une fausse chaîne |
+| `outils/deployer-tombola.sh` + `Deployer-tombola.bat` | Installation de la tombola (chaînes, contrat, GitHub, site) |
 | `outils/deployer-loto-v2.sh` + `.bat` | Passage au contrat v2 (pause de l'ancien, déploiement, init, mise à jour) |
 | `site/` | ASE Loto, le site du loto (statique ; `?demo` pour la démo) |
 | `accueil/` | ASE Game : page d'accueil avec la liste des jeux, et `slot/` (bientôt) |

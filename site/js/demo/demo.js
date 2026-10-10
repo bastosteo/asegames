@@ -46,19 +46,7 @@ export async function startDemo(contractUrl) {
       else if (r.status === 'tally') c.call(COLLAB, 'tally', [r.id, 400]);
       else break;
     }
-    const s = c.view('getState');
-    // Paiement automatique des tours terminés, sauf le dernier : ses gains
-    // restent « à réclamer » pour que tu puisses essayer le bouton.
-    for (let id = Math.max(1, s.next - 6); id < s.next - 1; id++) {
-      const r = c.view('getRound', [id]);
-      if (r.status !== 'done') continue;
-      let i = 0;
-      while (i < r.buys) {
-        const res = c.call(COLLAB, 'settle', [id, i, 400]);
-        if (!res.success) break;
-        i = res.returnValue.next;
-      }
-    }
+    // Les gains ne sont pas envoyés : chaque gagnant les réclame (bouton Claim).
   }
   function randomPlayers(n) {
     for (let k = 0; k < n; k++) {

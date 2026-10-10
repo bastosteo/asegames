@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ASE Loto</title>
-<meta name="description" content="Number lottery on the Asentum testnet: 5 numbers out of 20, one draw every day at 21:00 Paris time, verifiable randomness, prizes paid automatically.">
+<meta name="description" content="Number lottery on the Asentum testnet: 5 numbers out of 20, one draw every day at 21:00 Paris time, verifiable randomness, prizes claimable at any time.">
 <meta name="theme-color" content="#14143A">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%234949DF'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23F4C542'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -57,25 +57,33 @@
   <!-- ===== Jouer ===== -->
   <section class="play" aria-labelledby="playTitle">
     <div class="picker">
-      <h2 id="playTitle">Pick 5 numbers</h2>
-      <p class="pick-count" id="pickCount" aria-live="polite">0 of 5</p>
-      <div class="grid20" id="grid20" role="group" aria-label="Numbers 1 to 20"></div>
-      <div class="pick-actions">
-        <button class="btn btn-ghost" id="flashBtn" title="5 random numbers">Quick pick</button>
-        <button class="btn btn-ghost" id="clearBtn">Clear</button>
-        <button class="btn btn-primary" id="addBtn" disabled>Add ticket</button>
+      <h2 id="playTitle">Roll the dice</h2>
+      <p class="pick-count" id="pickCount" aria-live="polite">The 20-sided die picks your 5 numbers. No choices, pure luck.</p>
+      <div class="dice-stage">
+        <div class="d20" id="d20" aria-hidden="true">
+        <svg viewBox="0 0 100 100" class="d20-svg">
+          <defs><linearGradient id="d20g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE68A"/><stop offset=".55" stop-color="#F4C542"/><stop offset="1" stop-color="#B8860B"/></linearGradient></defs>
+          <polygon class="d20-body" points="50,3 91,26.5 91,73.5 50,97 9,73.5 9,26.5"/>
+          <polygon class="d20-face" points="50,21 79,69 21,69"/>
+          <g class="d20-edges"><path d="M50 3 50 21M91 26.5 50 21M91 26.5 79 69M91 73.5 79 69M50 97 79 69M50 97 21 69M9 73.5 21 69M9 26.5 21 69M9 26.5 50 21"/></g>
+          <text id="d20num" x="50" y="58" text-anchor="middle" dominant-baseline="middle">20</text>
+        </svg>
+        </div>
+        <div class="balls roll-slots" id="rollSlots" aria-label="Rolled numbers"></div>
       </div>
-      <p class="quick">Or add instantly
-        <button class="chip" data-flash="1">1 quick pick</button>
-        <button class="chip" data-flash="5">5 quick picks</button>
-        <button class="chip" data-flash="10">10 quick picks</button>
+      <div class="pick-actions">
+        <button class="btn btn-primary btn-wide" id="rollBtn" type="button">Roll a ticket</button>
+      </div>
+      <p class="quick">Or roll several at once
+        <button class="chip" data-roll="5" type="button">5 tickets</button>
+        <button class="chip" data-roll="10" type="button">10 tickets</button>
       </p>
     </div>
 
     <aside class="cart" aria-labelledby="cartTitle">
       <h2 id="cartTitle">My cart</h2>
       <ol class="cart-list" id="cartList"></ol>
-      <p class="cart-empty" id="cartEmpty">Your cart is empty. Pick 5 numbers or add quick picks.</p>
+      <p class="cart-empty" id="cartEmpty">Your cart is empty. Roll the die to get a ticket.</p>
       <div class="cart-foot">
         <p class="cart-total"><span id="cartCount">0 tickets</span><strong id="cartSum">0 ASE</strong></p>
         <button class="btn btn-primary btn-wide" id="playBtn" disabled>Confirm my tickets</button>
@@ -117,7 +125,7 @@
 
   <section class="panel rules" id="tab-rules" role="tabpanel" hidden>
     <h3>The game</h3>
-    <p>Pick 5 numbers from 1 to 20 (or let the site pick them at random with “Quick pick”). A ticket costs <strong class="js-price">2 ASE</strong>. One draw takes place every day at <strong class="js-drawtime">21:00</strong> (Paris time). Sales close <strong class="js-close">10 minutes</strong> before, then the next draw opens.</p>
+    <p>Roll the 20-sided die: it picks the 5 numbers of your ticket (from 1 to 20) for you, pure luck. A ticket costs <strong class="js-price">2 ASE</strong>. One draw takes place every day at <strong class="js-drawtime">21:00</strong> (Paris time). Sales close <strong class="js-close">10 minutes</strong> before, then the next draw opens.</p>
     <h3>Prizes</h3>
     <table class="odds">
       <thead><tr><th scope="col">Tier</th><th scope="col">Odds per ticket</th><th scope="col">Prize</th></tr></thead>
@@ -129,7 +137,7 @@
     </table>
     <p><strong>Bonus</strong>: if nobody hits 5 matches, half of the draw's 35% jackpot share is split among the 4- and 3-match winners; the other half rolls over to the next draw's jackpot.</p>
     <p>Fixed prizes are paid from a pool of 45% of sales. On nights with so many winners that the pool isn't enough, both fixed prizes are reduced proportionally: 4 matches always win more than 3 matches, and 5 matches more than 4. Whatever is left in the pool goes to the jackpot.</p>
-    <p><strong>Nothing to do on your side</strong>: prizes are sent automatically to your wallet after the draw, and the site shows “You won X ASE with N matches…”.</p>
+    <p><strong>Claiming</strong>: after the draw, the site shows “You won X ASE with N matches”. Click <strong>Claim</strong> in “My tickets” to receive your prize in your wallet. Prizes never expire: you can claim them at any time.</p>
     <h3>Randomness, and how to verify it</h3>
     <p>A blockchain has no built-in randomness. Here, two independent parties (the operator and a collaborator) each prepared a long chain of secrets, and only the tip of each chain is stored in the contract. After sales close, each one reveals the day's secret; the contract checks it matches their chain. The numbers are then computed from both secrets and the fingerprint of every ticket played.</p>
     <p>The “Verify this draw” button redoes the whole computation in your browser.</p>
