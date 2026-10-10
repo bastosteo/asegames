@@ -1,0 +1,10 @@
+{
+  "name": "ase-loto-croupier",
+  "private": true,
+  "type": "module",
+  "description": "Croupier d'ASE Loto (signature directe pour GitHub Actions)",
+  "dependencies": {
+    "@asentum/crypto": "0.1.0",
+    "@asentum/types": "0.1.0"
+  }
+}

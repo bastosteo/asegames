@@ -1,0 +1,21 @@
+# Service systemd pour WSL Debian : lance le croupier au démarrage de WSL
+# et le redémarre automatiquement s'il s'arrête.
+[Unit]
+Description=Croupier Loto ASE
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=bastos
+WorkingDirectory=/home/bastos/loto-ase/croupier
+Environment=HOME=/home/bastos
+# Node installé via nvm (v22.23.3) + CLI asentum dans ~/.asentum/bin
+Environment=PATH=/home/bastos/.asentum/bin:/home/bastos/.nvm/versions/node/v22.23.3/bin:/home/bastos/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/bastos/.nvm/versions/node/v22.23.3/bin/node /home/bastos/loto-ase/croupier/croupier.mjs run
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

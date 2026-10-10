@@ -1,0 +1,59 @@
+# Croupiers d'ASE Loto, exécutés gratuitement par GitHub toutes les 10 minutes.
+# Chaque passage : owner (fermeture, secret owner), collaborateur (secret collab),
+# puis owner encore (comptage, tirage, paiements). S'il n'y a rien à faire, il s'arrête en ~20 s.
+# Les secrets (graines) sont rangés dans Settings → Secrets and variables → Actions, jamais dans le code.
+name: Croupiers ASE Loto
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: croupiers
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  croupiers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CONTRACT: ${{ vars.CONTRACT || 'ase15nquypra8kvqkkkaj4k2umje2d9sa0s0jyaxlm' }}
+      RPC_URL: ${{ vars.RPC_URL || 'https://testnet.asentum.com' }}
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      ENV_FILE: /nonexistent
+      MAX_RUN_MS: '480000'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Installer
+        run: npm install --prefix croupier --no-audit --no-fund
+      - name: Croupier owner
+        env:
+          ROLE: owner
+          CROUPIER_NAME: croupier-owner-github
+          SIGNER_SEED: ${{ secrets.OWNER_SIGNER_SEED }}
+          CHAIN_SEED: ${{ secrets.OWNER_CHAIN_SEED }}
+        run: node croupier/croupier.mjs once
+      - name: Croupier collaborateur
+        if: ${{ !cancelled() }}
+        env:
+          ROLE: collab
+          CROUPIER_NAME: croupier-collab-github
+          SIGNER_SEED: ${{ secrets.COLLAB_SIGNER_SEED }}
+          CHAIN_SEED: ${{ secrets.COLLAB_CHAIN_SEED }}
+        run: node croupier/croupier.mjs once
+      - name: Croupier owner (comptage et paiements)
+        if: ${{ !cancelled() }}
+        env:
+          ROLE: owner
+          CROUPIER_NAME: croupier-owner-github
+          SIGNER_SEED: ${{ secrets.OWNER_SIGNER_SEED }}
+          CHAIN_SEED: ${{ secrets.OWNER_CHAIN_SEED }}
+        run: node croupier/croupier.mjs once

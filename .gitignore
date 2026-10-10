@@ -1,0 +1,15 @@
+# SECRETS : ne jamais publier
+croupier/data/
+croupier/data-*/
+croupier/.env
+croupier/.env.*
+!croupier/.env.exemple
+*.secret.json
+# Fichiers générés
+node_modules/
+asegame/
+apercu/
+ses-check/
+*.zip
+**/*-chain.json
+**/gh-signers.json

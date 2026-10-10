@@ -1,0 +1,27 @@
+# ASE Game : ASE Loto
+
+Loto à numéros sur le testnet Asentum : 5 numéros sur 18, une grille = 2 ASE, un tirage par jour
+(heure réglable, Paris), pari mutuel (95 % redistribués, 5 % de commission 80/20), hasard par double
+chaîne de secrets owner + collaborateur.
+
+| Dossier | Contenu |
+|---|---|
+| `contrat/loto.js` | Le contrat, lisible et commenté (source de référence) |
+| `contrat/loto.deploy.js` | Le même contrat compacté : **c'est lui qu'on déploie** (limite de taille) |
+| `outils/compacter-contrat.mjs` | Regénère `loto.deploy.js` à partir de `loto.js` |
+| `contrat/loto.test.mjs` | 135 tests automatiques |
+| `contrat/simulation.mjs` | Simulation de nombreux tirages (conservation de l'argent au wei près) |
+| `contrat/ref.mjs` | Implémentation de référence indépendante (tests, vérification) |
+| `croupier/croupier.mjs` | Le croupier (révélations, comptage, paiements, alertes Telegram) |
+| `croupier/e2e.test.mjs` | Test du croupier sur une fausse chaîne locale (CLI et mode GitHub) |
+| `croupier/wsl/` | Service systemd pour WSL |
+| `.github/workflows/croupier.yml` | Les croupiers sur GitHub Actions (toutes les 10 min, gratuit) |
+| `outils/installer-github.sh` + `.bat` | Installation des croupiers sur GitHub en un double-clic |
+| `site/` | ASE Loto, le site du loto (statique ; `?demo` pour la démo) |
+| `accueil/` | ASE Game : page d'accueil avec la liste des jeux, et `slot/` (bientôt) |
+| `outils/assembler-asegame.sh` | Assemble `asegame/` (accueil + `loto/` + `slot/`) à mettre sur Cloudflare Pages |
+| `sim/` | Simulateur de la machine virtuelle Asentum + faux nœud local |
+| `sonde/` | Résultats de la sonde (ce qui a été vérifié sur la vraie chaîne) |
+| `GUIDE.md` | Déploiement pas à pas + checklist |
+
+Commencer par `GUIDE.md`.
