@@ -3,7 +3,7 @@
    Noir profond, lignes de repère en pointillés, titres Plus Jakarta Sans
    en deux tons, textes DM Mono, boutons carrés en majuscules espacées.
    ===================================================================== */
-:root, :root[data-theme="dark"] {
+:root, :root[data-theme="dark"], :root[data-theme="light"] {
   --night: #000000; --deep: #0A0A0A; --deeper: #050505; --line: #1F1F1F; --line-strong: #2E2E2E;
   --ink: #FFFFFF; --muted: #8C8C8C; --dim: #A6A6A6;
   --indigo: #4949DF; --indigo-hi: #8B8BFF; --violet: #C77DFF;
@@ -14,16 +14,10 @@
   --body: "DM Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
   color-scheme: dark;
 }
-:root[data-theme="light"] {
-  --night: #FFFFFF; --deep: #FAFAFA; --deeper: #F2F2F2; --line: #E3E3E3; --line-strong: #CFCFCF;
-  --ink: #000000; --muted: #6B6B6B; --dim: #8C8C8C; --indigo-hi: #3434C8; --violet: #7B2CBF;
-  --ball-face: #FFFFFF; --ball-ink: #0A0A0A; color-scheme: light;
-}
+/* Uniquement en mode sombre : même si le système ou un ancien réglage demande le clair */
 @media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
-    --night: #000000; --deep: #0A0A0A; --deeper: #050505; --line: #1F1F1F; --ink: #FFFFFF; --muted: #8C8C8C;
-    --indigo-hi: #8B8BFF; --violet: #C77DFF; --ball-face: #F2F2F2; --ball-ink: #0A0A0A; color-scheme: dark;
-  }
+  :root:not([data-theme="dark"]) { --night: #000000; --deep: #0A0A0A; --deeper: #050505; --line: #1F1F1F; --ink: #FFFFFF; --muted: #8C8C8C;
+    --indigo-hi: #8B8BFF; --violet: #C77DFF; --ball-face: #F2F2F2; --ball-ink: #0A0A0A; color-scheme: dark; }
 }
 
 /* Repères en pointillés, comme sur asentum.com */

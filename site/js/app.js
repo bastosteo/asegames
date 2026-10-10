@@ -29,14 +29,7 @@ const plural = (n, one, many) => `${n.toLocaleString('en-GB')} ${n === 1 ? one :
 
 // ------------------------------------------------------------- thème
 function applyTheme(t) { if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }
-applyTheme(store.get('asegame.theme', null));
-$('#themeBtn').onclick = () => {
-  const dark = document.documentElement.dataset.theme
-    ? document.documentElement.dataset.theme === 'dark'
-    : !matchMedia('(prefers-color-scheme: light)').matches;
-  const next = dark ? 'light' : 'dark';
-  applyTheme(next); store.set('asegame.theme', next);
-};
+applyTheme('dark');   // ASE Game est uniquement en mode sombre, comme Asentum
 
 // ------------------------------------------------------------- notifications
 function toast(text, kind = '', ms = 6000) {

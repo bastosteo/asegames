@@ -10,12 +10,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
 const applyTheme = (t) => { if (t) document.documentElement.dataset.theme = t; };
-applyTheme(store.get('asegame.theme', null));
-$('#themeBtn').onclick = () => {
-  const cur = document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-  const next = cur === 'dark' ? 'light' : 'dark';
-  applyTheme(next); store.set('asegame.theme', next);
-};
+applyTheme('dark');   // ASE Game est uniquement en mode sombre, comme Asentum
 
 let info = null, offset = 0;
 async function load() {

@@ -30,11 +30,7 @@ const prizesOf = (sales) => { const S0 = BigInt(sales), pool = S0 - S0 / 5n, p1 
 
 // ------------------------------------------------------------- thème, notifications
 function applyTheme(t) { if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }
-applyTheme(store.get('asegame.theme', null));
-$('#themeBtn').onclick = () => {
-  const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : !matchMedia('(prefers-color-scheme: light)').matches;
-  const next = dark ? 'light' : 'dark'; applyTheme(next); store.set('asegame.theme', next);
-};
+applyTheme('dark');   // ASE Game est uniquement en mode sombre, comme Asentum
 function toast(text, kind = '', ms = 6000) {
   const el = document.createElement('div');
   el.className = 'toast ' + kind; el.textContent = text;
