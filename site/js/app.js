@@ -494,8 +494,9 @@ function renderRulesValues() {
   $$('.js-drawtime').forEach((e) => (e.textContent = `${String(S.cfg.drawH).padStart(2, '0')}:${String(S.cfg.drawM).padStart(2, '0')}`));
   $$('.js-close').forEach((e) => (e.textContent = plural(S.cfg.closeMin, 'minute', 'minutes')));
   $$('.js-reveal').forEach((e) => (e.textContent = S.cfg.revealMin % 60 === 0 ? plural(S.cfg.revealMin / 60, 'hour', 'hours') : plural(S.cfg.revealMin, 'minute', 'minutes')));
-  $$('.js-g4').forEach((e) => (e.textContent = L.fmtAse(p * 25n) + ' ASE'));
-  $$('.js-g3').forEach((e) => (e.textContent = L.fmtAse((p * 5n) / 2n) + ' ASE'));
+  const amount = (x) => L.fmtAse(x, x % L.WEI === 0n ? 0 : 2) + ' ASE';
+  $$('.js-g4').forEach((e) => (e.textContent = amount(p * 25n)));
+  $$('.js-g3').forEach((e) => (e.textContent = amount((p * 5n) / 2n)));
 }
 function renderAll() {
   renderWallet(); renderHero(); renderCart(); renderMine(); renderResults(); renderRanking(); renderAdmin(); renderRulesValues();

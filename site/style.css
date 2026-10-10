@@ -197,7 +197,7 @@ button { font: inherit; color: inherit; }
 .rules h3 { margin-top: 1.3em; }
 .rules h3:first-child { margin-top: 0; }
 .odds { border-collapse: collapse; width: 100%; margin: 6px 0 14px; font-size: .93rem; }
-.odds th, .odds td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.odds th, .odds td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
 .odds thead th { color: var(--muted); font-weight: 600; }
 
 /* Admin */

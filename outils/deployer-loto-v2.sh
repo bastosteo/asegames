@@ -9,8 +9,10 @@ AIDE="${AIDE:-node outils/loto-aide.mjs}"
 oui() { local r; read -r -p "$1 (o/n) " r; [[ "$r" =~ ^[oOyY] ]]; }
 PAY_COLLAB_ASE1="ase1ludcdjwrnfdfl6wujdahvkrsxst6vtve7qs3kw"
 
-OLD=$(grep -o "ase1[0-9a-z]\{38\}" site/js/config.js | head -1)
+OLD="ase15nquypra8kvqkkkaj4k2umje2d9sa0s0jyaxlm"      # ancien contrat (v1)
+CFG=$(grep -o "ase1[0-9a-z]\{38\}" site/js/config.js | head -1)
 [ -f .loto-v2-contrat ] && NEW=$(cat .loto-v2-contrat) || NEW=""
+[ -z "$NEW" ] && [ "$CFG" != "$OLD" ] && NEW="$CFG"   # contrat v2 déjà connu du site
 if [ -f .loto-v2-fait ]; then
   # Déjà fait : on ne redéploie JAMAIS ; on remet seulement le site et les croupiers à jour.
   NEW=$(cat .loto-v2-fait)
@@ -66,7 +68,7 @@ echo "$NEW" > .loto-v2-fait
 fi
 
 echo "[5/7] Site, croupiers du PC et GitHub pointent vers le nouveau contrat…"
-[ "$OLD" = "$NEW" ] || sed -i "s/$OLD/$NEW/g" site/js/config.js .github/workflows/croupier.yml
+sed -i "s/$OLD/$NEW/g" site/js/config.js .github/workflows/croupier.yml
 for f in croupier/.env croupier/.env.collab; do [ -f "$f" ] && sed -i "s/^CONTRACT=.*/CONTRACT=$NEW/" "$f"; done
 R=""
 if command -v gh >/dev/null && gh auth status >/dev/null 2>&1; then

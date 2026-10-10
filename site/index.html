@@ -119,14 +119,12 @@
     <h3>The game</h3>
     <p>Pick 5 numbers from 1 to 20 (or let the site pick them at random with “Quick pick”). A ticket costs <strong class="js-price">2 ASE</strong>. One draw takes place every day at <strong class="js-drawtime">21:00</strong> (Paris time). Sales close <strong class="js-close">10 minutes</strong> before, then the next draw opens.</p>
     <h3>Prizes</h3>
-    <p>80% of sales go back to players. The remaining 20% is the commission (75% operator, 25% collaborator).</p>
     <table class="odds">
       <thead><tr><th scope="col">Tier</th><th scope="col">Odds per ticket</th><th scope="col">Prize</th></tr></thead>
       <tbody>
-        <tr><th scope="row">5 matches</th><td>1 in 15,504</td><td>Jackpot: 35% of the draw's sales + rollover, split among the winners</td></tr>
-        <tr><th scope="row">4 matches</th><td>1 in 207</td><td>25× ticket price (<span class="js-g4">50 ASE</span>) + bonus</td></tr>
-        <tr><th scope="row">3 matches</th><td>1 in 15</td><td>2.5× ticket price (<span class="js-g3">5 ASE</span>) + bonus</td></tr>
-        <tr><th scope="row">Commission</th><td>–</td><td>20% (75% operator, 25% collaborator)</td></tr>
+        <tr><th scope="row">5 matches</th><td>1 in 15,504</td><td>Jackpot: 35% of the draw's sales + rollover, shared between winners</td></tr>
+        <tr><th scope="row">4 matches</th><td>1 in 207</td><td><span class="js-g4">50 ASE</span> (25× the ticket price) + bonus</td></tr>
+        <tr><th scope="row">3 matches</th><td>1 in 15</td><td><span class="js-g3">5 ASE</span> (2.5× the ticket price) + bonus</td></tr>
       </tbody>
     </table>
     <p><strong>Bonus</strong>: if nobody hits 5 matches, half of the draw's 35% jackpot share is split among the 4- and 3-match winners; the other half rolls over to the next draw's jackpot.</p>
@@ -134,12 +132,9 @@
     <p><strong>Nothing to do on your side</strong>: prizes are sent automatically to your wallet after the draw, and the site shows “You won X ASE with N matches…”.</p>
     <h3>Randomness, and how to verify it</h3>
     <p>A blockchain has no built-in randomness. Here, two independent parties (the operator and a collaborator) each prepared a long chain of secrets, and only the tip of each chain is stored in the contract. After sales close, each one reveals the day's secret; the contract checks it matches their chain. The numbers are then computed from both secrets and the fingerprint of every ticket played.</p>
-    <p>Result: nobody can know the numbers before sales close: not the operator alone, not the collaborator alone, not any player. The “Verify this draw” button redoes the whole computation in your browser.</p>
-    <p class="muted">Known limitation: if the operator and the collaborator colluded, they could predict the result. The system relies on their independence.</p>
+    <p>The “Verify this draw” button redoes the whole computation in your browser.</p>
     <h3>If a secret isn't revealed</h3>
     <p>If both secrets aren't published within <strong class="js-reveal">2 hours</strong> after sales close, the draw is cancelled and every player gets a 100% refund (sent automatically, or via the “Refund me” button).</p>
-    <h3>Security</h3>
-    <p>The contract has no withdrawal function: the operator can't touch ticket sales, the jackpot or prizes. Only the 20% commission (75% operator, 25% collaborator) is paid out, automatically, at each draw. The contract code is public and readable in the explorer.</p>
     <p class="muted small">Asentum testnet: testnet ASE has no monetary value.</p>
   </section>
 
