@@ -4,6 +4,7 @@
 import CONFIG from './config.js';
 import { Rpc, ExtensionWallet, TelegramWallet } from '../../loto/js/chain.js';
 import * as L from '../../loto/js/lotomath.js';
+import { startVegas } from '../../vegas.js';
 import { verify, answerAt, SIZE, CELLS } from './board.mjs';
 
 const $ = (s) => document.querySelector(s);
@@ -175,6 +176,7 @@ async function sendTx(method, args, value = 0n) {
     const rc = await S.rpc.waitReceipt(hash);
     t1.remove();
     if (!rc.success) throw new Error(rc.error || 'rejected by the contract');
+    document.dispatchEvent(new Event('asevegas:refresh-wins'));   // le bouton « My wins » se met à jour
     return rc;
   } catch (e) { t1.remove(); toast('Failed: ' + cleanError(e), 'err', 10000); return null; }
 }
@@ -353,6 +355,7 @@ function renderRulesValues() {
 function renderAll() { renderWallet(); renderHero(); renderMap(); renderMine(); renderResults(); renderAdmin(); renderRulesValues(); }
 
 (async function start() {
+  startVegas();
   buildMap();
   const wantDemo = !CONFIG.CONTRACT || new URLSearchParams(location.search).has('demo');
   if (wantDemo) {

@@ -5,6 +5,8 @@ import DROP from './airdrop/js/config.js';
 import TREASURE from './treasure/js/config.js';
 import { Rpc } from './loto/js/chain.js';
 import { fmtAse } from './loto/js/lotomath.js';
+import { startVegas } from './vegas.js';
+startVegas({ walletButton: true });
 
 const $ = (s) => document.querySelector(s);
 const store = {
@@ -129,3 +131,11 @@ async function loadTreasure() {
 }
 loadTreasure();
 setInterval(loadTreasure, 30000);
+
+// Bandeau « prizes to claim » : rempli par le module commun (vegas.js)
+document.addEventListener('asevegas:wins', (e) => {
+  const { wins, total } = e.detail;
+  $('#winsStrip').hidden = !wins.length;
+  if (wins.length) $('#winsTotal').textContent = `${fmtAse(total, 2)} ASE · ${wins.length} ${wins.length > 1 ? 'prizes' : 'prize'}`;
+});
+$('#winsOpen').onclick = () => $('#myWinsBtn') && $('#myWinsBtn').click();

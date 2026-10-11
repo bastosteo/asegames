@@ -4,6 +4,7 @@
 import CONFIG from './config.js';
 import { Rpc, ExtensionWallet, TelegramWallet } from './chain.js';
 import * as L from './lotomath.js';
+import { startVegas } from '../../vegas.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -304,6 +305,7 @@ async function sendTx(doneLabel, method, args, value = 0n) {
     const rc = await S.rpc.waitReceipt(hash);
     t1.remove();
     if (!rc.success) throw new Error(rc.error || 'rejected by the contract');
+    document.dispatchEvent(new Event('asevegas:refresh-wins'));   // le bouton « My wins » se met à jour
     toast(doneLabel + ' ✓', 'ok');
     if (method === 'settle') S.purchasesAt.delete(Number(args[0]));   // relire l'achat réglé tout de suite
     await refresh();
@@ -631,6 +633,7 @@ function renderAll() {
 
 // ------------------------------------------------------------- démarrage
 (async function start() {
+  startVegas();
   renderSlots([]); renderCart();
   const wantDemo = !CONFIG.CONTRACT || new URLSearchParams(location.search).has('demo');
   if (wantDemo) {

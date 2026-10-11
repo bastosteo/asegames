@@ -15,35 +15,45 @@
 </head>
 <body>
 <header class="top">
-  <span class="brand"><svg class="brand-logo" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="vg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FBE3C2"/><stop offset=".5" stop-color="#F6B57A"/><stop offset="1" stop-color="#E9803E"/></linearGradient></defs><path d="M16 2 L29 11 L16 30 L3 11 Z" fill="url(#vg)"/><path d="M3 11 H29 M10 11 L16 30 L22 11 M10 11 L16 2 L22 11" fill="none" stroke="#7A3C14" stroke-opacity=".45" stroke-width="1.2" stroke-linejoin="round"/></svg><span class="brand-name">ASE Vegas</span></span>
-  <span class="net" title="Asentum testnet: ASE has no real value">Testnet</span>
+  <a class="brand" href="./" aria-label="ASE Vegas home"><svg class="brand-logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 L29 11 L16 30 L3 11 Z" fill="#F6B57A"/><path d="M3 11 H29 M10 11 L16 30 L22 11 M10 11 L16 2 L22 11" fill="none" stroke="#7A3C14" stroke-opacity=".5" stroke-width="1.2" stroke-linejoin="round"/></svg><span class="brand-name">ASE Vegas</span></a>
+  <nav class="gamenav" aria-label="Games"><a href="./" aria-current="page">Home</a><a href="./loto/">Loto</a><a href="./raffle/">Raffle</a><a href="./treasure/">Treasure</a><a href="./airdrop/">Airdrop</a></nav>
+  <div class="top-actions">
+  </div>
 </header>
 
 <main>
   <section class="intro">
-    <h1><span class="dim">ASE games,</span> fully on-chain.</h1>
-    <p>ASE Vegas is a collection of games on the Asentum testnet. Bets, draws and prizes all go through public contracts: anyone can read the code, and every result can be verified right from your browser.</p>
+    <p class="eyebrow">Testnet games on Asentum</p>
+    <h1>Pick a game.<br><span class="accent">Play in 30 seconds.</span></h1>
+    <p>Every bet, draw and prize goes through a public contract that anyone can check. Testnet ASE only: nothing here has real value.</p>
+  </section>
+
+  <ol class="steps" aria-label="How it works">
+    <li><b>1</b><div><strong>Connect your wallet</strong><span>Asentum extension or Telegram, one click (button at the top right).</span></div></li>
+    <li><b>2</b><div><strong>Choose a game</strong><span>From 0.5 ASE. Each card shows the price and the next draw.</span></div></li>
+    <li><b>3</b><div><strong>Win and claim</strong><span>Your prizes show up in “My wins”, on every page.</span></div></li>
+  </ol>
+
+  <section class="claim-strip" id="winsStrip" hidden>
+    <div><span class="eyebrow">You have prizes to claim</span><strong id="winsTotal">…</strong></div>
+    <button class="btn btn-primary" type="button" id="winsOpen">See and claim</button>
   </section>
 
   <section class="games" aria-label="Games">
-    <a class="game live" href="loto/">
-      <div class="game-art" aria-hidden="true">
+    <a class="gcard loto" href="loto/">
+      <div class="g-art" aria-hidden="true">
         <span class="ball">5</span><span class="ball gold">12</span><span class="ball">20</span>
       </div>
-      <div class="game-body">
-        <p class="state"><span class="dot"></span> Live</p>
-        <h2>ASE Loto</h2>
-        <p class="desc">Throw five 20-sided dice for your 5 numbers. One draw every day at <span id="lotoTime">19:00 UTC</span>, a jackpot that grows every night, prizes claimable any time.</p>
-        <dl class="live-stats">
-          <div><dt>Jackpot</dt><dd id="lotoJackpot">…</dd></div>
-          <div><dt id="lotoCountLabel">Sales close in</dt><dd id="lotoCountdown">…</dd></div>
-        </dl>
-        <span class="btn btn-primary">Play ASE Loto</span>
+      <div class="g-head"><span>Every day</span><span class="hot"><span id="lotoCountLabel">Sales close in</span> <span id="lotoCountdown">…</span></span></div>
+      <div class="g-body">
+        <div class="g-title"><h2>Loto</h2><span class="g-val"><span id="lotoJackpot">…</span> <small>jackpot</small></span></div>
+        <p class="desc">Roll 5 dice to get 5 numbers out of 20. Match 3, 4 or 5 numbers in tonight’s draw to win.</p>
+        <div class="chips"><span class="chip-i">2 ASE / ticket</span><span class="chip-i">Draw <span id="lotoTime">19:00 UTC</span></span><span class="chip-i">1 in 15 wins</span></div>
+        <span class="btn btn-primary btn-wide">Play Loto</span>
       </div>
     </a>
-
-    <a class="game live raffle" href="raffle/">
-      <div class="game-art" aria-hidden="true">
+    <a class="gcard raffle" href="raffle/">
+      <div class="g-art" aria-hidden="true">
         <svg class="raffle-svg" viewBox="0 0 160 100" role="img" aria-label="Raffle tickets">
           <defs><linearGradient id="tk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE68A"/><stop offset=".55" stop-color="#F4C542"/><stop offset="1" stop-color="#D9A92A"/></linearGradient>
           <mask id="nt"><rect width="120" height="54" fill="#fff"/><circle cx="0" cy="27" r="8" fill="#000"/><circle cx="120" cy="27" r="8" fill="#000"/></mask></defs>
@@ -57,20 +67,39 @@
           </g>
         </svg>
       </div>
-      <div class="game-body">
-        <p class="state"><span class="dot"></span> Live</p>
-        <h2>ASE Raffle</h2>
-        <p class="desc">One ticket, one chance. 5 ASE per ticket, 3 winners every <span id="raffleTime">Sunday at 19:00 UTC</span>.</p>
-        <dl class="live-stats">
-          <div><dt>Prize pot</dt><dd id="rafflePot">…</dd></div>
-          <div><dt>Draw in</dt><dd id="raffleCountdown">…</dd></div>
-        </dl>
-        <span class="btn btn-primary">Play ASE Raffle</span>
+      <div class="g-head"><span>Every Sunday</span><span class="hot">Draw in <span id="raffleCountdown">…</span></span></div>
+      <div class="g-body">
+        <div class="g-title"><h2>Raffle</h2><span class="g-val"><span id="rafflePot">…</span> <small>pot</small></span></div>
+        <p class="desc">Buy tickets during the week. Every Sunday, 3 tickets are drawn and win 50%, 30% and 20% of the pot.</p>
+        <div class="chips"><span class="chip-i">5 ASE / ticket</span><span class="chip-i"><span id="raffleTime">Sunday at 19:00 UTC</span></span><span class="chip-i">3 winners</span></div>
+        <span class="btn btn-primary btn-wide">Get tickets</span>
       </div>
     </a>
-
-    <a class="game live airdrop" href="airdrop/">
-      <div class="game-art" aria-hidden="true">
+    <a class="gcard treasure" href="treasure/">
+      <div class="g-art" aria-hidden="true">
+        <svg class="treasure-svg" viewBox="0 0 150 110" role="img" aria-label="Treasure map and coin">
+          <defs><radialGradient id="tgold" cx=".35" cy=".3" r=".85"><stop offset="0" stop-color="#FFF3C4"/><stop offset=".45" stop-color="#F6C25C"/><stop offset="1" stop-color="#C9822A"/></radialGradient></defs>
+          <g transform="translate(8 14) rotate(-6 55 40)">
+            <rect width="110" height="80" fill="#1A1A1A" stroke="#3A2A18" stroke-width="2"/>
+            <g fill="#2A2A2A"><rect x="6" y="6" width="11" height="11"/><rect x="19" y="6" width="11" height="11"/><rect x="32" y="6" width="11" height="11"/><rect x="45" y="6" width="11" height="11"/><rect x="58" y="6" width="11" height="11"/><rect x="71" y="6" width="11" height="11"/><rect x="84" y="6" width="11" height="11"/><rect x="97" y="6" width="11" height="11"/><rect x="6" y="19" width="11" height="11"/><rect x="19" y="19" width="11" height="11"/><rect x="32" y="19" width="11" height="11"/><rect x="45" y="19" width="11" height="11"/><rect x="58" y="19" width="11" height="11"/><rect x="71" y="19" width="11" height="11"/><rect x="84" y="19" width="11" height="11"/><rect x="97" y="19" width="11" height="11"/><rect x="6" y="32" width="11" height="11"/><rect x="19" y="32" width="11" height="11"/><rect x="32" y="32" width="11" height="11"/><rect x="45" y="32" width="11" height="11"/><rect x="58" y="32" width="11" height="11"/><rect x="71" y="32" width="11" height="11"/><rect x="84" y="32" width="11" height="11"/><rect x="97" y="32" width="11" height="11"/><rect x="6" y="45" width="11" height="11"/><rect x="19" y="45" width="11" height="11"/><rect x="32" y="45" width="11" height="11"/><rect x="45" y="45" width="11" height="11"/><rect x="58" y="45" width="11" height="11"/><rect x="71" y="45" width="11" height="11"/><rect x="84" y="45" width="11" height="11"/><rect x="97" y="45" width="11" height="11"/><rect x="6" y="58" width="11" height="11"/><rect x="19" y="58" width="11" height="11"/><rect x="32" y="58" width="11" height="11"/><rect x="45" y="58" width="11" height="11"/><rect x="58" y="58" width="11" height="11"/><rect x="71" y="58" width="11" height="11"/><rect x="84" y="58" width="11" height="11"/><rect x="97" y="58" width="11" height="11"/></g>
+            <rect x="45" y="32" width="11" height="11" fill="#6B3A16"/><rect x="58" y="19" width="11" height="11" fill="#6B3A16"/><rect x="19" y="58" width="11" height="11" fill="#22384E"/><rect x="84" y="45" width="11" height="11" fill="#22384E"/>
+            <path d="M60 36 l9 9 m0 -9 l-9 9" stroke="#F09A58" stroke-width="3" stroke-linecap="round" transform="translate(-2 -2)"/>
+            <path d="M12 74 Q40 48 56 40" fill="none" stroke="#F8D4A4" stroke-width="1.6" stroke-dasharray="3 3"/>
+          </g>
+          <g class="t-coin"><circle cx="118" cy="78" r="22" fill="url(#tgold)" stroke="#8A5212" stroke-width="2"/><circle cx="118" cy="78" r="16.5" fill="none" stroke="#8A5212" stroke-opacity=".55" stroke-width="1.2" stroke-dasharray="2 3"/>
+          <text x="118" y="82.5" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-weight="800" font-size="11" fill="#5A3208">ASE</text></g>
+        </svg>
+      </div>
+      <div class="g-head"><span>Live now</span><span class="hot"><span id="treasureDigs">–</span> digs so far</span></div>
+      <div class="g-body">
+        <div class="g-title"><h2>Treasure</h2><span class="g-val"><span id="treasurePot">…</span> <small>to find</small></span></div>
+        <p class="desc">A treasure is hidden on a 20 × 20 map. Dig a cell: hot or cold in seconds. Find it, take it all.</p>
+        <div class="chips"><span class="chip-i">0.5 ASE / dig</span><span class="chip-i">5 digs per map</span><span class="chip-i">Instant answer</span></div>
+        <span class="btn btn-primary btn-wide">Start digging</span>
+      </div>
+    </a>
+    <a class="gcard airdrop" href="airdrop/">
+      <div class="g-art" aria-hidden="true">
         <svg class="chute-svg" viewBox="0 0 120 140" role="img" aria-label="Parachute carrying a crate of ASE">
           <defs>
             <clipPath id="cnp"><path d="M8 52 C8 20 32 4 60 4 C88 4 112 20 112 52 Q99 44 86 52 Q73 44 60 52 Q47 44 34 52 Q21 44 8 52 Z"/></clipPath>
@@ -95,45 +124,16 @@
           </g>
         </svg>
       </div>
-      <div class="game-body">
-        <p class="state"><span class="dot"></span> Every Monday</p>
-        <h2>ASE Airdrop</h2>
-        <p class="desc">A weekly ASE pot, airdropped to 3 ASE Vegas players every <span id="dropTime">Monday at 19:00 UTC</span>. 1 ticket = 1 chance.</p>
-        <dl class="live-stats">
-          <div><dt title="* Estimate, assuming every draw of the week takes place">This week*</dt><dd id="dropPot">…</dd></div>
-          <div><dt>Draw in</dt><dd id="dropCountdown">…</dd></div>
-        </dl>
-        <span class="btn btn-primary">View airdrop</span>
-      </div>
-    </a>
-
-    <a class="game live treasure" href="treasure/">
-      <div class="game-art" aria-hidden="true">
-        <svg class="treasure-svg" viewBox="0 0 150 110" role="img" aria-label="Treasure map and coin">
-          <defs><radialGradient id="tgold" cx=".35" cy=".3" r=".85"><stop offset="0" stop-color="#FFF3C4"/><stop offset=".45" stop-color="#F6C25C"/><stop offset="1" stop-color="#C9822A"/></radialGradient></defs>
-          <g transform="translate(8 14) rotate(-6 55 40)">
-            <rect width="110" height="80" fill="#1A1A1A" stroke="#3A2A18" stroke-width="2"/>
-            <g fill="#2A2A2A"><rect x="6" y="6" width="11" height="11"/><rect x="19" y="6" width="11" height="11"/><rect x="32" y="6" width="11" height="11"/><rect x="45" y="6" width="11" height="11"/><rect x="58" y="6" width="11" height="11"/><rect x="71" y="6" width="11" height="11"/><rect x="84" y="6" width="11" height="11"/><rect x="97" y="6" width="11" height="11"/><rect x="6" y="19" width="11" height="11"/><rect x="19" y="19" width="11" height="11"/><rect x="32" y="19" width="11" height="11"/><rect x="45" y="19" width="11" height="11"/><rect x="58" y="19" width="11" height="11"/><rect x="71" y="19" width="11" height="11"/><rect x="84" y="19" width="11" height="11"/><rect x="97" y="19" width="11" height="11"/><rect x="6" y="32" width="11" height="11"/><rect x="19" y="32" width="11" height="11"/><rect x="32" y="32" width="11" height="11"/><rect x="45" y="32" width="11" height="11"/><rect x="58" y="32" width="11" height="11"/><rect x="71" y="32" width="11" height="11"/><rect x="84" y="32" width="11" height="11"/><rect x="97" y="32" width="11" height="11"/><rect x="6" y="45" width="11" height="11"/><rect x="19" y="45" width="11" height="11"/><rect x="32" y="45" width="11" height="11"/><rect x="45" y="45" width="11" height="11"/><rect x="58" y="45" width="11" height="11"/><rect x="71" y="45" width="11" height="11"/><rect x="84" y="45" width="11" height="11"/><rect x="97" y="45" width="11" height="11"/><rect x="6" y="58" width="11" height="11"/><rect x="19" y="58" width="11" height="11"/><rect x="32" y="58" width="11" height="11"/><rect x="45" y="58" width="11" height="11"/><rect x="58" y="58" width="11" height="11"/><rect x="71" y="58" width="11" height="11"/><rect x="84" y="58" width="11" height="11"/><rect x="97" y="58" width="11" height="11"/></g>
-            <rect x="45" y="32" width="11" height="11" fill="#6B3A16"/><rect x="58" y="19" width="11" height="11" fill="#6B3A16"/><rect x="19" y="58" width="11" height="11" fill="#22384E"/><rect x="84" y="45" width="11" height="11" fill="#22384E"/>
-            <path d="M60 36 l9 9 m0 -9 l-9 9" stroke="#F09A58" stroke-width="3" stroke-linecap="round" transform="translate(-2 -2)"/>
-            <path d="M12 74 Q40 48 56 40" fill="none" stroke="#F8D4A4" stroke-width="1.6" stroke-dasharray="3 3"/>
-          </g>
-          <g class="t-coin"><circle cx="118" cy="78" r="22" fill="url(#tgold)" stroke="#8A5212" stroke-width="2"/><circle cx="118" cy="78" r="16.5" fill="none" stroke="#8A5212" stroke-opacity=".55" stroke-width="1.2" stroke-dasharray="2 3"/>
-          <text x="118" y="82.5" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-weight="800" font-size="11" fill="#5A3208">ASE</text></g>
-        </svg>
-      </div>
-      <div class="game-body">
-        <p class="state"><span class="dot"></span> Live</p>
-        <h2>ASE Treasure</h2>
-        <p class="desc">A treasure hidden on a 20 × 20 map. 0.5 ASE per dig, hot or cold answers in seconds, the finder takes it all.</p>
-        <dl class="live-stats">
-          <div><dt>Treasure</dt><dd id="treasurePot">…</dd></div>
-          <div><dt>Digs</dt><dd id="treasureDigs">…</dd></div>
-        </dl>
-        <span class="btn btn-primary">Hunt the treasure</span>
+      <div class="g-head"><span>Free bonus · every Monday</span><span class="hot">In <span id="dropCountdown">…</span></span></div>
+      <div class="g-body">
+        <div class="g-title"><h2>Airdrop</h2><span class="g-val"><span id="dropPot">…</span> <small>this week</small></span></div>
+        <p class="desc">Nothing to buy: every ticket or dig you play during the week is a free chance. 3 winners, paid automatically.</p>
+        <div class="chips"><span class="chip-i"><span id="dropTime">Monday at 19:00 UTC</span></span><span class="chip-i">1 ticket = 1 chance</span></div>
+        <span class="btn btn-ghost-accent btn-wide">See my chances</span>
       </div>
     </a>
   </section>
+  <p class="foot-note">* Estimate, assuming every draw of the week takes place.</p>
 </main>
 
 <footer class="foot">

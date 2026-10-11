@@ -7,6 +7,7 @@ import RAFFLE from '../../raffle/js/config.js';
 import TREASURE from '../../treasure/js/config.js';
 import { Rpc, ExtensionWallet, TelegramWallet } from '../../loto/js/chain.js';
 import * as L from '../../loto/js/lotomath.js';
+import { startVegas, myWins } from '../../vegas.js';
 import { buildWeek, chunks, CUTOFF_MS } from './liste.mjs';
 
 const $ = (s) => document.querySelector(s);
@@ -252,6 +253,12 @@ async function restoreWallet() {
 }
 
 (async function start() {
+  startVegas({ walletButton: true });
+  // Wallet connecté depuis l'en-tête : on affiche ses chances
+  document.addEventListener('asevegas:wins', () => {
+    const w = myWins().wallet;
+    if (w && !store.get('airdrop.addr', '') && S.me !== w.address) { S.me = w.address; $('#addr').value = L.toAse1(w.address); renderAll(); }
+  });
   S.rpc = new Rpc(CONFIG.RPC);
   $('#rpcLabel').textContent = S.rpc.url;
   const typed = store.get('airdrop.addr', '');

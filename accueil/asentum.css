@@ -230,3 +230,51 @@ input:focus-visible { outline: 1px solid var(--accent) !important; }
 .week { display: grid; gap: 8px; margin-top: 18px; }
 .week-row { display: flex; justify-content: space-between; gap: 10px; font-family: var(--body); text-transform: uppercase; letter-spacing: .14em; font-size: .7rem; color: var(--muted); }
 .week-row .hot { font-size: .7rem; }
+
+/* ---------------------------------------------------------------------
+   En-tête commun ASE Vegas : logo, menu des jeux, My wins, wallet
+   --------------------------------------------------------------------- */
+.top { width: min(1180px, 100%) !important; flex-wrap: wrap; gap: 12px 22px !important; }
+.top .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
+.brand-logo { width: 26px; height: 26px; flex: none; filter: drop-shadow(0 0 8px rgba(240,154,88,.35)); }
+.gamenav { display: flex; gap: 2px; flex: 1 1 auto; flex-wrap: wrap; }
+.gamenav a { padding: 10px 13px; text-decoration: none; color: #CFCFCF; font-family: var(--body); text-transform: uppercase; letter-spacing: .12em; font-size: .72rem; }
+.gamenav a:hover { color: var(--accent); }
+.gamenav a[aria-current="page"] { background: var(--accent); color: var(--accent-ink); }
+.top-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.btn-wins { border-color: #3A2A18 !important; color: var(--accent) !important; background: var(--accent-bg) !important; white-space: nowrap; }
+.btn-wins.has { border-color: var(--accent-2) !important; animation: winsglow 2.4s ease-in-out infinite; }
+@keyframes winsglow { 50% { box-shadow: 0 0 14px rgba(240,154,88,.45); } }
+.all-games { display: none !important; }
+/* Téléphone : le menu des jeux devient une barre fixe en bas de l'écran */
+@media (max-width: 720px) {
+  .gamenav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; background: #050505; border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+  .gamenav a { text-align: center; padding: 15px 0 16px; font-size: .62rem; letter-spacing: .06em; border-top: 2px solid transparent; }
+  .gamenav a[aria-current="page"] { background: transparent; color: var(--accent); border-top-color: var(--accent); }
+  body { padding-bottom: 64px; }
+  .toasts { bottom: 76px !important; }
+  .btn-wins { padding: .8em .7em !important; letter-spacing: .06em !important; }
+}
+
+/* Fenêtre « My wins » */
+.wins-list { list-style: none; margin: 12px 0; padding: 0; display: grid; gap: 8px; }
+.wins-list li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; background: #111; }
+.wins-list li strong { margin-left: auto; font-family: var(--display); }
+.wins-total { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 0; background: var(--dash) top left / 100% 1px no-repeat; margin-bottom: 12px; }
+.wins-total strong { font-family: var(--display); font-size: 1.5rem; color: var(--accent); }
+
+/* Bases partagées (utiles aussi à l'accueil, qui n'a pas la feuille du loto) */
+.dlg { border: 1px solid var(--line-strong); background: #0A0A0A; color: var(--ink); padding: 22px; width: min(440px, calc(100vw - 32px)); }
+.dlg-wide { width: min(640px, calc(100vw - 32px)); }
+.dlg::backdrop { background: rgba(0,0,0,.72); backdrop-filter: blur(3px); }
+.dlg h2 { margin-top: 0; }
+.btn-wide { width: 100%; }
+.btn-small { padding: .55em .9em !important; font-size: .72rem !important; }
+.error { color: var(--warn); }
+.toasts { position: fixed; z-index: 50; left: 50%; transform: translateX(-50%); bottom: 16px; display: grid; gap: 8px; width: min(440px, calc(100vw - 32px)); }
+.toast { padding: 12px 14px; }
+.choice { display: flex; text-align: left; width: 100%; padding: 16px; margin-bottom: 10px; border: 1px solid var(--line); background: #111; color: var(--ink); cursor: pointer; font: inherit; justify-content: space-between; align-items: center; gap: 12px; }
+.choice .c-text { display: grid; gap: 4px; } .choice .c-text span { color: var(--muted); font-size: .85rem; }
+.choice .c-cta { color: var(--accent); text-transform: uppercase; letter-spacing: .14em; font-size: .72rem; }
+.choice:disabled { opacity: .5; cursor: not-allowed; }
+.muted { color: var(--muted); }
