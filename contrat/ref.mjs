@@ -39,14 +39,14 @@ export function drawNumbers(roundId, sO, sC, digest) {
   return nums.sort((a, b) => a - b);
 }
 // Règles de gains (écrites indépendamment du contrat, en BigInt) :
-// 20 % commission, 35 % jackpot, 45 % caisse des gains fixes (4 bons = 25 mises,
+// 15 % commission (moitié équipe, moitié Airdrop), 35 % jackpot, 50 % caisse des gains fixes (4 bons = 25 mises,
 // 3 bons = 2,5 mises, réduits ensemble si la caisse ne suffit pas). Sans gagnant
 // à 5 bons : bonus = moitié des 35 % du tour, au prorata des gains fixes.
 // Un 4 bons touche au plus 80 % d'un 5 bons. Le reste → jackpot suivant.
 export function payouts(sales, price, jackpotIn, [n3, n4, n5]) {
   const S = BigInt(sales), P = BigInt(price), J = BigInt(jackpotIn);
   const N3 = BigInt(n3), N4 = BigInt(n4), N5 = BigInt(n5);
-  const commission = S / 5n;
+  const commission = S * 15n / 100n;
   const pj = S * 35n / 100n;
   const caisse = S - commission - pj;
   let g3 = P * 25n / 10n, g4 = P * 25n, g5 = 0n;
@@ -61,7 +61,8 @@ export function payouts(sales, price, jackpotIn, [n3, n4, n5]) {
     g4 = g4 + g4 * pj / (2n * fixe);
   }
   const verse = N3 * g3 + N4 * g4 + N5 * g5;
-  return { per: [g3, g4, g5], commission, owner: commission * 3n / 4n, carry: J + S - commission - verse };
+  const airdrop = commission / 2n;
+  return { per: [g3, g4, g5], commission, airdrop, owner: (commission - airdrop) * 3n / 4n, carry: J + S - commission - verse };
 }
 export const matches = (g, nums) => g.filter((n) => nums.includes(n)).length;
 
@@ -94,7 +95,31 @@ export function raffleWinners(id, sO, sC, digest, purchases) {
   return win;
 }
 export function rafflePrizes(sales) {
-  const S = BigInt(sales), commission = S / 5n, pool = S - commission;
+  const S = BigInt(sales), commission = S * 15n / 100n, pool = S - commission, airdrop = commission / 2n;
   const p1 = pool / 2n, p2 = pool * 3n / 10n;
-  return { commission, owner: commission * 3n / 4n, prizes: [p1, p2, pool - p1 - p2] };
+  return { commission, airdrop, owner: (commission - airdrop) * 3n / 4n, prizes: [p1, p2, pool - p1 - p2] };
+}
+
+// --------------------------- ASE AIRDROP ---------------------------
+export const airdropInitialDigest = (id) => sha('ASEDROP-ROUND|' + id);
+export const airdropNextDigest = (prev, chunk) => sha(prev + '|' + JSON.stringify(chunk));
+// entries : [[adresse, tickets], …] triés ; renvoie jusqu'à 3 gagnants { b, n, t }
+export function airdropWinners(id, sO, sC, digest, entries) {
+  const out = new Set(), win = [];
+  let rem = entries.reduce((a, e) => a + e[1], 0);
+  for (let k = 0; k < 3 && rem > 0; k++) {
+    const h = sha('ASEDROP|' + id + '|' + sO + '|' + sC + '|' + digest + '|' + k);
+    const t = Number(BigInt('0x' + h.slice(0, 13)) % BigInt(rem));
+    let x = t;
+    for (const [b, n] of entries) {
+      if (out.has(b)) continue;
+      if (x < n) { out.add(b); win.push({ b, n, t }); rem -= n; break; }
+      x -= n;
+    }
+  }
+  return win;
+}
+export function airdropPrizes(total) {
+  const T = BigInt(total), p1 = T / 2n, p2 = T * 3n / 10n;
+  return [p1, p2, T - p1 - p2];
 }

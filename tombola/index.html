@@ -97,8 +97,9 @@
         <tr><th scope="row">3rd</th><td>20% of the prize pot</td></tr>
       </tbody>
     </table>
-    <p>The prize pot is made of the week's ticket sales. Three <strong>different wallets</strong> win every week: a wallet can't win twice in the same draw.</p>
+    <p>Three <strong>different wallets</strong> win every week: a wallet can't win twice in the same draw.</p>
     <p>If fewer than 3 wallets took part when sales close, the raffle is extended by one week: your tickets stay valid and the pot keeps growing.</p>
+    <p>The prize pot is 85% of the week's sales. Each ticket is also one chance in the weekly <a href="../airdrop/">ASE Airdrop</a>, funded by half of the games' fees.</p>
     <p><strong>Claiming</strong>: winners click <strong>Claim</strong> in “My tickets” to receive their prize. Prizes never expire.</p>
     <h3>Randomness, and how to verify it</h3>
     <p>Two independent parties each prepared a long chain of secrets, and only the tip of each chain is stored in the contract. After sales close, both reveal the week's secret; the winning tickets are then computed from both secrets and the fingerprint of every purchase. The “Verify” button redoes the whole computation in your browser.</p>
@@ -124,23 +125,35 @@
   <p><a href="../">ASE Game</a>. Contract <a id="contractLink" target="_blank" rel="noopener"></a> on the Asentum testnet. Data read from <span id="rpcLabel"></span>.</p>
 </footer>
 
-<dialog id="dlgWallet" class="dlg" aria-labelledby="dlgWalletTitle">
-  <h2 id="dlgWalletTitle">Connect a wallet</h2>
-  <div id="walletConnected" hidden>
-    <p>Connected as <strong id="walletAddrFull" class="small"></strong></p>
-    <button class="btn btn-danger btn-wide" id="disconnectBtn" type="button">Disconnect this wallet</button>
+<dialog id="dlgWallet" class="dlg wdlg" aria-labelledby="dlgWalletTitle">
+  <div class="wdlg-head">
+    <div>
+      <p class="wdlg-eyebrow">· Connect wallet</p>
+      <h2 id="dlgWalletTitle">Connect to Asentum</h2>
+    </div>
+    <form method="dialog"><button class="wdlg-x" aria-label="Close">×</button></form>
   </div>
-  <div id="walletChoices">
-    <button class="choice" id="useExt"><strong>Asentum Wallet extension</strong><span id="extHint">In this browser</span></button>
-    <button class="choice" id="useTg"><strong>Telegram wallet</strong><span>With a 6-digit code</span></button>
+  <div class="wdlg-body">
+    <div id="walletConnected" hidden>
+      <p class="wdlg-text">Connected as</p>
+      <p class="wdlg-addr" id="walletAddrFull"></p>
+      <button class="btn btn-danger btn-wide" id="disconnectBtn" type="button">Disconnect this wallet</button>
+    </div>
+    <div id="walletChoices">
+      <button class="choice" id="useExt" type="button"><span class="c-text"><strong>Browser extension</strong><span id="extHint">Use the wallet you already have installed.</span></span><span class="c-cta">Connect</span></button>
+      <button class="choice" id="useTg" type="button"><span class="c-text"><strong>Telegram wallet</strong><span>Pair with a 6-digit code, no app needed.</span></span><span class="c-cta">Pair</span></button>
+    </div>
+    <div id="tgPair" class="tg-pair" hidden>
+      <p class="wdlg-text">Open <strong>@AsentumBot</strong> in Telegram → tap <strong>Connect wallet</strong> → enter this code:</p>
+      <div class="code-boxes" id="tgCode" aria-live="polite"></div>
+      <p class="tg-expire" id="tgExpire">Expires in 5:00</p>
+      <a class="tg-open" href="https://t.me/AsentumBot" target="_blank" rel="noopener">Open @AsentumBot ↗</a>
+      <button class="btn tg-back" id="tgBack" type="button">← Back</button>
+    </div>
+    <p class="error" id="walletErr" hidden></p>
   </div>
-  <div id="tgPair" hidden>
-    <p>In the Asentum Wallet Telegram bot, open “Connect” and enter this code:</p>
-    <p class="pair-code" id="tgCode">······</p>
-    <p class="muted small">Waiting for your approval…</p>
-  </div>
-  <p class="error" id="walletErr" hidden></p>
-  <form method="dialog"><button class="btn btn-ghost btn-wide">Close</button></form>
+  <div class="wdlg-net"><span class="wdlg-eyebrow">Network</span><code>testnet.asentum.com</code></div>
+  <p class="wdlg-foot">We only read on-chain activity and request signatures. We never store your keys.</p>
 </dialog>
 
 <dialog id="dlgVerify" class="dlg dlg-wide" aria-labelledby="dlgVerifyTitle">

@@ -18,11 +18,12 @@ const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 214748364
 
 const chain = new Chain({ startTimestampMs: Date.UTC(2026, 9, 10, 12), blockTimeMs: 8000 });
 const ADMIN = '0x' + 'a'.repeat(40), OWNER = '0x' + 'b'.repeat(40), COLLAB = '0x' + 'c'.repeat(40);
+const DROP = '0x' + 'f'.repeat(40);   // contrat ASE Airdrop (cagnotte)
 const players = Array.from({ length: 300 }, (_, i) => '0x' + (i + 1).toString(16).padStart(40, '0'));
 for (const a of [ADMIN, COLLAB, ...players]) chain.fund(a, 10n ** 9n * ASE);
 const c = chain.deploy(SRC, ADMIN);
 const chO = ref.makeChain(ROUNDS + 50), chC = ref.makeChain(ROUNDS + 50);
-let r = c.call(ADMIN, 'init', [OWNER, COLLAB, COLLAB, chO.at(-1), chC.at(-1)]);
+let r = c.call(ADMIN, 'init', [OWNER, COLLAB, COLLAB, chO.at(-1), chC.at(-1), DROP]);
 if (!r.success) throw new Error(r.error);
 
 const must = (x, what) => { if (!x.success) throw new Error(what + ': ' + x.error); return x; };
@@ -99,8 +100,10 @@ console.log(`Simulation de ${ROUNDS} tirages quotidiens (${T.grids} grilles, ${T
 console.log(`  Ventes totales           : ${fmt(BigInt(T.sales))} ASE`);
 const drawnSales = BigInt(T.sales) - BigInt(T.refunds) - (() => { let p = 0n; for (let j = s.next; j <= s.cur; j++) { const x = c.view('getRound', [j]); if (['open', 'closed', 'tally'].includes(x.status)) p += BigInt(x.sales); } return p; })();
 console.log(`  Commission               : ${fmt(commission)} ASE = ${(Number(commission * 100000n / drawnSales) / 1000).toFixed(3)} % des ventes tirées (rien sur les tirages annulés)`);
-console.log(`    → owner (75 %)         : ${fmt(toOwner)} ASE   → collaborateur (25 %) : ${fmt(toCollab)} ASE`);
-console.log(`    → 75/25 exact          : ${toOwner + toCollab === commission && toOwner * 4n >= commission * 3n - 4n * BigInt(ROUNDS) && toOwner * 4n <= commission * 3n ? 'oui (à l\'arrondi près)' : 'ÉCART : ' + (toOwner * 10000n / commission)}`);
+console.log(`    → owner (75 % de la moitié) : ${fmt(toOwner)} ASE   → collaborateur (25 %) : ${fmt(toCollab)} ASE`);
+const toDrop = chain.balanceOf(DROP);
+console.log(`    → Airdrop (50 %)       : ${fmt(toDrop)} ASE`);
+console.log(`    → partage exact        : ${toOwner + toCollab + toDrop === commission ? 'oui, owner + collab + Airdrop = commission au wei près' : 'ÉCART'}`);
 console.log(`  Gains versés             : ${fmt(BigInt(T.prizes))} ASE   (à verser : ${fmt(BigInt(s.owed))})`);
 console.log(`  Remboursements           : ${fmt(BigInt(T.refunds))} ASE   (${cancelled} tirages annulés)`);
 console.log(`  Jackpot reporté actuel   : ${fmt(BigInt(s.jackpot))} ASE`);

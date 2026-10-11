@@ -19,6 +19,7 @@ function sec(name) { section = name; console.log('•', name); }
 const ADMIN = '0x' + 'a'.repeat(40);
 const OWNER_PAY = '0x' + 'b'.repeat(40);
 const COLLAB = '0x' + 'c'.repeat(40);
+const DROP = '0x' + 'f'.repeat(40);   // contrat ASE Airdrop (cagnotte)
 const P = ['0x' + '1'.repeat(40), '0x' + '2'.repeat(40), '0x' + '3'.repeat(40), '0x' + '4'.repeat(40)];
 
 // Un monde neuf : chaîne simulée + contrat déployé + initialisé.
@@ -28,7 +29,7 @@ function world({ start = Date.UTC(2026, 9, 10, 12, 0) } = {}) {
   for (const a of [ADMIN, OWNER_PAY, COLLAB, ...P]) chain.fund(a, 100000n * ASE);
   const c = chain.deploy(SRC, ADMIN);
   const chO = ref.makeChain(200), chC = ref.makeChain(200);
-  const r = c.call(ADMIN, 'init', [OWNER_PAY, COLLAB, COLLAB, chO[200], chC[200]]);
+  const r = c.call(ADMIN, 'init', [OWNER_PAY, COLLAB, COLLAB, chO[200], chC[200], DROP]);
   if (!r.success) throw new Error('init: ' + r.error);
   const w = {
     chain, c, chO, chC,
@@ -65,7 +66,7 @@ sec('Initialisation');
   t('admin = déployeur', cfg.admin === ADMIN);
   t('prix 2 ASE', cfg.price === PRICE.toString());
   t('plafond 3000 grilles par tirage, 20 par achat', cfg.maxRound === 3000 && cfg.maxGrids === 20);
-  t('double init refusé', !w.c.call(ADMIN, 'init', [OWNER_PAY, COLLAB, COLLAB, w.chO[200], w.chC[200]]).success);
+  t('double init refusé', !w.c.call(ADMIN, 'init', [OWNER_PAY, COLLAB, COLLAB, w.chO[200], w.chC[200], DROP]).success);
   const r1 = w.round(1);
   t('tour 1 ouvert', r1.status === 'open');
   t('tirage à 21:00 heure de Paris', ref.parisHM(r1.drawTs) === '21:00', ref.parisHM(r1.drawTs));
@@ -75,8 +76,8 @@ sec('Initialisation');
   // Le contrat n'accepte que des adresses 0x (le site, le croupier et le guide convertissent les ase1).
   const chain3 = new Chain(); chain3.fund(ADMIN, ASE);
   const c3 = chain3.deploy(SRC, ADMIN);
-  t('adresse ase1 refusée par le contrat (conversion avant envoi)', !c3.call(ADMIN, 'init', ['ase1hypqm76acwd7lwvfsh396psdd5fm8zf35pjupv', COLLAB, COLLAB, w.chO[5], w.chC[5]]).success);
-  t('adresse 0x en majuscules acceptée et normalisée', (() => { const ch = new Chain(); ch.fund(ADMIN, ASE); const k = ch.deploy(SRC, ADMIN); const r = k.call(ADMIN, 'init', ['0xB9020DFB5DC39BEFB98985E25D060D6D13B38931', COLLAB, COLLAB, w.chO[5], w.chC[5]]); return r.success && k.view('getConfig').payOwner === '0xb9020dfb5dc39befb98985e25d060d6d13b38931'; })());
+  t('adresse ase1 refusée par le contrat (conversion avant envoi)', !c3.call(ADMIN, 'init', ['ase1hypqm76acwd7lwvfsh396psdd5fm8zf35pjupv', COLLAB, COLLAB, w.chO[5], w.chC[5], DROP]).success);
+  t('adresse 0x en majuscules acceptée et normalisée', (() => { const ch = new Chain(); ch.fund(ADMIN, ASE); const k = ch.deploy(SRC, ADMIN); const r = k.call(ADMIN, 'init', ['0xB9020DFB5DC39BEFB98985E25D060D6D13B38931', COLLAB, COLLAB, w.chO[5], w.chC[5], DROP]); return r.success && k.view('getConfig').payOwner === '0xb9020dfb5dc39befb98985e25d060d6d13b38931'; })());
 }
 
 // ---------------------------------------------------------------------
@@ -202,30 +203,31 @@ sec('Calcul des rangs (3 000 grilles, recomptage indépendant)');
 }
 
 // ---------------------------------------------------------------------
-sec('Commission 20 % et partage 75/25 exacts');
+sec('Commission 15 % : moitié Airdrop, moitié équipe 75/25');
 {
   const w = world();
-  // 7 grilles = 14 ASE → 2,8 ASE de commission → 2,1 owner / 0,7 collab
+  // 7 grilles = 14 ASE → 2,1 ASE de commission → 1,05 Airdrop, 0,7875 owner, 0,2625 collab
   w.buy(P[0], Array.from({ length: 7 }, () => ref.randomGrid()));
-  const bO = w.chain.balanceOf(OWNER_PAY), bC = w.chain.balanceOf(COLLAB);
+  const bO = w.chain.balanceOf(OWNER_PAY), bC = w.chain.balanceOf(COLLAB), bD = w.chain.balanceOf(DROP);
   const d = w.draw(1);
   t('tirage OK', d.success, d.error);
-  t('owner reçoit 2,1 ASE', w.chain.balanceOf(OWNER_PAY) - bO === 2100000000000000000n);
-  t('collaborateur reçoit 0,7 ASE', w.chain.balanceOf(COLLAB) - bC === 700000000000000000n);
-  t('commission enregistrée = 20 % exact', w.round(1).commission === (28n * ASE / 10n).toString());
+  t('owner reçoit 0,7875 ASE', w.chain.balanceOf(OWNER_PAY) - bO === 787500000000000000n);
+  t('collaborateur reçoit 0,2625 ASE', w.chain.balanceOf(COLLAB) - bC === 262500000000000000n);
+  t('contrat Airdrop reçoit 1,05 ASE', w.chain.balanceOf(DROP) - bD === 1050000000000000000n && w.round(1).airdrop === '1050000000000000000');
+  t('commission enregistrée = 15 % exact', w.round(1).commission === (21n * ASE / 10n).toString());
   // Montant "tordu" : prix 0,033… pour tester les arrondis
   const w2 = world();
   w2.c.call(ADMIN, 'setConfig', ['33333333333333333', 21, 0, 20, 10, 120]);
   w2.close(1); // tour 1 vide ; le tour 2 prend le nouveau prix
   w2.c.call(P[0], 'buy', [[[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7]], ''], 3n * 33333333333333333n);
-  const bO2 = w2.chain.balanceOf(OWNER_PAY), bC2 = w2.chain.balanceOf(COLLAB);
+  const bO2 = w2.chain.balanceOf(OWNER_PAY), bC2 = w2.chain.balanceOf(COLLAB), bD2 = w2.chain.balanceOf(DROP);
   const d2 = w2.draw(2);
   t('tirage avec prix non rond OK', d2.success, d2.error);
   const r2 = w2.round(2);
   const S = BigInt(r2.sales), C = BigInt(r2.commission);
-  t('commission = floor(20 %)', C === S * 2000n / 10000n);
+  t('commission = floor(15 %)', C === S * 1500n / 10000n);
   t('gains = calcul de référence (prix non rond)', JSON.stringify(r2.per) === JSON.stringify(ref.payouts(r2.sales, r2.price, r2.jackpotIn, r2.cnt).per.map(String)));
-  t('owner + collab = commission exacte (aucun wei perdu)', (w2.chain.balanceOf(OWNER_PAY) - bO2) + (w2.chain.balanceOf(COLLAB) - bC2) === C);
+  t('owner + collab + Airdrop = commission exacte (aucun wei perdu)', (w2.chain.balanceOf(OWNER_PAY) - bO2) + (w2.chain.balanceOf(COLLAB) - bC2) + (w2.chain.balanceOf(DROP) - bD2) === C);
   t('ventes = commission + gains attribués + report (au wei près)',
     S + BigInt(r2.jackpotIn) === C + BigInt(r2.carryOut) + r2.cnt.reduce((a, n, k) => a + BigInt(n) * BigInt(r2.per[k]), 0n));
   t('solde cohérent', balanceOk(w2));
@@ -282,7 +284,7 @@ sec('Report du jackpot');
   const r1 = w.round(1);
   t('pas de gagnant à 5 bons au tour 1', r1.cnt[2] === 0);
   const S1 = PRICE;
-  const exp1 = S1 - S1 * 2000n / 10000n - r1.cnt.reduce((a, n, k) => a + BigInt(n) * BigInt(r1.per[k]), 0n);
+  const exp1 = S1 - S1 * 1500n / 10000n - r1.cnt.reduce((a, n, k) => a + BigInt(n) * BigInt(r1.per[k]), 0n);
   t('report = ventes − commission − gains', BigInt(r1.carryOut) === exp1);
   t('jackpot global = report', w.st().jackpot === r1.carryOut);
   w.c.call(P[1], 'buy', [[[6, 7, 8, 9, 10]], ''], PRICE);
@@ -451,10 +453,10 @@ sec('Gains fixes + bonus (pas de jackpot gagné)');
   t('100 grilles, gagnants 9 / 1 / 0', r.grids === 100 && JSON.stringify(r.cnt) === '[9,1,0]', JSON.stringify(r.cnt));
   const [g3, g4] = per(w, 1);
   // 100 grilles à 2 ASE = 200 ASE, 1 × 4 bons, 9 × 3 bons, pas de jackpot
-  t('4 bons = 65,78 ASE (50 + bonus)', g4 / 10n ** 16n === 6578n, String(g4));
-  t('3 bons = 6,57 ASE (5 + bonus)', g3 / 10n ** 16n === 657n, String(g3));
+  t('4 bons = 68,42 ASE (50 + bonus)', g4 / 10n ** 16n === 6842n, String(g4));
+  t('3 bons = 6,84 ASE (5 + bonus)', g3 / 10n ** 16n === 684n, String(g3));
   t('4 bons = 10 × 3 bons (bonus au prorata)', g4 / g3 === 10n);
-  t('report = 35 ASE (moitié de la part jackpot) + poussière d\'arrondi', BigInt(r.carryOut) - 35n * ASE < 1000n && r.carryOut === ref.payouts(r.sales, r.price, r.jackpotIn, r.cnt).carry.toString(), r.carryOut);
+  t('report = 40 ASE (moitié de la part jackpot + reste de la caisse) + poussière', BigInt(r.carryOut) - 40n * ASE < 1000n && r.carryOut === ref.payouts(r.sales, r.price, r.jackpotIn, r.cnt).carry.toString(), r.carryOut);
   const b = w.chain.balanceOf(P[0]);
   const pa = w.payAll(1);
   t('paiement automatique de tous les gagnants', pa.success && w.st().owed === '0');
@@ -491,7 +493,7 @@ sec('Jackpot gagné avec report');
   forceDraw(w, 1, G, P[3], [1, 3, 4, 5, 6]);   // aucune grille gagnante
   w.draw(1);
   const carry1 = BigInt(w.round(1).carryOut);
-  t('tour 1 sans gagnant : tout est reporté sauf la commission (42 ASE × 80 %)', carry1 === 336n * ASE / 10n, String(carry1));
+  t('tour 1 sans gagnant : tout est reporté sauf la commission (42 ASE × 85 %)', carry1 === 357n * ASE / 10n, String(carry1));
   w.buy(P[1], [G]);
   forceDraw(w, 2, G, P[3], [1, 3, 4, 5, 6]);
   w.draw(2);

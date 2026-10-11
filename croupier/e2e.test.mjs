@@ -24,6 +24,7 @@ const t = (name, cond, extra = '') => { if (cond) { ok++; console.log('  ✓', n
 const mock = await startMockNode({ source: SRC, blockMs: 100 });
 const ADMIN = '0x' + 'a'.repeat(40), OWN = '0x' + 'b'.repeat(40), COL = '0x' + 'c'.repeat(40);
 const OWN_PAY = '0x' + 'd'.repeat(40), COL_PAY = '0x' + 'e'.repeat(40);
+const DROP = '0x' + 'f'.repeat(40);   // contrat ASE Airdrop (cagnotte)
 const players = Array.from({ length: 12 }, (_, i) => '0x' + (i + 1).toString(16).padStart(40, '0'));
 mock.addAccount('admin', ADMIN); mock.addAccount('croupier-owner', OWN); mock.addAccount('croupier-collab', COL);
 players.forEach((p) => mock.addAccount(p, p));
@@ -41,7 +42,7 @@ const tipO = tipOf(execFileSync('node', [join(HERE, 'croupier.mjs'), 'chain-new'
 const tipC = tipOf(execFileSync('node', [join(HERE, 'croupier.mjs'), 'chain-new'], { env: envC }).toString());
 t('deux chaînes créées, bouts différents', tipO !== tipC && tipO.length === 64);
 
-let r = C.call(ADMIN, 'init', [OWN_PAY, COL_PAY, COL, tipO, tipC]);
+let r = C.call(ADMIN, 'init', [OWN_PAY, COL_PAY, COL, tipO, tipC, DROP]);
 t('contrat initialisé avec les deux bouts', r.success, r.error);
 
 function startCroupier(env, name) {
@@ -85,8 +86,10 @@ t('tour 1 fermé, révélé (owner puis collab), compté, finalisé', view('getR
 t('chaque gagnant a réclamé son gain (dettes = 0)', done1);
 const rd1 = view('getRound', [1]);
 t('numéros = référence indépendante', JSON.stringify(rd1.nums) === JSON.stringify(ref.drawNumbers(1, rd1.sO, rd1.sC, rd1.digest)));
-t('commission owner reçue (75 %)', mock.chain.balanceOf(OWN_PAY) === BigInt(rd1.commission) * 7500n / 10000n);
-t('commission collab reçue (25 %)', mock.chain.balanceOf(COL_PAY) === BigInt(rd1.commission) - BigInt(rd1.commission) * 7500n / 10000n);
+const C1 = BigInt(rd1.commission), D1 = C1 / 2n, O1 = (C1 - D1) * 7500n / 10000n;
+t('commission : moitié au contrat Airdrop', mock.chain.balanceOf(DROP) === D1);
+t('commission owner reçue (75 % de l\'autre moitié)', mock.chain.balanceOf(OWN_PAY) === O1);
+t('commission collab reçue (25 % de l\'autre moitié)', mock.chain.balanceOf(COL_PAY) === C1 - D1 - O1);
 await waitFor(() => mock.alerts.some((a) => a.includes('Tirage n°1')), 5000, 'annonce');
 t('annonce Telegram du tirage envoyée', mock.alerts.some((a) => a.includes('Tirage n°1')));
 t('alerte de démarrage envoyée', mock.alerts.some((a) => a.includes('démarré')));

@@ -27,6 +27,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, chmodSy
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
+import { buildWeek, chunks } from '../airdrop/js/liste.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -60,6 +61,10 @@ const CFG = {
   tallyBatch: Number(process.env.TALLY_BATCH || 300),
   payBatch: Number(process.env.PAY_BATCH || 100),
   name: process.env.CROUPIER_NAME || '',
+  // ASE Airdrop : GAME=airdrop, et les deux jeux dont on lit les participants.
+  game: (process.env.GAME || '').toLowerCase(),
+  loto: process.env.LOTO_CONTRACT || '',
+  raffle: process.env.RAFFLE_CONTRACT || '',
   // Mode "sans CLI" (GitHub Actions, serveurs) : signature directe avec la librairie officielle.
   signerSeed: (process.env.SIGNER_SEED || '').trim(),   // graine 32 octets (hexa) du compte qui paie le gas
   chainSeed: (process.env.CHAIN_SEED || '').trim(),     // 1er élément de la chaîne de secrets (hexa)
@@ -133,10 +138,11 @@ async function rpcGet(path) {
   return r.json();
 }
 let CONTRACT_HEX = '';
-async function view(method, args = []) {
+async function view(method, args = []) { return viewAt(CONTRACT_HEX, method, args); }
+async function viewAt(contract, method, args = []) {
   const r = await fetch(CFG.rpc + '/view', {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ contract: CONTRACT_HEX, method, args }), signal: AbortSignal.timeout(20000),
+    body: JSON.stringify({ contract, method, args }), signal: AbortSignal.timeout(20000),
   });
   if (!r.ok) throw new Error(`view ${method} → HTTP ${r.status}`);
   const j = await r.json();
@@ -296,6 +302,14 @@ async function announce(id) {
   const r = await view('getRound', [id]);
   if (!r || r.status !== 'done' || STATE.lastDrawn >= id) return;
   STATE.lastDrawn = id; saveState();
+  if (CFG.game === 'airdrop') {
+    const total = BigInt(r.pot) + BigInt(r.carryIn);
+    await alert(
+      `🪂 ASE Airdrop n°${id} : cagnotte ${ase(total)} ASE, ${r.wallets} wallets, ${r.tickets} chances\n` +
+      (r.win.length ? r.win.map((w, k) => `${k + 1}${k ? 'e' : 'er'} : ${w.b.slice(0, 8)}…${w.b.slice(-4)} (${w.n} chances) → ${ase(r.prizes[k])} ASE`).join('\n') : 'Aucun participant.') +
+      `\nPrix envoyés automatiquement. Reporté : ${ase(r.carryOut)} ASE.`, 'drawn' + id, 1e12);
+    return;
+  }
   if (r.win) {   // ASE Raffle (tombola)
     await alert(
       `🎟️ Tombola n°${id} : ${r.tickets} tickets, ventes ${ase(r.sales)} ASE\n` +
@@ -342,8 +356,64 @@ async function settle(st, now) {
   }
 }
 
+// --- ASE Airdrop : liste de la semaine, puis secrets ---------------------
+async function airdropRound(id, now, values) {
+  const r = await view('getRound', [id]);
+  if (!r) return;
+  const deadline = Number(r.drawTs) + r.revealMin * 60000;
+  const late = now - Number(r.drawTs);
+  if (r.status !== 'closed' && r.status !== 'listed') return;
+  if (now >= deadline) {
+    await alert(`⚠️ Airdrop ${id} : pas tiré à temps → annulé, la semaine sera reprise au tirage suivant.`, 'cancel' + id, 1e12);
+    await send('cancelExpired', [id]).catch((e) => log(e.message));
+    return;
+  }
+  const st = await view('getState');
+  if (r.status === 'closed') {
+    if (CFG.role !== 'owner') return;
+    const wk = await buildWeek({ view: viewAt, loto: CFG.loto && toHex(CFG.loto), raffle: CFG.raffle && toHex(CFG.raffle), fromTs: st.lastTs, toTs: r.drawTs, now });
+    if (!wk.ready) {
+      log(`Airdrop ${id} : en attente des jeux (${wk.waiting.join(', ')})`);
+      if (late > 90 * 60000) await alert(`⏰ Airdrop ${id} : toujours en attente de ${wk.waiting.join(', ')}.`, 'wait' + id, 60 * 60000);
+      return;
+    }
+    const cs = chunks(wk.entries);
+    log(`Airdrop ${id} : ${wk.entries.length} wallets, cagnotte ${ase(wk.pot)} ASE, ${cs.length || 1} envoi(s)`);
+    if (!cs.length) { await send('submit', [id, 0, [], true, wk.pot]); return; }
+    for (let j = 0; j < cs.length; j++) {
+      const rc = await send('submit', [id, j, cs[j], j === cs.length - 1, wk.pot]);
+      if (!rc) return; // pas de reçu : on recommencera la liste au prochain passage
+    }
+    return;
+  }
+  // status "listed" : secrets
+  if (CFG.role === 'owner' && !r.sO) {
+    const sec = secretFor(st.tipO, values);
+    if (!sec) { await alert(`❌ Airdrop ${id} : bout de chaîne owner introuvable dans ma chaîne !`, 'nochain'); return; }
+    await send('reveal', ['owner', id, sec]);
+    return;
+  }
+  if (CFG.role === 'collab' && r.sO && !r.sC) {
+    const sec = secretFor(st.tipC, values);
+    if (!sec) { await alert(`❌ Airdrop ${id} : bout de chaîne collaborateur introuvable dans ma chaîne !`, 'nochain'); return; }
+    await send('reveal', ['collab', id, sec]);
+    await announce(id);
+    return;
+  }
+  if (late > 120 * 60000) await alert(`⏰ Airdrop ${id} : le secret ${!r.sO ? 'owner' : 'collaborateur'} n'est pas encore révélé.`, 'late' + id, 60 * 60000);
+}
+
 let lastOk = Date.now(), lastError = '';
 async function tick(values) {
+  if (CFG.game === 'airdrop') {
+    const info = await view('info');
+    const now = Number(info.now);
+    if (info.status === 'closing' && (CFG.role === 'owner' || now - Number(info.drawTs) > 10 * 60000)) await send('poke', []);
+    const st = await view('getState');
+    if (st.next < st.cur) await airdropRound(st.next, now, values);
+    lastOk = Date.now();
+    return;
+  }
   const info = await view('info');
   const now = Number(info.now);
   // 1) Fermer les ventes à l'heure (le contrat le fait aussi au prochain achat)
@@ -446,8 +516,16 @@ async function chainNew() {
 async function status() {
   CONTRACT_HEX = toHex(CFG.contract);
   const [info, st] = [await view('info'), await view('getState')];
-  const values = existsSync(chainFile) ? loadChain() : [];
+  const values = existsSync(chainFile) || CFG.chainSeed ? loadChain() : [];
   const tip = CFG.role === 'owner' ? st.tipO : st.tipC;
+  if (CFG.game === 'airdrop') {
+    console.log({
+      role: CFG.role, airdrop: info.round, statut: info.status, reporte: ase(info.carry) + ' ASE', prochainATirer: info.nextToDraw,
+      tirage: new Date(Number(info.drawTs)).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' }),
+      maChaine: values.length ? (values.indexOf(tip) > 0 ? `OK, ${values.indexOf(tip)} secrets restants` : 'NE CORRESPOND PAS au contrat') : 'absente',
+    });
+    return;
+  }
   console.log({
     role: CFG.role, tour: info.round, statut: info.status, ventes: ase(info.sales) + ' ASE', grilles: info.grids ?? info.tickets,
     tirage: new Date(Number(info.drawTs)).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' }),

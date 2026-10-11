@@ -135,12 +135,12 @@ export function parseAse(str) {
   return BigInt(i) * WEI + BigInt((f + '0'.repeat(18)).slice(0, 18));
 }
 
-// Règles de gains du contrat (pour « Vérifier ce tirage ») : 20 % commission,
-// 35 % jackpot, 45 % caisse des gains fixes (4 bons = 25 mises, 3 bons = 2,5 mises).
+// Règles de gains du contrat (pour « Vérifier ce tirage ») : 15 % commission,
+// 35 % jackpot, 50 % caisse des gains fixes (4 bons = 25 mises, 3 bons = 2,5 mises).
 export function payouts(sales, price, jackpotIn, [n3, n4, n5]) {
   const S = BigInt(sales), P = BigInt(price), J = BigInt(jackpotIn);
   const N3 = BigInt(n3), N4 = BigInt(n4), N5 = BigInt(n5);
-  const commission = (S * 2000n) / 10000n, pj = (S * 3500n) / 10000n, F = S - commission - pj;
+  const commission = (S * 1500n) / 10000n, pj = (S * 3500n) / 10000n, F = S - commission - pj;
   let g3 = (P * 5n) / 2n, g4 = P * 25n, g5 = 0n;
   const due = N3 * g3 + N4 * g4;
   if (due > F) { g3 = (g3 * F) / due; g4 = (g4 * F) / due; }

@@ -8,6 +8,7 @@ import * as L from '../lotomath.js';
 const DAY = 86400000;
 export const DEMO_ME = '0x' + '5'.repeat(40);         // ton wallet démo (= admin, pour voir le panneau)
 const OWNER_PAY = '0x' + 'b'.repeat(40), COLLAB = '0x' + 'c'.repeat(40);
+const DROP = '0x' + 'f'.repeat(40);   // contrat ASE Airdrop (cagnotte)
 const ASE = 10n ** 18n;
 
 function makeChain(n) {
@@ -27,7 +28,7 @@ export async function startDemo(contractUrl) {
   chain.fund(DEMO_ME, 0n);
   const c = chain.deploy(source, DEMO_ME);
   const chO = makeChain(400), chC = makeChain(400);
-  c.call(DEMO_ME, 'init', [OWNER_PAY, COLLAB, COLLAB, chO.at(-1), chC.at(-1)]);
+  c.call(DEMO_ME, 'init', [OWNER_PAY, COLLAB, COLLAB, chO.at(-1), chC.at(-1), DROP]);
 
   const receipts = new Map();
   let txn = 0;

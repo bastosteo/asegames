@@ -1,0 +1,72 @@
+/* ================= ASE Airdrop — compléments au style du loto ================= */
+.brand-chute { width: 30px; height: 30px; display: inline-block; background: no-repeat center / contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M2 14 C2 6 8 2 16 2 C24 2 30 6 30 14 Z' fill='%237272FF'/%3E%3Cpath d='M2 14 L11 22 M30 14 L21 22' stroke='%23B9BAE8'/%3E%3Crect x='10' y='20' width='12' height='10' rx='1' fill='%23C98A4B'/%3E%3Ccircle cx='16' cy='25' r='3.2' fill='%23F4C542'/%3E%3C/svg%3E"); }
+
+/* Parachute qui descend doucement */
+.drop-art { position: relative; display: grid; place-items: center; min-height: 190px; overflow: hidden; }
+.chute-svg { width: 150px; height: auto; filter: drop-shadow(0 14px 16px rgba(0,0,0,.45)); animation: drift 6s ease-in-out infinite; }
+.chute-swing { transform-origin: 60px 4px; animation: swing 3.2s ease-in-out infinite; }
+@keyframes swing { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+@keyframes drift { 0%, 100% { transform: translateY(-6px); } 50% { transform: translateY(8px); } }
+.cloud { position: absolute; height: 18px; border-radius: 999px; background: rgba(255,255,255,.07); }
+.cloud::before { content: ""; position: absolute; left: 22%; bottom: 6px; width: 46%; height: 22px; border-radius: 50%; background: inherit; }
+.cloud.c1 { width: 96px; top: 34%; left: -100px; animation: cloud 14s linear infinite; }
+.cloud.c2 { width: 64px; top: 70%; left: -70px; animation: cloud 19s linear 5s infinite; }
+@keyframes cloud { to { transform: translateX(calc(100% + 520px)); } }
+
+/* Podium des 3 prix (comme la tombola) */
+.podium { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.podium li { background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 16px; padding: 12px; display: grid; gap: 2px; }
+.podium strong { font-family: var(--display); font-size: clamp(1.05rem, 4vw, 1.5rem); font-variant-numeric: tabular-nums; }
+.p-label { font-size: .8rem; color: var(--muted); }
+.medal { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: .8rem; font-family: var(--display); }
+.m1 { background: linear-gradient(135deg, #FFE68A, #C99A1A); color: #3A2A00; }
+.m2 { background: linear-gradient(135deg, #F1F2FF, #9EA2C8); color: #23245A; }
+.m3 { background: linear-gradient(135deg, #F3C49B, #A86A3A); color: #3A1E00; }
+.win-banner { background: rgba(244,197,66,.14); color: var(--gold); }
+
+/* Comment participer */
+.how { margin-top: 22px; background: var(--deep); border: 1px solid var(--line); border-radius: var(--r-panel); padding: 20px 18px; box-shadow: var(--shadow); }
+.how h2 { margin: 0 0 12px; }
+.how-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-bottom: 10px; }
+.how-card { display: grid; gap: 2px; padding: 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--deeper); color: inherit; text-decoration: none; }
+a.how-card:hover { border-color: var(--gold); }
+.how-card strong { font-family: var(--display); font-size: 1.15rem; }
+.how-card span { color: var(--muted); font-size: .9rem; }
+
+/* Mes chances */
+.check { display: grid; gap: 6px; margin-bottom: 16px; }
+.check label { font-weight: 600; font-size: .9rem; color: var(--muted); }
+.check-row { display: flex; gap: 8px; }
+.check-row input { flex: 1; min-width: 0; font: inherit; color: var(--ink); background: var(--deeper); border: 1px solid var(--line); border-radius: 10px; padding: .55em .75em; }
+.check-row .btn { margin: 0; }
+.share { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin: 0 0 14px; }
+.share div { border-top: 1px solid var(--line); padding-top: 8px; }
+.share dt { font-size: .8rem; color: var(--muted); }
+.share dd { margin: 0; font-family: var(--display); font-weight: 700; font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+.bar { height: 8px; border-radius: 999px; background: var(--deeper); overflow: hidden; margin: 4px 0 14px; }
+.bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--gold), #FF9467); border-radius: inherit; }
+
+/* Joueurs et gagnants */
+.plist { width: 100%; border-collapse: collapse; font-size: .92rem; }
+.plist th, .plist td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.plist thead th { color: var(--muted); font-weight: 600; }
+.plist td.num, .plist th.num { text-align: right; }
+.plist tr.me td { color: var(--gold); }
+.winners { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; }
+.winners li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.winners .amount { margin-left: auto; font-family: var(--display); font-weight: 700; }
+
+/* Confettis */
+.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 60; overflow: hidden; }
+.confetti i { position: absolute; top: -12px; width: 8px; height: 14px; border-radius: 2px; animation: fall var(--d, 1.6s) cubic-bezier(.25,.6,.4,1) forwards; }
+@keyframes fall { to { transform: translate(var(--x, 0), 105vh) rotate(var(--r, 540deg)); opacity: .9; } }
+
+@media (min-width: 760px) {
+  .hero { grid-template-columns: 1.3fr 1fr; align-items: center; }
+  .hero .hero-main { grid-column: 1; grid-row: 1; }
+  .hero .drop-art { grid-column: 2; grid-row: 1 / span 2; min-height: 240px; }
+  .hero .chute-svg { width: 190px; }
+  .hero .hero-stats { grid-column: 1; grid-row: 2; grid-template-columns: repeat(3, minmax(0, 1fr)); align-self: end; }
+  .hero .podium, .hero .banner { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: reduce) { .chute-svg, .chute-swing, .cloud { animation: none; } }

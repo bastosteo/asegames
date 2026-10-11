@@ -1,6 +1,7 @@
 // ASE Game — page d'accueil : thème + infos en direct du loto (lues sur la chaîne).
 import CONFIG from './loto/js/config.js';
 import RAFFLE from './raffle/js/config.js';
+import DROP from './airdrop/js/config.js';
 import { Rpc } from './loto/js/chain.js';
 import { fmtAse } from './loto/js/lotomath.js';
 
@@ -55,3 +56,42 @@ function tickRaffle() {
 loadRaffle();
 setInterval(tickRaffle, 1000);
 setInterval(loadRaffle, 60000);
+
+// ASE Airdrop : frais de la semaine déjà reçus (+ report) et compte à rebours
+let dinfo = null, doff = 0;
+async function weekFees(rpc, contract, from, to) {
+  if (!contract) return 0n;
+  const st = await rpc.view(contract, 'getState', []);
+  let sum = 0n;
+  for (let id = st.cur; id >= 1; id--) {
+    const r = await rpc.view(contract, 'getRound', [id]);
+    if (!r) continue;
+    if (Number(r.drawTs) <= from) break;
+    if (Number(r.drawTs) <= to && r.status === 'done') sum += BigInt(r.airdrop || '0');
+  }
+  return sum;
+}
+async function loadDrop() {
+  if (!DROP.CONTRACT) { $('#dropPot').textContent = 'soon'; $('#dropCountdown').textContent = '–'; return; }
+  try {
+    const rpc = new Rpc(DROP.RPC);
+    dinfo = await rpc.view(DROP.CONTRACT, 'info', []);
+    doff = Number(dinfo.now) - Date.now();
+    tickDrop();
+    const prev = dinfo.round > 1 ? await rpc.view(DROP.CONTRACT, 'getRound', [dinfo.round - 1]) : null;
+    const from = prev && prev.status !== 'cancelled' ? Number(prev.drawTs) : Number(dinfo.fromTs);
+    const to = Number(dinfo.drawTs);
+    const [a, b] = await Promise.all([weekFees(rpc, CONFIG.CONTRACT, from, to), weekFees(rpc, RAFFLE.CONTRACT, from, to)]);
+    $('#dropPot').textContent = fmtAse(a + b + BigInt(dinfo.carry), 2) + ' ASE';
+  } catch { $('#dropPot').textContent = '–'; }
+}
+function tickDrop() {
+  if (!dinfo) return;
+  const s = Math.floor((Number(dinfo.drawTs) - (Date.now() + doff)) / 1000);
+  if (s <= 0) { $('#dropCountdown').textContent = 'drawing'; return; }
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+  $('#dropCountdown').textContent = d ? `${d}d ${h}h` : `${h}h ${String(m).padStart(2, '0')}m`;
+}
+loadDrop();
+setInterval(tickDrop, 1000);
+setInterval(loadDrop, 60000);

@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      CONTRACT: ${{ vars.CONTRACT || 'ase1hcfm75h4wnwrxma6juwjw4tm8wzcwqs9saaqfr' }}
+      CONTRACT: ${{ vars.CONTRACT || 'ase1j6ayfwyqdqjuc57mcjcnznshhl036eny5nktjg' }}
       RPC_URL: ${{ vars.RPC_URL || 'https://testnet.asentum.com' }}
       TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -75,4 +75,29 @@ jobs:
           CONTRACT: ${{ vars.RAFFLE_CONTRACT }}
           SIGNER_SEED: ${{ secrets.COLLAB_SIGNER_SEED }}
           CHAIN_SEED: ${{ secrets.RAFFLE_COLLAB_CHAIN_SEED }}
+        run: node croupier/croupier.mjs once
+      # ---- ASE Airdrop (tirage hebdomadaire des frais), une fois installé (variable AIRDROP_CONTRACT) ----
+      - name: Airdrop owner (liste + secret owner)
+        if: ${{ !cancelled() && vars.AIRDROP_CONTRACT != '' }}
+        env:
+          ROLE: owner
+          GAME: airdrop
+          CROUPIER_NAME: airdrop-owner-github
+          CONTRACT: ${{ vars.AIRDROP_CONTRACT }}
+          LOTO_CONTRACT: ${{ vars.CONTRACT }}
+          RAFFLE_CONTRACT: ${{ vars.RAFFLE_CONTRACT }}
+          SIGNER_SEED: ${{ secrets.OWNER_SIGNER_SEED }}
+          CHAIN_SEED: ${{ secrets.AIRDROP_OWNER_CHAIN_SEED }}
+        run: node croupier/croupier.mjs once
+      - name: Airdrop collaborateur
+        if: ${{ !cancelled() && vars.AIRDROP_CONTRACT != '' }}
+        env:
+          ROLE: collab
+          GAME: airdrop
+          CROUPIER_NAME: airdrop-collab-github
+          CONTRACT: ${{ vars.AIRDROP_CONTRACT }}
+          LOTO_CONTRACT: ${{ vars.CONTRACT }}
+          RAFFLE_CONTRACT: ${{ vars.RAFFLE_CONTRACT }}
+          SIGNER_SEED: ${{ secrets.COLLAB_SIGNER_SEED }}
+          CHAIN_SEED: ${{ secrets.AIRDROP_COLLAB_CHAIN_SEED }}
         run: node croupier/croupier.mjs once

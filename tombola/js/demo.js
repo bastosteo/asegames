@@ -7,6 +7,7 @@ import * as L from '../../loto/js/lotomath.js';
 const DAY = 86400000;
 export const DEMO_ME = '0x' + '5'.repeat(40);
 const OWNER_PAY = '0x' + 'b'.repeat(40), COLLAB = '0x' + 'c'.repeat(40);
+const DROP = '0x' + 'f'.repeat(40);   // contrat ASE Airdrop (cagnotte)
 const ASE = 10n ** 18n;
 
 function makeChain(n) {
@@ -25,7 +26,7 @@ export async function startDemo(contractUrl) {
   for (const a of [DEMO_ME, COLLAB, ...players]) chain.fund(a, 100000n * ASE);
   const c = chain.deploy(source, DEMO_ME);
   const chO = makeChain(200), chC = makeChain(200);
-  c.call(DEMO_ME, 'init', [OWNER_PAY, COLLAB, COLLAB, chO.at(-1), chC.at(-1)]);
+  c.call(DEMO_ME, 'init', [OWNER_PAY, COLLAB, COLLAB, chO.at(-1), chC.at(-1), DROP]);
   const receipts = new Map();
   let txn = 0;
   const pre = (ch, tip) => ch[ch.indexOf(tip) - 1];

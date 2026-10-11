@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ASE Game</title>
-<meta name="description" content="ASE Game: a collection of on-chain games on the Asentum testnet. Lottery live now, slot machine and more coming soon.">
+<meta name="description" content="ASE Game: a collection of on-chain games on the Asentum testnet. Lottery and raffle live now, a weekly ASE airdrop, slot machine coming soon.">
 <meta name="theme-color" content="#000000">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%234949DF'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23F4C542'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -66,6 +66,44 @@
           <div><dt>Draw in</dt><dd id="raffleCountdown">…</dd></div>
         </dl>
         <span class="btn btn-primary">Play ASE Raffle</span>
+      </div>
+    </a>
+
+    <a class="game live airdrop" href="airdrop/">
+      <div class="game-art" aria-hidden="true">
+        <svg class="chute-svg" viewBox="0 0 120 140" role="img" aria-label="Parachute carrying a crate of ASE">
+          <defs>
+            <clipPath id="cnp"><path d="M8 52 C8 20 32 4 60 4 C88 4 112 20 112 52 Q99 44 86 52 Q73 44 60 52 Q47 44 34 52 Q21 44 8 52 Z"/></clipPath>
+            <linearGradient id="cg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE68A"/><stop offset=".55" stop-color="#F4C542"/><stop offset="1" stop-color="#C99A1A"/></linearGradient>
+            <linearGradient id="wd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C98A4B"/><stop offset="1" stop-color="#8E5A2B"/></linearGradient>
+          </defs>
+          <g class="chute-swing">
+            <g clip-path="url(#cnp)">
+              <rect x="0" y="0" width="34" height="60" fill="#7272FF"/><rect x="34" y="0" width="26" height="60" fill="#ECECFF"/>
+              <rect x="60" y="0" width="26" height="60" fill="#7272FF"/><rect x="86" y="0" width="34" height="60" fill="#ECECFF"/>
+              <path d="M8 52 C8 20 32 4 60 4" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="3"/>
+            </g>
+            <g stroke="#B9BAE8" stroke-width="1.2" stroke-opacity=".8">
+              <path d="M8 52 L42 96 M34 52 L46 96 M60 52 L60 96 M86 52 L74 96 M112 52 L78 96"/>
+            </g>
+            <rect x="38" y="94" width="44" height="38" rx="3" fill="url(#wd)" stroke="#5E3A17" stroke-width="2"/>
+            <path d="M38 107 h44 M38 120 h44" stroke="#5E3A17" stroke-opacity=".45" stroke-width="1.5"/>
+            <path d="M40 96 L80 130" stroke="#5E3A17" stroke-opacity=".35" stroke-width="2"/>
+            <circle cx="60" cy="113" r="12.5" fill="url(#cg)" stroke="#8A6408" stroke-width="1.5"/>
+            <circle cx="60" cy="113" r="9.5" fill="none" stroke="#8A6408" stroke-opacity=".5" stroke-width="1"/>
+            <text x="60" y="116.2" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="8.5" font-weight="800" fill="#3A2A00">ASE</text>
+          </g>
+        </svg>
+      </div>
+      <div class="game-body">
+        <p class="state"><span class="dot"></span> Every Sunday</p>
+        <h2>ASE Airdrop</h2>
+        <p class="desc">Half of the Loto and Raffle fees, airdropped to 3 players every Sunday at 21:00. 1 ticket = 1 chance.</p>
+        <dl class="live-stats">
+          <div><dt>This week</dt><dd id="dropPot">…</dd></div>
+          <div><dt>Airdrop in</dt><dd id="dropCountdown">…</dd></div>
+        </dl>
+        <span class="btn btn-primary">View airdrop</span>
       </div>
     </a>
 

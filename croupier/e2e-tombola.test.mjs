@@ -18,6 +18,7 @@ const t = (name, cond, extra = '') => { if (cond) { ok++; console.log('  ✓', n
 const mock = await startMockNode({ source: SRC, blockMs: 100 });
 const C = mock.contract;
 const ADMIN = '0x' + 'a'.repeat(40), OWN_PAY = '0x' + 'd'.repeat(40), COL_PAY = '0x' + 'e'.repeat(40);
+const DROP = '0x' + 'f'.repeat(40);   // contrat ASE Airdrop (cagnotte)
 const players = Array.from({ length: 8 }, (_, i) => '0x' + (i + 1).toString(16).padStart(40, '0'));
 players.forEach((p) => mock.chain.fund(p, 1000n * ASE)); mock.chain.fund(ADMIN, ASE);
 const cry = await import(pathToFileURL(join(HERE, 'node_modules/@asentum/crypto/dist/index.js')).href);
@@ -25,7 +26,7 @@ const addrOf = (seed) => cry.addressFromPublicKey(cry.generateKeypair(Uint8Array
 const seedO = randomBytes(32).toString('hex'), seedC = randomBytes(32).toString('hex');
 mock.chain.fund(addrOf(seedO), 10n * ASE); mock.chain.fund(addrOf(seedC), 10n * ASE);
 const chO = ref.makeChain(40), chC = ref.makeChain(40);
-t('tombola initialisée', C.call(ADMIN, 'init', [OWN_PAY, COL_PAY, ADMIN, chO[40], chC[40]]).success);
+t('tombola initialisée', C.call(ADMIN, 'init', [OWN_PAY, COL_PAY, ADMIN, chO[40], chC[40], DROP]).success);
 
 const base = { ...process.env, CONTRACT: C.address, RPC_URL: mock.url, ACCOUNT: '', ASENTUM_BIN: '/nonexistent', CHAIN_LENGTH: '40', POLL_MS: '150',
   RECEIPT_TIMEOUT_MS: '15000', MAX_RUN_MS: '20000', TELEGRAM_TOKEN: 'x', TELEGRAM_CHAT_ID: '1', TELEGRAM_API: mock.url + '/__alert', ENV_FILE: '/nonexistent' };
@@ -54,7 +55,7 @@ const r = C.view('getRound', [1]);
 t('passage collab : 3 gagnants tirés', q2.code === 0 && r.status === 'done' && r.win.length === 3, q2.out.slice(-300));
 const all = C.view('getPurchases', [1, 0, 400]).map((p) => ({ b: p.b, n: p.n, first: p.first }));
 t('gagnants = référence indépendante', JSON.stringify(r.win) === JSON.stringify(ref.raffleWinners(1, r.sO, r.sC, r.digest, all)));
-t('commission 75 / 25 reçue', mock.chain.balanceOf(OWN_PAY) === BigInt(r.commission) * 3n / 4n && mock.chain.balanceOf(COL_PAY) === BigInt(r.commission) - BigInt(r.commission) * 3n / 4n);
+{ const C = BigInt(r.commission), D = C / 2n, O = (C - D) * 3n / 4n; t('commission : moitié Airdrop, moitié équipe 75 / 25', mock.chain.balanceOf(DROP) === D && mock.chain.balanceOf(OWN_PAY) === O && mock.chain.balanceOf(COL_PAY) === C - D - O); }
 t('annonce Telegram des gagnants', mock.alerts.some((x) => x.includes('Tombola n°1') && x.includes('1er prix')), mock.alerts.join(' | ').slice(0, 300));
 t('les prix attendent le Claim (non envoyés)', C.view('getState').owed === (BigInt(r.sales) - BigInt(r.commission)).toString());
 const q3 = await once(envO);

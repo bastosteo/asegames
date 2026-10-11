@@ -142,7 +142,8 @@
       </tbody>
     </table>
     <p><strong>Bonus</strong>: if nobody hits 5 matches, half of the draw's 35% jackpot share is split among the 4- and 3-match winners; the other half rolls over to the next draw's jackpot.</p>
-    <p>Fixed prizes are paid from a pool of 45% of sales. On nights with so many winners that the pool isn't enough, both fixed prizes are reduced proportionally: 4 matches always win more than 3 matches, and 5 matches more than 4. Whatever is left in the pool goes to the jackpot.</p>
+    <p>Fixed prizes are paid from a pool of 50% of sales. On nights with so many winners that the pool isn't enough, both fixed prizes are reduced proportionally: 4 matches always win more than 3 matches, and 5 matches more than 4. Whatever is left in the pool goes to the jackpot.</p>
+    <p><strong>ASE Airdrop</strong>: every ticket you play also counts as one chance in the weekly <a href="../airdrop/">ASE Airdrop</a> (every Sunday at 21:00, 3 winners), funded by half of the games' fees.</p>
     <p><strong>Claiming</strong>: after the draw, the site shows “You won X ASE with N matches”. Click <strong>Claim</strong> in “My tickets” to receive your prize in your wallet. Prizes never expire: you can claim them at any time.</p>
     <h3>Randomness, and how to verify it</h3>
     <p>A blockchain has no built-in randomness. Here, two independent parties (the operator and a collaborator) each prepared a long chain of secrets, and only the tip of each chain is stored in the contract. After sales close, each one reveals the day's secret; the contract checks it matches their chain. The numbers are then computed from both secrets and the fingerprint of every ticket played.</p>
@@ -171,23 +172,35 @@
 </footer>
 
 <!-- Fenêtres -->
-<dialog id="dlgWallet" class="dlg" aria-labelledby="dlgWalletTitle">
-  <h2 id="dlgWalletTitle">Connect a wallet</h2>
-  <div id="walletConnected" hidden>
-    <p>Connected as <strong id="walletAddrFull" class="small"></strong></p>
-    <button class="btn btn-danger btn-wide" id="disconnectBtn" type="button">Disconnect this wallet</button>
+<dialog id="dlgWallet" class="dlg wdlg" aria-labelledby="dlgWalletTitle">
+  <div class="wdlg-head">
+    <div>
+      <p class="wdlg-eyebrow">· Connect wallet</p>
+      <h2 id="dlgWalletTitle">Connect to Asentum</h2>
+    </div>
+    <form method="dialog"><button class="wdlg-x" aria-label="Close">×</button></form>
   </div>
-  <div id="walletChoices">
-    <button class="choice" id="useExt"><strong>Asentum Wallet extension</strong><span id="extHint">In this browser</span></button>
-    <button class="choice" id="useTg"><strong>Telegram wallet</strong><span>With a 6-digit code</span></button>
+  <div class="wdlg-body">
+    <div id="walletConnected" hidden>
+      <p class="wdlg-text">Connected as</p>
+      <p class="wdlg-addr" id="walletAddrFull"></p>
+      <button class="btn btn-danger btn-wide" id="disconnectBtn" type="button">Disconnect this wallet</button>
+    </div>
+    <div id="walletChoices">
+      <button class="choice" id="useExt" type="button"><span class="c-text"><strong>Browser extension</strong><span id="extHint">Use the wallet you already have installed.</span></span><span class="c-cta">Connect</span></button>
+      <button class="choice" id="useTg" type="button"><span class="c-text"><strong>Telegram wallet</strong><span>Pair with a 6-digit code, no app needed.</span></span><span class="c-cta">Pair</span></button>
+    </div>
+    <div id="tgPair" class="tg-pair" hidden>
+      <p class="wdlg-text">Open <strong>@AsentumBot</strong> in Telegram → tap <strong>Connect wallet</strong> → enter this code:</p>
+      <div class="code-boxes" id="tgCode" aria-live="polite"></div>
+      <p class="tg-expire" id="tgExpire">Expires in 5:00</p>
+      <a class="tg-open" href="https://t.me/AsentumBot" target="_blank" rel="noopener">Open @AsentumBot ↗</a>
+      <button class="btn tg-back" id="tgBack" type="button">← Back</button>
+    </div>
+    <p class="error" id="walletErr" hidden></p>
   </div>
-  <div id="tgPair" hidden>
-    <p>In the Asentum Wallet Telegram bot, open “Connect” and enter this code:</p>
-    <p class="pair-code" id="tgCode">······</p>
-    <p class="muted small">Waiting for your approval…</p>
-  </div>
-  <p class="error" id="walletErr" hidden></p>
-  <form method="dialog"><button class="btn btn-ghost btn-wide">Close</button></form>
+  <div class="wdlg-net"><span class="wdlg-eyebrow">Network</span><code>testnet.asentum.com</code></div>
+  <p class="wdlg-foot">We only read on-chain activity and request signatures. We never store your keys.</p>
 </dialog>
 
 <dialog id="dlgVerify" class="dlg dlg-wide" aria-labelledby="dlgVerifyTitle">

@@ -61,15 +61,19 @@ main, .top, .foot { width: min(1040px, 100%); margin: 0 auto; padding-inline: 16
 
 .slot-svg { width: 150px; height: auto; filter: drop-shadow(0 10px 14px rgba(0,0,0,.35)); }
 .next-svg { width: 104px; height: auto; color: var(--muted); }
+.chute-svg { width: 118px; height: auto; filter: drop-shadow(0 10px 14px rgba(0,0,0,.35)); animation: drift 6s ease-in-out infinite; }
+.chute-swing { transform-origin: 60px 4px; animation: swing 3.2s ease-in-out infinite; }
+@keyframes swing { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+@keyframes drift { 0%, 100% { transform: translateY(-5px); } 50% { transform: translateY(6px); } }
 .raffle-svg { width: 190px; height: auto; filter: drop-shadow(0 10px 14px rgba(0,0,0,.35)); }
 .game.next { cursor: default; }
 .game.next:hover { transform: none; border-color: var(--line); }
 
 @media (min-width: 760px) {
   .games { grid-template-columns: 1.25fr 1fr; align-items: stretch; }
-  .game:first-child { grid-row: span 2; }
+  .game:first-child { grid-row: span 3; }
   .game-art { min-height: 200px; }
-  .game.soon, .game.raffle { grid-template-columns: 190px 1fr; }
-  .game.soon .game-art, .game.raffle .game-art { min-height: 0; }
+  .game.soon, .game.raffle, .game.airdrop { grid-template-columns: 190px 1fr; }
+  .game.soon .game-art, .game.raffle .game-art, .game.airdrop .game-art { min-height: 0; }
 }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } .chute-svg, .chute-swing { animation: none; } }

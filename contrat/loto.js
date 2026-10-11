@@ -6,9 +6,10 @@
 //   - Un tirage par jour (21h00 heure de Paris par défaut, heure d'été
 //     gérée). Les ventes ferment 10 min avant ; le tour suivant s'ouvre.
 //   - Répartition des ventes d'un tour :
-//       20 % commission (75 % owner, 25 % collaborateur)
+//       15 % commission : 7,5 % équipe (75 % owner, 25 % collaborateur)
+//                         + 7,5 % envoyés au contrat ASE Airdrop
 //       35 % jackpot (5 bons), partagé entre ses gagnants, + reports
-//       45 % caisse des gains fixes : 4 bons = 25 mises, 3 bons = 2,5 mises.
+//       50 % caisse des gains fixes : 4 bons = 25 mises, 3 bons = 2,5 mises.
 //            Si la caisse ne suffit pas, les deux gains baissent dans la
 //            même proportion (l'ordre 4 bons > 3 bons est toujours gardé).
 //     Pas de gagnant à 5 bons → la moitié des 35 % du tour est versée en
@@ -25,7 +26,7 @@
 //
 //  Sécurité :
 //   - Aucune fonction ne permet à l'admin de retirer des fonds. Seule la
-//     commission (20 %) est envoyée, automatiquement, à la fin d'un tirage.
+//     commission (15 %) est envoyée, automatiquement, à la fin d'un tirage.
 //   - L'état est enregistré AVANT chaque envoi d'ASE.
 //   - Montants en BigInt (wei), stockés en texte.
 //
@@ -39,13 +40,13 @@
 const PICK = 5;                 // numéros par grille
 const MAXN = 20;                // numéros possibles : 1..20
 const BPS = 10000n;             // base des pourcentages (10000 = 100 %)
-const SHARE_COMMISSION = 2000n; // 20 %
-const SHARE_JACKPOT = 3500n;    // 35 % (le reste, 45 %, = caisse des gains fixes)
+const SHARE_COMMISSION = 1500n; // 15 % : moitié équipe (75/25), moitié cagnotte ASE Airdrop
+const SHARE_JACKPOT = 3500n;    // 35 % (le reste, 50 %, = caisse des gains fixes)
 const OWNER_CUT = 7500n;        // 75 % de la commission pour l'owner
 const DAY = 86400000;           // un jour en ms
 const HOUR = 3600000;
 const MAX_GRIDS_HARD = 50;      // plafond absolu de grilles par achat
-const MAX_CHAIN_SKIP = 30;      // tours sautés tolérés dans une chaîne de secrets
+const MAX_CHAIN_SKIP = 1;       // un secret = exactement le maillon précédent (le collaborateur ne peut pas choisir)
 const MAX_BATCH = 400;          // plafond d'éléments lus par appel
 const MAX_PAYS = 40;            // plafond d'envois d'ASE par appel (gas < 1 000 000)
 
@@ -286,9 +287,10 @@ function finalize(r, c, s) {
   const S = big(r.sales), P = big(r.price), J = big(s.jackpot);
   const [n3, n4, n5] = r.cnt.map(big);
   const commission = (S * SHARE_COMMISSION) / BPS;
-  const cOwner = (commission * OWNER_CUT) / BPS;
+  const cDrop = commission / 2n;                        // moitié → cagnotte ASE Airdrop
+  const cOwner = ((commission - cDrop) * OWNER_CUT) / BPS;
   const pj = (S * SHARE_JACKPOT) / BPS;               // part jackpot du tour
-  const F = S - commission - pj;                      // caisse des gains fixes (45 %)
+  const F = S - commission - pj;                      // caisse des gains fixes (50 %)
   let g3 = (P * 5n) / 2n, g4 = P * 25n, g5 = 0n;      // gains fixes : 2,5 et 25 mises
   const due = n3 * g3 + n4 * g4;
   if (due > F) { g3 = (g3 * F) / due; g4 = (g4 * F) / due; }   // caisse insuffisante
@@ -309,6 +311,7 @@ function finalize(r, c, s) {
   r.jackpotIn = J.toString();
   r.carryOut = carry.toString();
   r.commission = commission.toString();
+  r.airdrop = cDrop.toString();
   r.status = 'done';
   putR(r);
   s.jackpot = carry.toString();
@@ -318,10 +321,11 @@ function finalize(r, c, s) {
   jset('st', s);
   // Envois APRÈS l'enregistrement de l'état.
   if (cOwner > 0n) transfer(c.payOwner, cOwner.toString());
-  if (commission > cOwner) transfer(c.payCollab, (commission - cOwner).toString());
+  if (commission - cDrop > cOwner) transfer(c.payCollab, (commission - cDrop - cOwner).toString());
+  if (cDrop > 0n) transfer(c.payAirdrop, cDrop.toString());
   emit('Finalized', {
     round: String(r.id), nums: JSON.stringify(r.nums), counts: JSON.stringify(r.cnt), per: JSON.stringify(per),
-    jackpotIn: r.jackpotIn, carryOut: r.carryOut, commission: r.commission,
+    jackpotIn: r.jackpotIn, carryOut: r.carryOut, commission: r.commission, airdrop: r.airdrop,
   });
 }
 
@@ -387,14 +391,14 @@ function batchRange(from, count, total) {
   //  collabAdmin          : wallet du collaborateur (gère SA chaîne)
   //  tipOwner / tipCollab : bouts des deux chaînes de secrets (64 hexa)
   // ===================================================================
-  init(payOwner, payCollab, collabAdmin, tipOwner, tipCollab) {
+  init(payOwner, payCollab, collabAdmin, tipOwner, tipCollab, payAirdrop) {
     noValue();
     assert(!storage.get('cfg'), 'already initialized');
     assert(isSecret(tipOwner) && isSecret(tipCollab), 'invalid tips');
     assert(tipOwner !== tipCollab, 'identical tips');
     const c = {
       admin: sender(),
-      payOwner: addr(payOwner), payCollab: addr(payCollab), collabAdmin: addr(collabAdmin),
+      payOwner: addr(payOwner), payCollab: addr(payCollab), collabAdmin: addr(collabAdmin), payAirdrop: addr(payAirdrop),
       price: (2n * 10n ** 18n).toString(),   // 2 ASE
       maxGrids: 20, maxRound: 3000,          // grilles max par achat / par tirage
       drawH: 21, drawM: 0,                   // 21h00 Paris
@@ -581,13 +585,14 @@ function batchRange(from, count, total) {
     emit('Config', { key: 'game', value: JSON.stringify([c.price, H, M, G, A, B, T]) });
     return true;
   },
-  setPayouts(payOwner, payCollab) {
+  setPayouts(payOwner, payCollab, payAirdrop) {
     noValue();
     const c = cfg(); onlyAdmin(c);
     c.payOwner = addr(payOwner);
     c.payCollab = addr(payCollab);
+    if (payAirdrop !== undefined && payAirdrop !== null) c.payAirdrop = addr(payAirdrop);
     jset('cfg', c);
-    emit('Config', { key: 'payouts', value: c.payOwner + ',' + c.payCollab });
+    emit('Config', { key: 'payouts', value: c.payOwner + ',' + c.payCollab + ',' + c.payAirdrop });
     return true;
   },
   setAdmin(newAdmin) {

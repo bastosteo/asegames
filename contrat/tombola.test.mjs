@@ -10,6 +10,7 @@ let ok = 0, ko = 0, section = '';
 const t = (name, cond, extra = '') => { if (cond) ok++; else { ko++; console.log(`  ✗ [${section}] ${name}`, extra); } };
 const sec = (n) => { section = n; console.log('•', n); };
 const ADMIN = '0x' + 'a'.repeat(40), OWNER_PAY = '0x' + 'b'.repeat(40), COLLAB = '0x' + 'c'.repeat(40);
+const DROP = '0x' + 'f'.repeat(40);   // contrat ASE Airdrop (cagnotte)
 const P = Array.from({ length: 600 }, (_, i) => '0x' + (i + 1).toString(16).padStart(40, '0'));
 
 function world({ start = Date.UTC(2026, 9, 10, 12, 0) } = {}) {
@@ -17,7 +18,7 @@ function world({ start = Date.UTC(2026, 9, 10, 12, 0) } = {}) {
   for (const a of [ADMIN, OWNER_PAY, COLLAB, ...P]) chain.fund(a, 100000n * ASE);
   const c = chain.deploy(SRC, ADMIN);
   const chO = ref.makeChain(100), chC = ref.makeChain(100);
-  const r = c.call(ADMIN, 'init', [OWNER_PAY, COLLAB, COLLAB, chO[100], chC[100]]);
+  const r = c.call(ADMIN, 'init', [OWNER_PAY, COLLAB, COLLAB, chO[100], chC[100], DROP]);
   if (!r.success) throw new Error('init: ' + r.error);
   const w = {
     chain, c, chO, chC,
@@ -46,7 +47,7 @@ sec('Initialisation');
   const r = w.round(1);
   t('tirage dimanche 11/10/2026 à 21:00 Paris', new Date(r.drawTs).toISOString() === '2026-10-11T19:00:00.000Z' && ref.parisHM(r.drawTs) === '21:00', new Date(r.drawTs).toISOString());
   t('fermeture à 20:50', ref.parisHM(r.closeTs) === '20:50');
-  t('double init refusé', !w.c.call(ADMIN, 'init', [OWNER_PAY, COLLAB, COLLAB, w.chO[100], w.chC[100]]).success);
+  t('double init refusé', !w.c.call(ADMIN, 'init', [OWNER_PAY, COLLAB, COLLAB, w.chO[100], w.chC[100], DROP]).success);
   const w2 = world({ start: Date.UTC(2026, 9, 11, 19, 30) }); // dimanche 21h30 Paris → dimanche suivant
   t('ouvert après l\'heure du dimanche → dimanche suivant', new Date(w2.round(1).drawTs).toISOString() === '2026-10-18T19:00:00.000Z', new Date(w2.round(1).drawTs).toISOString());
 }
@@ -93,7 +94,7 @@ sec('Tirage : 3 wallets différents, référence indépendante');
 {
   const w = world();
   for (let i = 0; i < 40; i++) w.buy(P[i], 1 + (i % 10));
-  const bO = w.chain.balanceOf(OWNER_PAY), bC = w.chain.balanceOf(COLLAB);
+  const bO = w.chain.balanceOf(OWNER_PAY), bC = w.chain.balanceOf(COLLAB), bD = w.chain.balanceOf(DROP);
   t('révélation avant fermeture refusée', !w.revealO(1).success);
   w.close(1);
   t('tombola 2 ouverte après la fermeture', w.st().cur === 2 && w.round(2).status === 'open');
@@ -108,10 +109,10 @@ sec('Tirage : 3 wallets différents, référence indépendante');
   t('gagnants = référence', JSON.stringify(r.win) === JSON.stringify(exp), JSON.stringify([r.win, exp]));
   t('3 wallets différents', new Set(r.win.map((x) => x.b)).size === 3);
   const pz = ref.rafflePrizes(r.sales);
-  t('prix 50 / 30 / 20 % de 80 %', JSON.stringify(r.prizes) === JSON.stringify(pz.prizes.map(String)));
-  t('1er = 40 % des ventes', BigInt(r.prizes[0]) * 10n === BigInt(r.sales) * 4n);
-  t('commission 75 / 25 envoyée', w.chain.balanceOf(OWNER_PAY) - bO === pz.owner && w.chain.balanceOf(COLLAB) - bC === pz.commission - pz.owner);
-  t('dû aux gagnants = 80 % des ventes', w.st().owed === (BigInt(r.sales) - pz.commission).toString());
+  t('prix 50 / 30 / 20 % de 85 %', JSON.stringify(r.prizes) === JSON.stringify(pz.prizes.map(String)));
+  t('1er = 42,5 % des ventes', BigInt(r.prizes[0]) * 200n === BigInt(r.sales) * 85n);
+  t('commission : moitié Airdrop, moitié équipe 75 / 25', w.chain.balanceOf(OWNER_PAY) - bO === pz.owner && w.chain.balanceOf(COLLAB) - bC === pz.commission - pz.airdrop - pz.owner && w.chain.balanceOf(DROP) - bD === pz.airdrop);
+  t('dû aux gagnants = 85 % des ventes', w.st().owed === (BigInt(r.sales) - pz.commission).toString());
   t('solde cohérent', balanceOk(w));
 
   sec('Réclamer');

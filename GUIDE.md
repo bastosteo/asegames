@@ -161,6 +161,36 @@ Il crée deux nouvelles chaînes de secrets propres à la tombola (`croupier/dat
 `RAFFLE_COLLAB_CHAIN_SEED`, variable `RAFFLE_CONTRACT`) et met le site en ligne. Les croupiers
 GitHub gèrent ensuite le loto et la tombola dans le même passage.
 
+## 3 quater. ASE Airdrop + commission 15 % (loto v3, tombola v2)
+
+Nouvelles règles : commission **15 %** sur le loto et la tombola. La moitié (7,5 % des ventes) va à
+l'équipe (75 % owner, 25 % collaborateur), l'autre moitié est envoyée au contrat **ASE Airdrop**
+après chaque tirage réussi. Loto : jackpot 35 % des ventes, caisse des gains fixes 50 % (4 bons =
+25 mises = 50 ASE, 3 bons = 2,5 mises = 5 ASE, + bonus). Tombola : cagnotte 85 %.
+
+ASE Airdrop (`/airdrop`) : chaque dimanche à 21h (Paris), la cagnotte de la semaine est tirée au sort
+entre les joueurs : 1 grille de loto ou 1 ticket de tombola (tirages réussis de la semaine) = 1 chance ;
+3 wallets différents gagnent 50 / 30 / 20 % ; prix envoyés directement ; moins de 3 joueurs → la part
+non attribuée est reportée. Le croupier owner GitHub (« opérateur ») calcule la liste des joueurs à
+partir des deux jeux et l'enregistre dans le contrat, puis les deux secrets sont révélés (chaînes
+propres à l'Airdrop). Le site recalcule la liste (bouton Verify). Tirage non fait en 6 h → annulé, la
+semaine est reprise au tirage suivant.
+
+Installation : double-clique sur `Deployer-ASE-Airdrop.bat` (nouveau zip dans les Téléchargements).
+Chaque transaction est demandée (o/n) avant d'être envoyée ⚠️ :
+1. anciens loto et tombola : pause, annulation + remboursement du tirage en cours s'il a des
+   joueurs, envoi aux gagnants des gains pas encore réclamés (si un tirage est en train d'être fait,
+   le script s'arrête et demande de relancer 30 min plus tard) ;
+2. chaînes de secrets de l'Airdrop (`croupier/data-airdrop` et `croupier/data-airdrop-collab`,
+   **à sauvegarder**) ; déploiement + `init` de l'Airdrop ;
+3. déploiement + `init` du loto v3 et de la tombola v2 (mêmes wallets, mêmes chaînes de secrets) ;
+4. site, GitHub (variables `CONTRACT`, `RAFFLE_CONTRACT`, `AIRDROP_CONTRACT`, secrets
+   `AIRDROP_OWNER_CHAIN_SEED`, `AIRDROP_COLLAB_CHAIN_SEED`), croupiers du PC, mise en ligne.
+
+Les anciens contrats gardent le jackpot de test du loto (aucune fonction de retrait, par sécurité).
+Le script peut être relancé sans risque (fichiers `.migre-*`, `.airdrop-fait`, `.loto-v3-fait`,
+`.tombola-v2-fait` gardés sur le PC).
+
 ## 4 bis. Les croupiers sur GitHub (gratuit, PC éteint possible)
 
 GitHub lance les deux croupiers toutes les 10 minutes sur ses propres serveurs (gratuit pour un dépôt

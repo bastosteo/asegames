@@ -5,8 +5,8 @@
 //   - Un ticket = 5 ASE (réglable). 10 tickets maximum par wallet et par
 //     tombola. Tirage chaque dimanche à 21h00 (heure de Paris, heure d'été
 //     gérée) ; ventes fermées 10 min avant.
-//   - Ventes de la semaine : 20 % commission (75 % owner, 25 % collaborateur),
-//     80 % = cagnotte, partagée entre 3 gagnants : 50 % / 30 % / 20 %.
+//   - Ventes de la semaine : 15 % commission (7,5 % équipe 75/25 + 7,5 % au
+//     contrat ASE Airdrop), 85 % = cagnotte, partagée entre 3 gagnants : 50 / 30 / 20 %.
 //   - 3 wallets DIFFÉRENTS gagnent. Moins de 3 wallets participants à
 //     l'heure du tirage → la tombola est prolongée d'une semaine (tickets
 //     gardés, cagnotte qui continue de grossir).
@@ -21,7 +21,7 @@
 // =====================================================================
 
 const BPS = 10000n;
-const SHARE_COMMISSION = 2000n; // 20 %
+const SHARE_COMMISSION = 1500n; // 15 % : moitié équipe (75/25), moitié cagnotte ASE Airdrop
 const OWNER_CUT = 7500n;        // 75 % de la commission pour l'owner
 const SPLIT = [5000n, 3000n];   // 1er 50 %, 2e 30 %, 3e = le reste (20 %)
 const WINNERS = 3;
@@ -265,12 +265,14 @@ function drawWinners(r) {
 function finalize(r, c, s) {
   const S = big(r.sales);
   const commission = (S * SHARE_COMMISSION) / BPS;
-  const cOwner = (commission * OWNER_CUT) / BPS;
+  const cDrop = commission / 2n;                        // moitié → cagnotte ASE Airdrop
+  const cOwner = ((commission - cDrop) * OWNER_CUT) / BPS;
   const pool = S - commission;
   const p1 = (pool * SPLIT[0]) / BPS, p2 = (pool * SPLIT[1]) / BPS;
   r.win = drawWinners(r);
   r.prizes = [p1, p2, pool - p1 - p2].map(String);
   r.commission = commission.toString();
+  r.airdrop = cDrop.toString();
   r.status = 'done';
   putR(r);
   s.owed = (big(s.owed) + pool).toString();
@@ -278,8 +280,9 @@ function finalize(r, c, s) {
   s.next = r.id + 1;
   jset('st', s);
   if (cOwner > 0n) transfer(c.payOwner, cOwner.toString());
-  if (commission > cOwner) transfer(c.payCollab, (commission - cOwner).toString());
-  emit('Drawn', { round: String(r.id), winners: JSON.stringify(r.win), prizes: JSON.stringify(r.prizes), commission: r.commission });
+  if (commission - cDrop > cOwner) transfer(c.payCollab, (commission - cDrop - cOwner).toString());
+  if (cDrop > 0n) transfer(c.payAirdrop, cDrop.toString());
+  emit('Drawn', { round: String(r.id), winners: JSON.stringify(r.win), prizes: JSON.stringify(r.prizes), commission: r.commission, airdrop: r.airdrop });
 }
 
 function cancelRound(r, s, reason) {
@@ -299,12 +302,12 @@ function batchRange(from, count, total) {
 ({
   // INITIALISATION (une fois) : wallets de commission, wallet du
   // collaborateur (gère SA chaîne), bouts des deux chaînes de secrets.
-  init(payOwner, payCollab, collabAdmin, tipOwner, tipCollab) {
+  init(payOwner, payCollab, collabAdmin, tipOwner, tipCollab, payAirdrop) {
     noValue();
     assert(!storage.get('cfg'), 'already initialized');
     assert(isSecret(tipOwner) && isSecret(tipCollab) && tipOwner !== tipCollab, 'invalid tips');
     const c = {
-      admin: sender(), payOwner: addr(payOwner), payCollab: addr(payCollab), collabAdmin: addr(collabAdmin),
+      admin: sender(), payOwner: addr(payOwner), payCollab: addr(payCollab), collabAdmin: addr(collabAdmin), payAirdrop: addr(payAirdrop),
       price: (5n * 10n ** 18n).toString(),     // 5 ASE
       maxPerWallet: 10, maxRound: 10000,
       drawDay: 0, drawH: 21, drawM: 0,         // dimanche 21h00 Paris
@@ -475,13 +478,14 @@ function batchRange(from, count, total) {
     emit('Config', { key: 'game', value: JSON.stringify([c.price, D, H, M, W, A, B, T]) });
     return true;
   },
-  setPayouts(payOwner, payCollab) {
+  setPayouts(payOwner, payCollab, payAirdrop) {
     noValue();
     const c = cfg(); onlyAdmin(c);
     c.payOwner = addr(payOwner);
     c.payCollab = addr(payCollab);
+    if (payAirdrop !== undefined && payAirdrop !== null) c.payAirdrop = addr(payAirdrop);
     jset('cfg', c);
-    emit('Config', { key: 'payouts', value: c.payOwner + ',' + c.payCollab });
+    emit('Config', { key: 'payouts', value: c.payOwner + ',' + c.payCollab + ',' + c.payAirdrop });
     return true;
   },
   setAdmin(newAdmin) {

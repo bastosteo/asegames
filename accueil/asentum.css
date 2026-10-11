@@ -144,3 +144,38 @@ input, select { border-radius: 0 !important; font-family: var(--body); backgroun
   .btn-wallet { padding: .8em .7em !important; letter-spacing: .06em !important; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
   .icon-btn { width: 36px !important; height: 36px !important; flex: none; }
 }
+
+/* Fenêtre « Connect to Asentum » (comme sur les dapps Asentum) */
+.wdlg { padding: 0 !important; width: min(470px, calc(100vw - 24px)) !important; border-radius: 16px !important; background: #0B0B0C !important; border: 1px solid #232326 !important; overflow: hidden; }
+.wdlg::backdrop { background: rgba(0,0,0,.72); backdrop-filter: blur(4px); }
+.wdlg-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 22px 22px 18px; border-bottom: 1px solid #1E1E21; }
+.wdlg-head h2 { margin: 0; font-family: var(--display) !important; font-size: 1.35rem; letter-spacing: -0.02em; }
+.wdlg-eyebrow { margin: 0 0 6px; font-family: var(--body); text-transform: uppercase; letter-spacing: .16em; font-size: .7rem; color: var(--muted); }
+.wdlg-x { width: 38px; height: 38px; border-radius: 10px; border: 1px solid #2A2A2E; background: #121214; color: #cfcfd4; font-size: 1.4rem; line-height: 1; cursor: pointer; }
+.wdlg-x:hover { border-color: #4A4A50; color: #fff; }
+.wdlg-body { padding: 20px 20px 18px; }
+.wdlg .choice { display: flex !important; align-items: center; justify-content: space-between; gap: 14px; width: 100%; text-align: left; padding: 20px !important; margin: 0 0 12px !important;
+  background: #121214 !important; border: 1px solid #232326 !important; border-radius: 14px !important; cursor: pointer; color: var(--ink); }
+.wdlg .choice:hover:not(:disabled) { border-color: #3B3B42 !important; background: #151518 !important; }
+.wdlg .choice:disabled { opacity: .55; cursor: not-allowed; }
+.c-text { display: grid; gap: 6px; }
+.c-text strong { font-family: var(--display); font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; }
+.c-text span { font-family: var(--display); color: #9A9AA3; font-size: .9rem; line-height: 1.4; }
+.wdlg .c-cta { font-family: var(--body); text-transform: uppercase; letter-spacing: .14em; font-weight: 500; font-size: .78rem; color: var(--violet); white-space: nowrap; }
+.wdlg-net { display: flex; align-items: center; gap: 14px; padding: 14px 22px; border-top: 1px solid #1E1E21; }
+.wdlg-net .wdlg-eyebrow { margin: 0; }
+.wdlg-net code { font-family: var(--body); color: #E5E5EA; font-size: .85rem; }
+.wdlg-foot { margin: 0; padding: 14px 22px 18px; border-top: 1px solid #1E1E21; color: #8A8A93; font-family: var(--display); font-size: .82rem; line-height: 1.5; }
+.wdlg-text { text-align: center; color: #C9C9D1; font-family: var(--display); line-height: 1.6; margin: 0 0 18px; }
+.wdlg-text strong { color: #fff; }
+.wdlg-addr { font-family: var(--body); text-align: center; word-break: break-all; margin: 0 0 16px; font-size: .9rem; }
+.code-boxes { display: flex; justify-content: center; gap: 10px; margin: 0 0 14px; }
+.code-boxes span { width: 50px; height: 64px; display: grid; place-items: center; border-radius: 10px; background: #121214; border: 1px solid #2A2A2E;
+  font-family: var(--display); font-weight: 800; font-size: 1.9rem; color: #fff; }
+.tg-expire { text-align: center; color: #8A8A93; font-family: var(--display); font-size: .88rem; margin: 0 0 18px; }
+.tg-open { display: block; text-align: center; padding: 14px; border-radius: 12px; background: #17132A; border: 1px solid #2D2650; color: var(--violet) !important; font-family: var(--display); font-weight: 700; text-decoration: none; margin-bottom: 14px; }
+.tg-open:hover { border-color: #4A3E85; }
+.wdlg .tg-back { border-radius: 12px !important; text-transform: none !important; letter-spacing: 0 !important; font-family: var(--display) !important; font-size: .95rem !important; background: #121214 !important; border-color: #2A2A2E !important; }
+.wdlg .error { margin: 6px 0 0; }
+@media (max-width: 420px) { .code-boxes span { width: 42px; height: 56px; font-size: 1.6rem; } .code-boxes { gap: 7px; } }
+.wdlg .c-text strong { color: #fff; } .wdlg .c-text span { color: #9A9AA3; }

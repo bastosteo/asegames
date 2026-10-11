@@ -463,7 +463,7 @@ async function verifyRound(id) {
     step(JSON.stringify(cnt) === JSON.stringify(r.cnt), 'Number of winners', `5 matches: ${cnt[2]}, 4 matches: ${cnt[1]}, 3 matches: ${cnt[0]}`);
     // 5) Répartition
     const { per, commission: C } = L.payouts(r.sales, r.price, r.jackpotIn, cnt);
-    step(per.every((x, k) => x.toString() === r.per[k]) && C.toString() === r.commission, 'Prize distribution', `Commission ${L.fmtAse(C)} ASE (20%). Prize per ticket: 5 matches ${L.fmtAse(per[2])}, 4 matches ${L.fmtAse(per[1])}, 3 matches ${L.fmtAse(per[0])} ASE.`);
+    step(per.every((x, k) => x.toString() === r.per[k]) && C.toString() === r.commission, 'Prize distribution', `Commission ${L.fmtAse(C)} ASE (15%, half of it to the ASE Airdrop). Prize per ticket: 5 matches ${L.fmtAse(per[2])}, 4 matches ${L.fmtAse(per[1])}, 3 matches ${L.fmtAse(per[0])} ASE.`);
     body.innerHTML = steps.join('') + `<p class="small muted" style="margin-top:12px">Everything is recomputed here, in your browser, from the contract's public data. <a href="${CONFIG.EXPLORER}/address/${L.toAse1(S.contract)}" target="_blank" rel="noopener">Contract source code</a>.</p>`;
   } catch (e) { body.innerHTML = `<p class="error">Verification failed: ${esc(cleanError(e))}</p>`; }
 }
@@ -556,7 +556,7 @@ function renderWallet() {
 let pairing = false;
 function openWallet() {
   if (S.demo) { toast('Demo mode: you are playing with a mock wallet holding 100,000 ASE.'); return; }
-  $('#walletErr').hidden = true; $('#tgPair').hidden = true;
+  $('#walletErr').hidden = true; $('#tgPair').hidden = true; $('#dlgWalletTitle').textContent = S.wallet ? 'Your wallet' : 'Connect to Asentum';
   if (S.wallet) {
     $('#walletConnected').hidden = false; $('#walletChoices').hidden = true;
     $('#walletAddrFull').textContent = L.toAse1(S.wallet.address);
@@ -565,10 +565,20 @@ function openWallet() {
   }
   $('#walletConnected').hidden = true; $('#walletChoices').hidden = false;
   $('#useExt').disabled = !ExtensionWallet.available();
-  $('#extHint').textContent = ExtensionWallet.available() ? 'Detected in this browser' : 'Not detected: install it or use Telegram';
+  $('#extHint').textContent = ExtensionWallet.available() ? 'Use the wallet you already have installed.' : 'Not detected in this browser: install the Asentum Wallet extension, or use Telegram.';
   $('#dlgWallet').showModal();
 }
-$('#dlgWallet').addEventListener('close', () => { pairing = false; });
+$('#dlgWallet').addEventListener('close', () => { pairing = false; clearInterval(pairTimer); });
+// Code d'appairage Telegram : une case par caractère + compte à rebours (5 min)
+let pairTimer = null;
+function showPairCode(code) {
+  $('#tgCode').innerHTML = String(code).split('').map((c) => `<span>${esc(c)}</span>`).join('');
+  const end = Date.now() + 5 * 60000;
+  clearInterval(pairTimer);
+  const tick = () => { const s = Math.max(0, Math.round((end - Date.now()) / 1000)); $('#tgExpire').textContent = s ? `Expires in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : 'Code expired'; if (!s) clearInterval(pairTimer); };
+  tick(); pairTimer = setInterval(tick, 1000);
+}
+$('#tgBack').onclick = () => { $('#dlgWalletTitle').textContent = 'Connect to Asentum'; pairing = false; clearInterval(pairTimer); $('#tgPair').hidden = true; $('#walletChoices').hidden = false; $('#walletErr').hidden = true; };
 $('#walletBtn').onclick = openWallet;
 $('#disconnectBtn').onclick = () => { S.wallet.disconnect(); S.wallet = null; S.balance = null; store.del('loto.wallet'); $('#dlgWallet').close(); renderAll(); };
 $('#useExt').onclick = async () => {
@@ -581,12 +591,12 @@ $('#useExt').onclick = async () => {
 $('#useTg').onclick = async () => {
   const w = new TelegramWallet(CONFIG.TELEGRAM_API, CONFIG.DAPP_NAME);
   pairing = true;
-  $('#walletChoices').hidden = true; $('#tgPair').hidden = false; $('#walletErr').hidden = true;
+  $('#walletChoices').hidden = true; $('#tgPair').hidden = false; $('#walletErr').hidden = true; $('#tgCode').innerHTML = '<span>·</span>'.repeat(6); $('#tgExpire').textContent = 'Creating a code…'; $('#dlgWalletTitle').textContent = 'Pair Telegram Wallet';
   try {
-    await w.pair((code) => ($('#tgCode').textContent = code), () => !pairing);
+    await w.pair(showPairCode, () => !pairing);
     S.wallet = w; store.set('loto.wallet', { kind: 'telegram', session: w.session });
     $('#dlgWallet').close(); await refresh();
-  } catch (e) { $('#walletErr').hidden = false; $('#walletErr').textContent = cleanError(e); $('#walletChoices').hidden = false; $('#tgPair').hidden = true; }
+  } catch (e) { clearInterval(pairTimer); if (/cancelled/i.test(String(e && e.message))) return; $('#dlgWalletTitle').textContent = 'Connect to Asentum'; $('#walletErr').hidden = false; $('#walletErr').textContent = cleanError(e); $('#walletChoices').hidden = false; $('#tgPair').hidden = true; }
 };
 async function restoreWallet() {
   const saved = store.get('loto.wallet', null);

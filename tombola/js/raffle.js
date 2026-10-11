@@ -26,7 +26,7 @@ const plural = (n, one, many) => `${Number(n).toLocaleString('en-GB')} ${n === 1
 const ase = (w, d) => L.fmtAse(BigInt(w), d ?? (BigInt(w) % L.WEI === 0n ? 0 : 2));
 const tno = (t) => '#' + String(t + 1).padStart(4, '0');
 const rankName = ['1st', '2nd', '3rd'];
-const prizesOf = (sales) => { const S0 = BigInt(sales), pool = S0 - S0 / 5n, p1 = pool / 2n, p2 = (pool * 3n) / 10n; return [p1, p2, pool - p1 - p2]; };
+const prizesOf = (sales) => { const S0 = BigInt(sales), pool = S0 - (S0 * 1500n) / 10000n, p1 = pool / 2n, p2 = (pool * 3n) / 10n; return [p1, p2, pool - p1 - p2]; };
 
 // ------------------------------------------------------------- thème, notifications
 function applyTheme(t) { if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }
@@ -365,14 +365,24 @@ function renderWallet() {
 let pairing = false;
 function openWallet() {
   if (S.demo) { toast('Demo mode: you are playing with a mock wallet holding 100,000 ASE.'); return; }
-  $('#walletErr').hidden = true; $('#tgPair').hidden = true;
+  $('#walletErr').hidden = true; $('#tgPair').hidden = true; $('#dlgWalletTitle').textContent = S.wallet ? 'Your wallet' : 'Connect to Asentum';
   if (S.wallet) { $('#walletConnected').hidden = false; $('#walletChoices').hidden = true; $('#walletAddrFull').textContent = L.toAse1(S.wallet.address); $('#dlgWallet').showModal(); return; }
   $('#walletConnected').hidden = true; $('#walletChoices').hidden = false;
   $('#useExt').disabled = !ExtensionWallet.available();
-  $('#extHint').textContent = ExtensionWallet.available() ? 'Detected in this browser' : 'Not detected: install it or use Telegram';
+  $('#extHint').textContent = ExtensionWallet.available() ? 'Use the wallet you already have installed.' : 'Not detected in this browser: install the Asentum Wallet extension, or use Telegram.';
   $('#dlgWallet').showModal();
 }
-$('#dlgWallet').addEventListener('close', () => { pairing = false; });
+$('#dlgWallet').addEventListener('close', () => { pairing = false; clearInterval(pairTimer); });
+// Code d'appairage Telegram : une case par caractère + compte à rebours (5 min)
+let pairTimer = null;
+function showPairCode(code) {
+  $('#tgCode').innerHTML = String(code).split('').map((c) => `<span>${esc(c)}</span>`).join('');
+  const end = Date.now() + 5 * 60000;
+  clearInterval(pairTimer);
+  const tick = () => { const s = Math.max(0, Math.round((end - Date.now()) / 1000)); $('#tgExpire').textContent = s ? `Expires in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : 'Code expired'; if (!s) clearInterval(pairTimer); };
+  tick(); pairTimer = setInterval(tick, 1000);
+}
+$('#tgBack').onclick = () => { $('#dlgWalletTitle').textContent = 'Connect to Asentum'; pairing = false; clearInterval(pairTimer); $('#tgPair').hidden = true; $('#walletChoices').hidden = false; $('#walletErr').hidden = true; };
 $('#walletBtn').onclick = openWallet;
 $('#disconnectBtn').onclick = () => { S.wallet.disconnect(); S.wallet = null; S.balance = null; store.del('loto.wallet'); $('#dlgWallet').close(); renderAll(); };
 $('#useExt').onclick = async () => {
@@ -381,9 +391,9 @@ $('#useExt').onclick = async () => {
 };
 $('#useTg').onclick = async () => {
   const w = new TelegramWallet(CONFIG.TELEGRAM_API, CONFIG.DAPP_NAME);
-  pairing = true; $('#walletChoices').hidden = true; $('#tgPair').hidden = false; $('#walletErr').hidden = true;
-  try { await w.pair((code) => ($('#tgCode').textContent = code), () => !pairing); S.wallet = w; store.set('loto.wallet', { kind: 'telegram', session: w.session }); $('#dlgWallet').close(); await refresh(); }
-  catch (e) { $('#walletErr').hidden = false; $('#walletErr').textContent = cleanError(e); $('#walletChoices').hidden = false; $('#tgPair').hidden = true; }
+  pairing = true; $('#walletChoices').hidden = true; $('#tgPair').hidden = false; $('#walletErr').hidden = true; $('#tgCode').innerHTML = '<span>·</span>'.repeat(6); $('#tgExpire').textContent = 'Creating a code…'; $('#dlgWalletTitle').textContent = 'Pair Telegram Wallet';
+  try { await w.pair(showPairCode, () => !pairing); S.wallet = w; store.set('loto.wallet', { kind: 'telegram', session: w.session }); $('#dlgWallet').close(); await refresh(); }
+  catch (e) { clearInterval(pairTimer); if (/cancelled/i.test(String(e && e.message))) return; $('#dlgWalletTitle').textContent = 'Connect to Asentum'; $('#walletErr').hidden = false; $('#walletErr').textContent = cleanError(e); $('#walletChoices').hidden = false; $('#tgPair').hidden = true; }
 };
 async function restoreWallet() {
   const saved = store.get('loto.wallet', null);   // même wallet que sur ASE Loto
