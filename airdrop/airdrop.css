@@ -70,3 +70,5 @@ a.how-card:hover { border-color: var(--gold); }
   .hero .podium, .hero .banner { grid-column: 1 / -1; }
 }
 @media (prefers-reduced-motion: reduce) { .chute-svg, .chute-swing, .cloud { animation: none; } }
+
+.est-note { margin: 0; grid-column: 1 / -1; font-size: .78rem; }

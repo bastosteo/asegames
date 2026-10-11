@@ -3,20 +3,29 @@
 // Utilisée par le croupier (pour l'envoyer au contrat) ET par le site
 // (pour vérifier que la liste envoyée est la bonne).
 //
-// Règle : tirages RÉUSSIS (status "done") du loto et de la tombola dont
-// l'heure de tirage est dans ]fromTs, toTs] ; 1 grille ou 1 ticket = 1 chance ;
-// cagnotte = somme des parts "airdrop" de ces tirages.
+// Règle : tirages RÉUSSIS (status "done") du loto et de la tombola de la
+// « semaine Airdrop » ; 1 grille ou 1 ticket = 1 chance ; cagnotte = somme des
+// parts "airdrop" de ces tirages.
+// fromTs / toTs = heures de l'Airdrop précédent et de cet Airdrop (lundi). La semaine
+// des tickets s'arrête 24 h avant, à la grosse tombola du dimanche :
+// tirages dont l'heure est dans ]fromTs − 24 h, toTs − 24 h]
+// (tickets achetés après la tombola d'un dimanche jusqu'à la tombola du dimanche suivant).
+// estimate: true → ajoute aussi les tirages pas encore faits (estimation affichée avec *).
 //
 // view(contrat, méthode, args) → Promise de la valeur lue.
 
 async function purchases(view, contract, r) {
   const out = [];
-  for (let k = 0; k < r.buys; k += 400) out.push(...(await view(contract, 'getPurchases', [r.id, k, 400])));
+  for (let k = 0; k < r.buys; k += 400) out.push(...(await view(contract, "getPurchases", [r.id, k, Math.min(400, r.buys - k)])));
   return out;
 }
 
-export async function buildWeek({ view, loto, raffle, fromTs, toTs, now }) {
-  const from = Number(fromTs), to = Number(toTs), t = Number(now);
+export const CUTOFF_MS = 24 * 3600000;
+export const airdropShare = (sales) => ((BigInt(sales) * 1500n) / 10000n) / 2n;   // 7,5 % des ventes
+
+export async function buildWeek({ view, loto, raffle, fromTs, toTs, now, estimate = false }) {
+  const from = Number(fromTs) > 0 ? Number(fromTs) - CUTOFF_MS : 0, to = Number(toTs) - CUTOFF_MS, t = Number(now);
+  let pending = 0;
   const count = new Map();
   const waiting = [], games = [];
   let pot = 0n;
@@ -34,19 +43,24 @@ export async function buildWeek({ view, loto, raffle, fromTs, toTs, now }) {
       // Fermé mais pas encore « poké » : sans grille (loto) ou avec moins de 3 wallets
       // (tombola, prolongée d'une semaine), ce tirage ne comptera pas ici.
       if (r.status === 'open' && t >= Number(r.closeTs) && (game === 'loto' ? r.grids === 0 : r.wallets < 3)) continue;
-      if (r.status !== 'done') { waiting.push(`${game} #${id} (${r.status})`); continue; }
+      if (r.status !== 'done') {
+        waiting.push(`${game} #${id} (${r.status})`);
+        if (!estimate) continue;
+      }
       let tickets = 0;
       for (const p of await purchases(view, contract, r)) {
         const n = game === 'loto' ? p.g.length : p.n;
         add(String(p.b).toLowerCase(), n);
         tickets += n;
       }
-      pot += BigInt(r.airdrop || '0');
-      games.push({ game, id, drawTs: d, tickets, airdrop: String(r.airdrop || '0') });
+      const share = r.status === 'done' ? BigInt(r.airdrop || '0') : airdropShare(r.sales || '0');
+      if (r.status !== 'done') pending += tickets;
+      pot += share;
+      games.push({ game, id, drawTs: d, tickets, airdrop: share.toString(), done: r.status === 'done' });
     }
   }
   const entries = [...count.entries()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-  return { ready: waiting.length === 0, waiting, entries, pot: pot.toString(), games: games.sort((a, b) => a.drawTs - b.drawTs) };
+  return { ready: waiting.length === 0, waiting, pending, entries, pot: pot.toString(), games: games.sort((a, b) => a.drawTs - b.drawTs), from, to };
 }
 
 export function chunks(entries, size = 100) {

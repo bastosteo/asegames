@@ -6,7 +6,7 @@ import LOTO from '../../loto/js/config.js';
 import RAFFLE from '../../raffle/js/config.js';
 import { Rpc, ExtensionWallet, TelegramWallet } from '../../loto/js/chain.js';
 import * as L from '../../loto/js/lotomath.js';
-import { buildWeek, chunks } from './liste.mjs';
+import { buildWeek, chunks, CUTOFF_MS } from './liste.mjs';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -79,7 +79,8 @@ async function refresh() {
     // Semaine en cours : depuis le tirage précédent (même s'il est encore en cours de tirage).
     const prev = S.rounds.get(info.round - 1);
     const from = prev && prev.status !== 'cancelled' ? prev.drawTs : info.fromTs;
-    S.week = await buildWeek({ view: viewAt, loto: S.loto, raffle: S.raffle, fromTs: from, toTs: info.drawTs, now: Number(info.now) });
+    // Estimation (*) : on compte aussi les tickets des tirages pas encore faits.
+    S.week = await buildWeek({ view: viewAt, loto: S.loto, raffle: S.raffle, fromTs: from, toTs: info.drawTs, now: Number(info.now), estimate: true });
     renderAll();
   } catch (e) { console.error(e); toast('Could not read the chain: ' + cleanError(e), 'err', 8000); }
 }
@@ -89,18 +90,22 @@ function renderHero() {
   const i = S.info, w = S.week; if (!i || !w) return;
   const total = BigInt(w.pot) + BigInt(i.carry);
   $('#pot').textContent = ase(total, 2);
-  split(total).forEach((x, k) => ($('#prize' + (k + 1)).textContent = ase(x) + ' ASE'));
+  split(total).forEach((x, k) => ($('#prize' + (k + 1)).textContent = ase(x) + ' ASE*'));
+  const cut = Number(i.drawTs) - CUTOFF_MS;
+  $('#estNote').textContent = `* Estimated amounts: they include the tickets of this week's draws that haven't taken place yet` +
+    (w.pending ? ` (${plural(w.pending, 'ticket', 'tickets')})` : '') + `, assuming every Loto and Raffle draw takes place as scheduled. Tickets count until the Raffle draw on ${utcWeekday(cut)} at ${utcTime(cut)}.`;
   const pending = [...S.rounds.values()].find((r) => r.id < i.round && (r.status === 'closed' || r.status === 'listed'));
   $('#drawWhen').textContent = `Airdrop #${i.round}, ${utcDay(i.drawTs)} at ${utcTime(i.drawTs)}` +
     (BigInt(i.carry) > 0n ? ` · includes ${ase(i.carry)} ASE rolled over` : '') + (pending ? ` · airdrop #${pending.id} is being drawn now` : '');
-  $('#chances').textContent = w.entries.reduce((a, e) => a + e[1], 0).toLocaleString('en-GB');
-  $('#players').textContent = w.entries.length.toLocaleString('en-GB');
+  $('#chances').textContent = w.entries.reduce((a, e) => a + e[1], 0).toLocaleString('en-GB') + '*';
+  $('#players').textContent = w.entries.length.toLocaleString('en-GB') + '*';
 }
 function tickCountdown() {
   const i = S.info; if (!i) return;
-  const WEEK = 7 * 86400000, f = Math.min(1, Math.max(0, 1 - (Number(i.drawTs) - chainNow()) / WEEK));
+  // Semaine des tickets : de la tombola d'un dimanche à la tombola du dimanche suivant.
+  const WEEK = 7 * 86400000, cut = Number(i.drawTs) - CUTOFF_MS, f = Math.min(1, Math.max(0, 1 - (cut - chainNow()) / WEEK));
   $('#weekBar').style.width = (f * 100).toFixed(1) + '%';
-  $('#weekPct').textContent = `Day ${Math.min(7, Math.floor(f * 7) + 1)} / 7`;
+  $('#weekPct').textContent = f < 1 ? `Day ${Math.min(7, Math.floor(f * 7) + 1)} / 7` : 'Closed, new tickets count for next week';
   const left = Math.floor((Number(i.drawTs) - chainNow()) / 1000);
   if (left > 0) {
     const d = Math.floor(left / 86400), h = Math.floor((left % 86400) / 3600), m = Math.floor((left % 3600) / 60), x = left % 60;
@@ -119,12 +124,12 @@ function renderMine() {
   const e = S.week.entries.find((x) => x[0] === S.me);
   const n = e ? e[1] : 0;
   const pot = BigInt(S.week.pot) + BigInt(S.info.carry);
-  let html = `<dl class="share"><div><dt>Your chances</dt><dd>${n.toLocaleString('en-GB')}</dd></div><div><dt>Out of</dt><dd>${total.toLocaleString('en-GB')}</dd></div><div><dt>Share</dt><dd>${pct(n, total)}</dd></div></dl>
+  let html = `<dl class="share"><div><dt>Your chances</dt><dd>${n.toLocaleString('en-GB')}*</dd></div><div><dt>Out of</dt><dd>${total.toLocaleString('en-GB')}*</dd></div><div><dt>Share</dt><dd>${pct(n, total)}</dd></div></dl>
     <div class="bar" aria-hidden="true"><i style="width:${total ? Math.max(n ? 1 : 0, (n * 100) / total) : 0}%"></i></div>`;
   html += n
-    ? `<p>Each of your tickets is one chance at the 1st prize (${ase(split(pot)[0])} ASE so far). The more you play before ${utcWeekday(S.info.drawTs)} ${utcTime(S.info.drawTs)}, the more chances you get.</p>`
-    : `<p class="muted">No chance yet this week for ${esc(L.shortAddr(S.me))}. Play <a href="../loto/">ASE Loto</a> or <a href="../raffle/">ASE Raffle</a>: every ticket is one chance once its draw is completed.</p>`;
-  if (S.week.waiting.length) html += `<p class="muted small">Draws still to come this week (their tickets count once drawn): ${S.week.waiting.map((x) => esc(x.replace(/^loto/, 'Loto').replace(/^raffle/, 'Raffle').replace(/ \(.*\)$/, ''))).join(', ')}.</p>`;
+    ? `<p>Each of your tickets is one chance at the 1st prize (${ase(split(pot)[0])} ASE* so far). The more you play before ${utcWeekday(Number(S.info.drawTs) - CUTOFF_MS)} ${utcTime(Number(S.info.drawTs) - CUTOFF_MS)} (Raffle draw), the more chances you get.</p>`
+    : `<p class="muted">No chance yet this week for ${esc(L.shortAddr(S.me))}. Play <a href="../loto/">ASE Loto</a> or <a href="../raffle/">ASE Raffle</a>: every ticket played this week is one chance.</p>`;
+  html += `<p class="muted small">* Estimate: includes your tickets in draws that haven't taken place yet, assuming every draw takes place.</p>`;
   const won = [...S.rounds.values()].filter((r) => r.status === 'done' && r.win.some((w) => w.b === S.me)).sort((a, b) => b.id - a.id);
   if (won.length) html += '<h3>Your airdrop wins</h3><ol class="winners">' + won.map((r) => { const k = r.win.findIndex((w) => w.b === S.me); return `<li><span class="medal m${k + 1}">${k + 1}</span>Airdrop #${r.id}<span class="muted small">${utcDay(r.drawTs)}</span><span class="tag ok">Sent to your wallet</span><span class="amount">${ase(r.prizes[k])} ASE</span></li>`; }).join('') + '</ol>';
   box.innerHTML = html;
@@ -155,10 +160,10 @@ function renderPlayers() {
   const shown = top.slice(0, 50);
   const mine = S.me && !shown.some((e) => e[0] === S.me) ? top.find((e) => e[0] === S.me) : null;
   if (mine) shown.push(mine);
-  $('#playersBody').innerHTML = `<p class="muted small">${plural(w.entries.length, 'player', 'players')}, ${plural(total, 'chance', 'chances')} from ${plural(w.games.length, 'completed draw', 'completed draws')} this week.</p>
+  $('#playersBody').innerHTML = `<p class="muted small">${plural(w.entries.length, 'player', 'players')}, ${plural(total, 'chance', 'chances')}* from ${plural(w.games.length, 'draw', 'draws')} this week.</p>
     <table class="plist"><thead><tr><th>#</th><th>Wallet</th><th class="num">Chances</th><th class="num">Share</th></tr></thead><tbody>${
       shown.map((e) => `<tr class="${e[0] === S.me ? 'me' : ''}"><td>${top.indexOf(e) + 1}</td><td>${esc(L.shortAddr(e[0]))}</td><td class="num">${e[1]}</td><td class="num">${pct(e[1], total)}</td></tr>`).join('')
-    }</tbody></table>${top.length > 50 ? `<p class="muted small">Top 50 of ${top.length} shown.</p>` : ''}`;
+    }</tbody></table><p class="muted small">* Estimate: includes tickets of draws that haven't taken place yet.</p>${top.length > 50 ? `<p class="muted small">Top 50 of ${top.length} shown.</p>` : ''}`;
 }
 
 // ------------------------------------------------------------- gagnants

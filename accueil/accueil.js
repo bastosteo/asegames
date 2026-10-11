@@ -71,7 +71,9 @@ async function weekFees(rpc, contract, from, to) {
     const r = await rpc.view(contract, 'getRound', [id]);
     if (!r) continue;
     if (Number(r.drawTs) <= from) break;
-    if (Number(r.drawTs) <= to && r.status === 'done') sum += BigInt(r.airdrop || '0');
+    if (Number(r.drawTs) > to || ['cancelled', 'empty'].includes(r.status)) continue;
+    // Estimation (*) : tirages faits + tirages à venir de la semaine (7,5 % des ventes)
+    sum += r.status === 'done' ? BigInt(r.airdrop || '0') : (BigInt(r.sales || '0') * 1500n / 10000n) / 2n;
   }
   return sum;
 }
@@ -84,10 +86,11 @@ async function loadDrop() {
     tickDrop();
     $('#dropTime').textContent = `${utcWeekday(dinfo.drawTs)} at ${utcTime(dinfo.drawTs)}`;
     const prev = dinfo.round > 1 ? await rpc.view(DROP.CONTRACT, 'getRound', [dinfo.round - 1]) : null;
-    const from = prev && prev.status !== 'cancelled' ? Number(prev.drawTs) : Number(dinfo.fromTs);
-    const to = Number(dinfo.drawTs);
+    // Semaine des tickets : de la tombola du dimanche à la suivante (24 h avant chaque Airdrop du lundi)
+    const DAY = 86400000, f0 = prev && prev.status !== 'cancelled' ? Number(prev.drawTs) : Number(dinfo.fromTs);
+    const from = f0 > 0 ? f0 - DAY : 0, to = Number(dinfo.drawTs) - DAY;
     const [a, b] = await Promise.all([weekFees(rpc, CONFIG.CONTRACT, from, to), weekFees(rpc, RAFFLE.CONTRACT, from, to)]);
-    $('#dropPot').textContent = fmtAse(a + b + BigInt(dinfo.carry), 2) + ' ASE';
+    $('#dropPot').textContent = fmtAse(a + b + BigInt(dinfo.carry), 2) + ' ASE*';
   } catch { $('#dropPot').textContent = '–'; }
 }
 function tickDrop() {
