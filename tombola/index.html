@@ -29,43 +29,45 @@
 </header>
 
 <main>
-  <section class="hero" aria-labelledby="potLabel">
-    <div class="hero-main">
-      <p id="potLabel" class="hero-label">This week's prize pot</p>
-      <p class="jackpot"><span id="pot">…</span> <span class="unit">ASE</span></p>
-      <p class="hero-sub"><span id="drawWhen">…</span> <span id="rolled" class="tag win" hidden></span></p>
+  <section class="rgrid">
+    <div class="rleft">
+      <div class="rpot">
+        <p id="potLabel" class="hero-label"><span id="drawWhen">…</span></p>
+        <p class="jackpot"><span id="pot">…</span> <span class="unit">ASE pot</span></p>
+        <p class="rmeta"><span id="countdownLabel">Draw in</span> <strong id="countdown" class="mono-num">--:--:--</strong> · <span id="ticketsSold">–</span> tickets · <span id="players">–</span> players <span id="rolled" class="tag win" hidden></span></p>
+      </div>
+      <ol class="podium" aria-label="Prizes">
+        <li class="p1"><span class="p-label">1st · 50%</span><strong id="prize1">–</strong></li>
+        <li><span class="p-label">2nd · 30%</span><strong id="prize2">–</strong></li>
+        <li><span class="p-label">3rd · 20%</span><strong id="prize3">–</strong></li>
+      </ol>
+      <div class="how">
+        <div class="how-t">How it works</div>
+        <p><b>1</b><span>Choose how many tickets (up to <span class="js-max">10</span> per week).</span></p>
+        <p><b>2</b><span>Each ticket is one chance. Every <span class="js-drawtime">Sunday at 19:00 UTC</span>, 3 different players win.</span></p>
+        <p><b>3</b><span>Won? Claim your prize from “My wins”. It never expires.</span></p>
+      </div>
+      <p class="banner" id="pausedBanner" hidden>The raffle is paused: ticket sales are suspended.</p>
     </div>
-    <ol class="podium" aria-label="Prizes">
-      <li><span class="medal m1">1</span><span class="p-label">1st prize</span><strong id="prize1">–</strong></li>
-      <li><span class="medal m2">2</span><span class="p-label">2nd prize</span><strong id="prize2">–</strong></li>
-      <li><span class="medal m3">3</span><span class="p-label">3rd prize</span><strong id="prize3">–</strong></li>
-    </ol>
-    <dl class="hero-stats">
-      <div><dt id="countdownLabel">Sales close in</dt><dd id="countdown" class="mono-num">--:--:--</dd></div>
-      <div><dt>Tickets sold</dt><dd id="ticketsSold" class="mono-num">–</dd></div>
-      <div><dt>Players</dt><dd id="players" class="mono-num">–</dd></div>
-    </dl>
-    <p class="banner" id="pausedBanner" hidden>The raffle is paused: ticket sales are suspended.</p>
-  </section>
 
-  <section class="buy panel-like" aria-labelledby="buyTitle">
-    <div class="buy-left">
-      <h2 id="buyTitle">Get your tickets</h2>
-      <p class="muted" id="buyHint">Each ticket is one chance to win. Up to <span class="js-max">10</span> tickets per wallet each week.</p>
+    <aside class="buy" aria-labelledby="buyTitle">
+      <div class="card-head"><span id="buyTitle">Buy tickets</span><span class="hot" id="holdLabel">You hold 0 / 10</span></div>
+      <div class="printer" aria-hidden="true">
+        <div class="printer-head"><span class="printer-light" id="printerLight"></span><span>ASE RAFFLE</span></div>
+        <div class="printer-slot"></div>
+        <div class="printer-out" id="printerOut"></div>
+      </div>
       <div class="stepper" role="group" aria-label="Number of tickets">
         <button class="step" id="minusBtn" type="button" aria-label="One less ticket">−</button>
-        <output id="qty" aria-live="polite">1</output>
+        <div class="qty-box"><output id="qty" aria-live="polite">1</output><span id="qtyLabel">1 ticket</span></div>
         <button class="step" id="plusBtn" type="button" aria-label="One more ticket">+</button>
       </div>
-      <p class="buy-total"><span id="qtyLabel">1 ticket</span><strong id="buyCost">5 ASE</strong></p>
+      <div class="qpick" id="qPick"><button type="button" data-q="1">1</button><button type="button" data-q="2">2</button><button type="button" data-q="5">5</button><button type="button" data-q="max">Max</button></div>
+      <p class="buy-total"><span>Total</span><strong id="buyCost">5 ASE</strong></p>
       <button class="btn btn-primary btn-wide btn-big" id="buyBtn">Connect wallet to play</button>
+      <p class="small muted" id="chanceLine"></p>
       <p class="small muted" id="mineNow"></p>
-    </div>
-    <div class="printer" aria-hidden="true">
-      <div class="printer-head"><span class="printer-light" id="printerLight"></span><span>ASE RAFFLE</span></div>
-      <div class="printer-slot"></div>
-      <div class="printer-out" id="printerOut"></div>
-    </div>
+    </aside>
   </section>
 
   <nav class="tabs" role="tablist" aria-label="Sections">
@@ -94,13 +96,13 @@
       </tbody>
     </table>
     <p>Three <strong>different wallets</strong> win every week: a wallet can't win twice in the same draw.</p>
-    <p>If fewer than 3 wallets took part when sales close, the raffle is extended by one week: your tickets stay valid and the pot keeps growing.</p>
-    <p>The prize pot is 85% of the week's sales. Each ticket is also one chance in the weekly <a href="../airdrop/">ASE Airdrop</a>.</p>
+    <p>The raffle is always drawn, even with fewer than 3 wallets. With 2 wallets, the 1st and 2nd prizes are drawn as usual and the 3rd prize is added to next week's pot; with 1 wallet, it wins the 1st prize and the rest goes to next week. A raffle with no ticket at all simply moves to the next week.</p>
+    <p>The prize pot is 85% of the week's sales, plus any prizes carried over from the previous raffle. The 15% commission is taken on each purchase: 7.5% goes straight to the ASE Airdrop pot, 7.5% to the team. Each ticket is also one chance in the weekly <a href="../airdrop/">ASE Airdrop</a>.</p>
     <p><strong>Claiming</strong>: winners click <strong>Claim</strong> in “My tickets” to receive their prize. Prizes never expire.</p>
     <h3>Randomness, and how to verify it</h3>
     <p>Two independent parties each prepared a long chain of secrets, and only the tip of each chain is stored in the contract. After sales close, both reveal the week's secret; the winning tickets are then computed from both secrets and the fingerprint of every purchase. The “Verify” button redoes the whole computation in your browser.</p>
-    <h3>If a secret isn't revealed</h3>
-    <p>If both secrets aren't published within <strong class="js-reveal">2 hours</strong> after sales close, the raffle is cancelled and every player gets a 100% refund.</p>
+    <h3>No cancellations, no refunds</h3>
+    <p>A ticket can't be cancelled or refunded. If a secret is late, the raffle simply waits for it: the winners are drawn as soon as both secrets are published.</p>
     <p class="muted small">Asentum testnet: testnet ASE has no monetary value.</p>
   </section>
 
@@ -111,8 +113,7 @@
       <form class="admin-box" id="fPrice"><h3>Ticket price</h3><label>Price in ASE <input name="price" inputmode="decimal" required></label><p class="muted small">Applies to the next raffle (or now if no ticket was sold yet).</p><button class="btn" type="submit">Save</button></form>
       <form class="admin-box" id="fTime"><h3>Draw day and time (Paris)</h3><div class="row"><label>Day <select name="d"><option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option></select></label><label>Hour <input name="h" type="number" min="6" max="23" required></label></div><label>Minutes <input name="m" type="number" min="0" max="59" required></label><button class="btn" type="submit">Save</button></form>
       <form class="admin-box" id="fMax"><h3>Ticket limits</h3><div class="row"><label>Per wallet <input name="w" type="number" min="1" max="20" required></label><label>Per raffle <input name="t" type="number" min="3" max="100000" required></label></div><button class="btn" type="submit">Save</button></form>
-      <form class="admin-box" id="fTimings"><h3>Timings</h3><div class="row"><label>Close (min before) <input name="close" type="number" min="2" max="60" required></label><label>Reveal (min) <input name="reveal" type="number" min="30" max="1440" required></label></div><button class="btn" type="submit">Save</button></form>
-      <form class="admin-box" id="fCancel"><h3>Cancel the current raffle</h3><p class="muted small">Only before any secret is revealed. Every player is refunded 100%.</p><button class="btn btn-danger" type="submit">Cancel and refund</button></form>
+      <form class="admin-box" id="fTimings"><h3>Timings</h3><div class="row"><label>Close (min before) <input name="close" type="number" min="2" max="60" required></label><input name="reveal" type="hidden"></div><button class="btn" type="submit">Save</button></form>
     </div>
   </section>
 </main>

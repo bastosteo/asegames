@@ -28,28 +28,9 @@
 </header>
 
 <main>
-  <section class="hero" aria-labelledby="potLabel">
-    <div class="hero-main">
-      <p id="potLabel" class="hero-label">Treasure to find</p>
-      <p class="jackpot"><span id="pot">…</span> <span class="unit">ASE</span></p>
-      <p class="hero-sub" id="gridWhen">…</p>
-    </div>
-    <div class="coin-art"><svg class="coin-svg" viewBox="0 0 64 64" aria-hidden="true">
-        <defs><radialGradient id="cgold" cx=".35" cy=".3" r=".85"><stop offset="0" stop-color="#FFF3C4"/><stop offset=".45" stop-color="#F6C25C"/><stop offset="1" stop-color="#C9822A"/></radialGradient></defs>
-        <circle cx="32" cy="32" r="29" fill="url(#cgold)" stroke="#8A5212" stroke-width="2"/>
-        <circle cx="32" cy="32" r="22.5" fill="none" stroke="#8A5212" stroke-opacity=".55" stroke-width="1.4" stroke-dasharray="2 3"/>
-        <path d="M22 22 L42 42 M42 22 L22 42" stroke="#8A5212" stroke-opacity=".22" stroke-width="5" stroke-linecap="round"/>
-        <text x="32" y="37.5" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-weight="800" font-size="14" fill="#5A3208">ASE</text>
-      </svg></div>
-    <dl class="hero-stats">
-      <div><dt>Digs</dt><dd id="digs" class="mono-num">–</dd></div>
-      <div><dt>Players</dt><dd id="players" class="mono-num">–</dd></div>
-      <div><dt>Your digs left</dt><dd id="left" class="mono-num">–</dd></div>
-    </dl>
-    <p class="banner" id="pausedBanner" hidden>The game is paused: digging is suspended.</p>
-    <p class="banner win-banner" id="foundBanner" hidden></p>
-  </section>
-
+  <p class="banner" id="pausedBanner" hidden>The game is paused: digging is suspended.</p>
+  <p class="banner win-banner" id="foundBanner" hidden></p>
+  <div class="tgrid">
   <section class="map-wrap panel-like" aria-labelledby="mapTitle">
     <div class="card-head"><span>Treasure map</span><span class="hot" id="mapStatus">20 × 20</span></div>
     <h2 id="mapTitle" class="sr-only">Treasure map</h2>
@@ -62,6 +43,37 @@
     </div>
     <p class="muted small" id="digHint">Click a cell to dig it for <span class="js-price">0.5 ASE</span>. You get the answer as soon as your dig is confirmed.</p>
   </section>
+
+  <aside class="tside">
+    <div class="tpot">
+      <div class="tpot-text">
+        <p id="potLabel" class="hero-label">Treasure to find</p>
+        <p class="jackpot"><span id="pot">…</span> <span class="unit">ASE</span></p>
+        <p class="tsub">Grows by <span class="js-grow">0.425 ASE</span> with every dig.</p>
+      </div>
+      <svg class="coin-svg" viewBox="0 0 64 64" aria-hidden="true">
+        <defs><radialGradient id="cgold" cx=".35" cy=".3" r=".85"><stop offset="0" stop-color="#FFF3C4"/><stop offset=".45" stop-color="#F6C25C"/><stop offset="1" stop-color="#C9822A"/></radialGradient></defs>
+        <circle cx="32" cy="32" r="29" fill="url(#cgold)" stroke="#8A5212" stroke-width="2"/>
+        <circle cx="32" cy="32" r="22.5" fill="none" stroke="#8A5212" stroke-opacity=".55" stroke-width="1.4" stroke-dasharray="2 3"/>
+        <path d="M22 22 L42 42 M42 22 L22 42" stroke="#8A5212" stroke-opacity=".22" stroke-width="5" stroke-linecap="round"/>
+        <text x="32" y="37.5" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-weight="800" font-size="14" fill="#5A3208">ASE</text>
+      </svg>
+    </div>
+    <div class="how">
+      <div class="how-t">How to play</div>
+      <p><b>1</b><span>Click a cell: <span class="js-price">0.5 ASE</span> per dig.</span></p>
+      <p><b>2</b><span>A few seconds later: 🔥 hot or ❄️ cold.</span></p>
+      <p><b>3</b><span>Hot? Dig around it. Find the treasure, take it all.</span></p>
+    </div>
+    <dl class="tstats">
+      <div><dt>Your digs left</dt><dd id="left" class="mono-num">–</dd></div>
+      <div><dt>Digs</dt><dd id="digs" class="mono-num">–</dd></div>
+      <div><dt>Players</dt><dd id="players" class="mono-num">–</dd></div>
+    </dl>
+    <div class="lastdig" id="lastDig" hidden></div>
+    <p class="muted small" id="gridWhen">…</p>
+  </aside>
+  </div>
 
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button role="tab" aria-selected="true" data-tab="mine">My digs</button>
@@ -89,10 +101,10 @@
       </tbody>
     </table>
     <h3>The treasure</h3>
-    <p>The treasure is 85% of all the digs on the map, up to the winning dig. It is sent to the finder's wallet (a <strong>Claim</strong> button appears right away, and the game sends it automatically within a few minutes otherwise). A new map starts a few minutes later. Digs confirmed just after the treasure was found are refunded. Each dig is also one chance in the weekly <a href="../airdrop/">ASE Airdrop</a>.</p>
+    <p>The treasure is 85% of all the digs on the map, up to the winning dig, plus anything carried over from the previous map. The 15% commission is taken on each dig: 7.5% goes straight to the ASE Airdrop pot, 7.5% to the team. It is sent to the finder's wallet (a <strong>Claim</strong> button appears right away, and the game sends it automatically within a few minutes otherwise). A new map starts a few minutes later. Digs confirmed just after the treasure was found aren't refunded: their 85% is added to the next map's treasure. Each dig is also one chance in the weekly <a href="../airdrop/">ASE Airdrop</a>.</p>
     <h3>Why you can trust the map</h3>
     <p>Before the first dig, the contract stores a fingerprint (a Merkle root) that locks the 400 answers of the map. Nobody can move the treasure or change an answer afterwards. Every answer comes with its proof, checked by your browser against that fingerprint. When a map is over, the whole map is revealed and the “Verify” button checks every answer.</p>
-    <p>If no treasure is found within 30 days, the map is cancelled and every dig is refunded.</p>
+    <p>A map is never cancelled and digs are never refunded: the map stays open until someone finds the treasure.</p>
     <p class="muted small">Asentum testnet: testnet ASE has no monetary value.</p>
   </section>
 
@@ -101,7 +113,6 @@
     <div class="admin-grid">
       <form class="admin-box" id="fPause"><h3>Emergency pause</h3><p class="muted small" id="pauseState"></p><button class="btn" type="submit" id="pauseBtn">Pause</button></form>
       <form class="admin-box" id="fCfg"><h3>Dig price and limit</h3><div class="row"><label>Price in ASE <input name="price" inputmode="decimal" required></label><label>Digs per wallet <input name="w" type="number" min="1" max="400" required></label></div><p class="muted small">The price applies from the next map.</p><button class="btn" type="submit">Save</button></form>
-      <form class="admin-box" id="fCancel"><h3>Cancel the current map</h3><p class="muted small">Every dig on the map is refunded 100%.</p><button class="btn btn-danger" type="submit">Cancel and refund</button></form>
     </div>
   </section>
 </main>

@@ -84,8 +84,8 @@ export const raffleNextDigest = (prev, buyer, n, seed, idx) => sha(prev + '|' + 
 // purchases : [{ b, n, first }] dans l'ordre ; renvoie 3 gagnants { t, i, b }
 export function raffleWinners(id, sO, sC, digest, purchases) {
   const total = purchases.reduce((a, p) => a + p.n, 0);
-  const win = [];
-  for (let k = 0; win.length < 3 && k < 3000; k++) {
+  const win = [], want = Math.min(3, new Set(purchases.map((p) => p.b)).size);
+  for (let k = 0; win.length < want && k < 3000; k++) {
     const h = sha('ASERAFFLE|' + id + '|' + sO + '|' + sC + '|' + digest + '|' + k);
     const t = Number(BigInt('0x' + h.slice(0, 13)) % BigInt(total));
     const i = purchases.findIndex((p) => t >= p.first && t < p.first + p.n);
@@ -94,10 +94,13 @@ export function raffleWinners(id, sO, sC, digest, purchases) {
   }
   return win;
 }
-export function rafflePrizes(sales) {
-  const S = BigInt(sales), commission = S * 15n / 100n, pool = S - commission, airdrop = commission / 2n;
-  const p1 = pool / 2n, p2 = pool * 3n / 10n;
-  return { commission, airdrop, owner: (commission - airdrop) * 3n / 4n, prizes: [p1, p2, pool - p1 - p2] };
+// Prix d'une tombola (v3) : cagnotte = report + ventes − commission ;
+// rangs sans gagnant (moins de 3 wallets) → 0, leur part = "carry" pour la suivante.
+export function rafflePrizes(sales, carryIn = 0n, winners = 3) {
+  const S = BigInt(sales), commission = S * 15n / 100n, pool = BigInt(carryIn) + S - commission, airdrop = commission / 2n;
+  const p1 = pool / 2n, p2 = pool * 3n / 10n, all = [p1, p2, pool - p1 - p2];
+  const prizes = all.map((x, k) => (k < winners ? x : 0n));
+  return { commission, airdrop, owner: (commission - airdrop) * 3n / 4n, prizes, carry: all.reduce((a, x, k) => a + (k < winners ? 0n : x), 0n) };
 }
 
 // --------------------------- ASE AIRDROP ---------------------------

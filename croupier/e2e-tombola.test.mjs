@@ -39,29 +39,33 @@ const once = (env) => new Promise((res) => {
 });
 const warp = (to) => fetch(mock.url + '/__warp', { method: 'POST', body: JSON.stringify({ to }) });
 
-// Semaine 1 : 2 wallets seulement → prolongation
+// Semaine 1 : 2 wallets seulement → tirage quand même, le 3e prix est reporté
 C.call(players[0], 'buy', [4, ''], 20n * ASE); C.call(players[1], 'buy', [2, ''], 10n * ASE);
 const r1 = C.view('getRound', [1]);
 await warp(r1.closeTs + 1000);
-const a = await once(envO);
-t('2 participants : le croupier prolonge d\'une semaine', a.code === 0 && C.view('getRound', [1]).status === 'open' && C.view('getRound', [1]).weeks === 2, a.out.slice(-300));
+const a1 = await once(envO), a2 = await once(envC);
+const w1 = C.view('getRound', [1]);
+t('2 participants : tirage fait, 2 gagnants', a1.code === 0 && a2.code === 0 && w1.status === 'done' && w1.win.length === 2, a2.out.slice(-300));
+t('le 3e prix passe à la tombola 2', BigInt(w1.carryOut) > 0n && C.view('getRound', [2]).carryIn === w1.carryOut);
+t('annonce : report mentionné', mock.alerts.some((x) => x.includes('Tombola n°1') && x.includes('reportés')));
 // Semaine 2 : 5 wallets
-for (let i = 2; i < 6; i++) C.call(players[i], 'buy', [1 + i, ''], BigInt(1 + i) * 5n * ASE);
-await warp(C.view('getRound', [1]).closeTs + 1000);
+for (let i = 2; i < 7; i++) C.call(players[i], 'buy', [1 + (i % 5), ''], BigInt(1 + (i % 5)) * 5n * ASE);
+await warp(C.view('getRound', [2]).closeTs + 1000);
 const q1 = await once(envO);
-t('passage owner : fermeture + secret owner', q1.code === 0 && !!C.view('getRound', [1]).sO, q1.out.slice(-300));
+t('passage owner : fermeture + secret owner', q1.code === 0 && !!C.view('getRound', [2]).sO, q1.out.slice(-300));
 const q2 = await once(envC);
-const r = C.view('getRound', [1]);
+const r = C.view('getRound', [2]);
 t('passage collab : 3 gagnants tirés', q2.code === 0 && r.status === 'done' && r.win.length === 3, q2.out.slice(-300));
-const all = C.view('getPurchases', [1, 0, 400]).map((p) => ({ b: p.b, n: p.n, first: p.first }));
-t('gagnants = référence indépendante', JSON.stringify(r.win) === JSON.stringify(ref.raffleWinners(1, r.sO, r.sC, r.digest, all)));
-{ const C = BigInt(r.commission), D = C / 2n, O = (C - D) * 3n / 4n; t('commission : moitié Airdrop, moitié équipe 75 / 25', mock.chain.balanceOf(DROP) === D && mock.chain.balanceOf(OWN_PAY) === O && mock.chain.balanceOf(COL_PAY) === C - D - O); }
-t('annonce Telegram des gagnants', mock.alerts.some((x) => x.includes('Tombola n°1') && x.includes('1er prix')), mock.alerts.join(' | ').slice(0, 300));
-t('les prix attendent le Claim (non envoyés)', C.view('getState').owed === (BigInt(r.sales) - BigInt(r.commission)).toString());
+const all = C.view('getPurchases', [2, 0, 400]).map((p) => ({ b: p.b, n: p.n, first: p.first }));
+t('gagnants = référence indépendante', JSON.stringify(r.win) === JSON.stringify(ref.raffleWinners(2, r.sO, r.sC, r.digest, all)));
+{ const C1 = BigInt(w1.commission) + BigInt(r.commission), D = BigInt(w1.airdrop) + BigInt(r.airdrop);
+  t('commission versée à chaque achat : 7,5 % Airdrop, reste équipe', D === C1 / 2n && mock.chain.balanceOf(DROP) === D && mock.chain.balanceOf(OWN_PAY) + mock.chain.balanceOf(COL_PAY) === C1 - D); }
+t('cagnotte 2 = report + 85 % des ventes', BigInt(r.prizes[0]) + BigInt(r.prizes[1]) + BigInt(r.prizes[2]) === BigInt(w1.carryOut) + BigInt(r.sales) - BigInt(r.commission));
+t('annonce Telegram des gagnants', mock.alerts.some((x) => x.includes('Tombola n°2') && x.includes('1er prix')), mock.alerts.join(' | ').slice(0, 300));
 const q3 = await once(envO);
 t('passage suivant : rien à faire', q3.code === 0 && /0 transaction/.test(q3.out), q3.out.slice(-200));
 const b = mock.chain.balanceOf(r.win[0].b);
-t('le gagnant réclame son prix', C.call(r.win[0].b, 'claim', [1, 0]).success && mock.chain.balanceOf(r.win[0].b) - b === BigInt(r.prizes[0]));
+t('le gagnant réclame son prix', C.call(r.win[0].b, 'claim', [2, 0]).success && mock.chain.balanceOf(r.win[0].b) - b === BigInt(r.prizes[0]));
 
 mock.stop();
 console.log(`\n${ok} réussis, ${ko} échoués`);

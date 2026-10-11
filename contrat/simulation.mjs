@@ -49,16 +49,10 @@ for (let k = 0; k < ROUNDS; k++) {
   must(c.call(players[0], 'poke'), 'poke');
   const rd = c.view('getRound', [id]);
   if (rd.status === 'closed') {
-    if (rnd() < 0.03) {
-      // 3 % des soirs : le collaborateur est en panne → annulation + remboursements
+    {
       must(c.call(ADMIN, 'reveal', ['owner', id, ref.preimageOf(chO, c.view('getState').tipO)]), 'revealO');
-      chain.mineUntil(rd.closeTs + rd.revealMin * 60000);
-      must(c.call(players[1], 'cancelExpired', [id]), 'cancel');
-      let i = 0;
-      while (i < rd.buys) { const x = must(c.call(ADMIN, 'settle', [id, i, 100]), 'refund'); maxGas = Math.max(maxGas, x.gas); i = x.returnValue.next; }
-      cancelled++;
-    } else {
-      must(c.call(ADMIN, 'reveal', ['owner', id, ref.preimageOf(chO, c.view('getState').tipO)]), 'revealO');
+      // 3 % des soirs : le collaborateur est en retard de 5 h → le tirage attend, rien n'est annulé
+      if (rnd() < 0.03) { chain.mineUntil(rd.closeTs + 5 * 3600000); cancelled++; }
       must(c.call(COLLAB, 'reveal', ['collab', id, ref.preimageOf(chC, c.view('getState').tipC)]), 'revealC');
       let done = false;
       while (!done) { const x = must(c.call(ADMIN, 'tally', [id, 300]), 'tally'); maxGas = Math.max(maxGas, x.gas); done = x.returnValue.done; }
@@ -81,7 +75,7 @@ for (let k = 0; k < ROUNDS; k++) {
   // --- Vérification de conservation, au wei près ---
   const s = c.view('getState');
   let pending = 0n;
-  for (let j = s.next; j <= s.cur; j++) { const x = c.view('getRound', [j]); if (['open', 'closed', 'tally'].includes(x.status)) pending += BigInt(x.sales); }
+  for (let j = s.next; j <= s.cur; j++) { const x = c.view('getRound', [j]); if (['open', 'closed', 'tally'].includes(x.status)) pending += BigInt(x.sales) - BigInt(x.commission); }
   const T = s.tot;
   const lhs = BigInt(T.sales);
   const rhs = BigInt(T.commission) + BigInt(T.prizes) + BigInt(s.owed) + BigInt(T.refunds) + BigInt(s.jackpot) + pending;
@@ -98,14 +92,14 @@ const toOwner = chain.balanceOf(OWNER) - ownerStart;
 const toCollab = chain.balanceOf(COLLAB) - collabStart;
 console.log(`Simulation de ${ROUNDS} tirages quotidiens (${T.grids} grilles, ${T.buys} achats)`);
 console.log(`  Ventes totales           : ${fmt(BigInt(T.sales))} ASE`);
-const drawnSales = BigInt(T.sales) - BigInt(T.refunds) - (() => { let p = 0n; for (let j = s.next; j <= s.cur; j++) { const x = c.view('getRound', [j]); if (['open', 'closed', 'tally'].includes(x.status)) p += BigInt(x.sales); } return p; })();
-console.log(`  Commission               : ${fmt(commission)} ASE = ${(Number(commission * 100000n / drawnSales) / 1000).toFixed(3)} % des ventes tirées (rien sur les tirages annulés)`);
+const drawnSales = BigInt(T.sales);
+console.log(`  Commission               : ${fmt(commission)} ASE = ${(Number(commission * 100000n / drawnSales) / 1000).toFixed(3)} % des ventes (prélevée à chaque achat)`);
 console.log(`    → owner (75 % de la moitié) : ${fmt(toOwner)} ASE   → collaborateur (25 %) : ${fmt(toCollab)} ASE`);
 const toDrop = chain.balanceOf(DROP);
 console.log(`    → Airdrop (50 %)       : ${fmt(toDrop)} ASE`);
 console.log(`    → partage exact        : ${toOwner + toCollab + toDrop === commission ? 'oui, owner + collab + Airdrop = commission au wei près' : 'ÉCART'}`);
 console.log(`  Gains versés             : ${fmt(BigInt(T.prizes))} ASE   (à verser : ${fmt(BigInt(s.owed))})`);
-console.log(`  Remboursements           : ${fmt(BigInt(T.refunds))} ASE   (${cancelled} tirages annulés)`);
+console.log(`  Remboursements           : aucun (${cancelled} tirages faits en retard, aucun annulé)`);
 console.log(`  Jackpot reporté actuel   : ${fmt(BigInt(s.jackpot))} ASE`);
 console.log(`  Gagnants 3 bons          : ${winners[0]} (moy. ${winners[0] ? fmt(won[0] / BigInt(winners[0])) : '-'} ASE)`);
 console.log(`  Gagnants 4 bons          : ${winners[1]} (moy. ${winners[1] ? fmt(won[1] / BigInt(winners[1])) : '-'} ASE)`);

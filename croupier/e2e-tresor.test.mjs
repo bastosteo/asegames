@@ -59,7 +59,7 @@ const b4 = mock.chain.balanceOf(P[4]);
 const q = await once();
 const g = C.view('getGrid', [1]);
 t('le croupier envoie la preuve : le gagnant est payé', q.code === 0 && g.status === 'found' && g.winner === P[3] && mock.chain.balanceOf(P[3]) - b0 === 4n * PRICE * 85n / 100n, q.out.slice(-400));
-t('la fouille d\'après est remboursée', mock.chain.balanceOf(P[4]) - b4 === PRICE);
+t('la fouille d\'après n\'est pas remboursée : ses 85 % passent à la grille 2', mock.chain.balanceOf(P[4]) === b4 && C.view('getGrid', [2]).carryIn === (PRICE * 85n / 100n).toString());
 t('grille 2 ouverte dans le même passage', C.view('getState').cur === 2 && C.view('getGrid', [2]).root === board(SEED, 2).root);
 t('annonce Telegram', mock.alerts.some((x) => x.includes('trésor trouvé')), mock.alerts.join(' | '));
 r = await api('grid=1&all=1');

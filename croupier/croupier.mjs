@@ -262,14 +262,8 @@ async function processRound(id, now, values) {
   const r = await view('getRound', [id]);
   if (!r) return;
   const sinceClose = now - Number(r.closeTs);
-  const deadline = Number(r.closeTs) + r.revealMin * 60000;
 
   if (r.status === 'closed') {
-    if (now >= deadline) {
-      await alert(`⚠️ Tour ${id} : secrets non révélés à temps → annulation, remboursement des joueurs.`, 'cancel' + id, 1e12);
-      await send('cancelExpired', [id]).catch((e) => log(e.message));
-      return;
-    }
     const st = await view('getState');
     if (CFG.role === 'owner' && !r.sO) {
       const sec = secretFor(st.tipO, values);
@@ -287,8 +281,7 @@ async function processRound(id, now, values) {
     // Surveillance croisée : l'autre croupier est-il en retard ?
     if (sinceClose > CFG.lateAlertMin * 60000) {
       const who = !r.sO ? 'owner' : 'collaborateur';
-      const left = Math.max(0, Math.round((deadline - now) / 60000));
-      await alert(`⏰ Tour ${id} : le secret ${who} n'est toujours pas révélé (${Math.round(sinceClose / 60000)} min après la fermeture). Annulation automatique dans ${left} min si rien ne bouge.`, 'late' + id + who, 20 * 60000);
+      await alert(`⏰ Tour ${id} : le secret ${who} n'est toujours pas révélé (${Math.round(sinceClose / 60000)} min après la fermeture). Le tirage attend ce secret (aucune annulation possible) : vérifie le croupier ${who}.`, 'late' + id + who, 60 * 60000);
     }
     return;
   }
@@ -317,6 +310,7 @@ async function announce(id) {
     await alert(
       `🎟️ Tombola n°${id} : ${r.tickets} tickets, ventes ${ase(r.sales)} ASE\n` +
       r.win.map((w, k) => `${k + 1}er prix : ticket #${w.t + 1}, ${w.b.slice(0, 8)}…${w.b.slice(-4)} → ${ase(r.prizes[k])} ASE`).join('\n').replace('2er', '2e').replace('3er', '3e') +
+      (BigInt(r.carryOut || '0') > 0n ? `\nPrix sans gagnant reportés à la tombola suivante : ${ase(r.carryOut)} ASE.` : '') +
       `\nCommission : ${ase(r.commission)} ASE. Les gagnants réclament leur prix sur le site.`, 'drawn' + id, 1e12);
     return;
   }
@@ -327,36 +321,6 @@ async function announce(id) {
     `5 bons : ${c5}${c5 ? ` (${ase(r.per[2])} ASE chacun)` : ''} · 4 bons : ${c4}${c4 ? ` (${ase(r.per[1])} ASE)` : ''} · 3 bons : ${c3}${c3 ? ` (${ase(r.per[0])} ASE)` : ''}\n` +
     `Les gagnants réclament leurs gains sur le site (bouton Claim).\n` +
     `Commission : ${ase(r.commission)} ASE · jackpot reporté : ${ase(r.carryOut)} ASE`, 'drawn' + id, 1e12);
-}
-
-// Rembourse les joueurs des tours annulés récents (les gains, eux, se réclament).
-// Ce qui reste à payer est lu sur la chaîne : rien ne dépend d'un fichier local.
-async function settle(st, now) {
-  const from = Math.max(1, st.next - 10);
-  for (let id = from; id <= st.cur; id++) {
-    const r = await view('getRound', [id]);
-    if (!r || !r.buys || (r.status !== 'done' && r.status !== 'cancelled')) continue;
-    const isPay = r.status === 'done';
-    // Les gains se RÉCLAMENT par les joueurs (bouton Claim, sans limite de temps) :
-    // le croupier ne fait que les remboursements des tirages annulés.
-    if (isPay) continue;
-    // Le collaborateur ne paie qu'en secours (si l'owner traîne).
-    if (CFG.role === 'collab' && now - Number(r.closeTs) < (CFG.backupAfterMin + 30) * 60000) continue;
-    const list = [];
-    for (let k = 0; k < r.buys; k += 400) list.push(...(await view('getPurchases', [id, k, 400])));
-    const pending = (p) => !p.paid && (!isPay || p.prize !== '0');
-    let i = list.findIndex(pending);
-    if (i < 0) continue;
-    if (isPay) await announce(id);
-    while (i >= 0 && i < r.buys) {
-      const rc = await send('settle', [id, i, CFG.payBatch]);
-      if (!rc) break; // pas de reçu : on reprendra au prochain passage
-      const next = rc.returnValue && Number.isInteger(rc.returnValue.next) ? rc.returnValue.next : Math.min(r.buys, i + CFG.payBatch);
-      const rest = list.slice(next).findIndex(pending);
-      i = rest < 0 ? -1 : next + rest;
-    }
-    if (i < 0) log(`Tour ${id} : ${isPay ? 'tous les gains payés' : 'tous les remboursements faits'}`);
-  }
 }
 
 // --- ASE Airdrop : liste de la semaine, puis secrets ---------------------
@@ -374,7 +338,9 @@ async function airdropRound(id, now, values) {
   const st = await view('getState');
   if (r.status === 'closed') {
     if (CFG.role !== 'owner') return;
-    const wk = await buildWeek({ view: viewAt, loto: CFG.loto && toHex(CFG.loto), raffle: CFG.raffle && toHex(CFG.raffle), treasure: CFG.treasure && toHex(CFG.treasure), fromTs: st.lastTs, toTs: r.drawTs, now });
+    // Adresses séparées par des virgules : ancien + nouveau contrat (semaine de migration).
+    const many = (x) => String(x || '').split(',').map((a) => a.trim()).filter(Boolean).map(toHex);
+    const wk = await buildWeek({ view: viewAt, loto: many(CFG.loto), raffle: many(CFG.raffle), treasure: many(CFG.treasure), fromTs: st.lastTs, toTs: r.drawTs, now });
     if (!wk.ready) {
       log(`Airdrop ${id} : en attente des jeux (${wk.waiting.join(', ')})`);
       if (late > 90 * 60000) await alert(`⏰ Airdrop ${id} : toujours en attente de ${wk.waiting.join(', ')}.`, 'wait' + id, 60 * 60000);
@@ -406,11 +372,11 @@ async function airdropRound(id, now, values) {
   if (late > 120 * 60000) await alert(`⏰ Airdrop ${id} : le secret ${!r.sO ? 'owner' : 'collaborateur'} n'est pas encore révélé.`, 'late' + id, 60 * 60000);
 }
 
-// --- ASE Treasure : ouvre les grilles, envoie la preuve du trésor, rembourse ---
+// --- ASE Treasure : ouvre les grilles, envoie la preuve du trésor ---
 async function treasureTick() {
   const st = await view('getState');
   const cur = st.cur ? await view('getGrid', [st.cur]) : null;
-  if (!cur || cur.status === 'found' || cur.status === 'cancelled') {
+  if (!cur || cur.status === 'found') {
     if (CFG.role !== 'owner') return;
     const b = board(CFG.treasureSeed, st.cur + 1);
     log(`Treasure : ouverture de la grille ${st.cur + 1}`);
@@ -427,14 +393,6 @@ async function treasureTick() {
         await alert(`💰 ASE Treasure, grille n°${g.id} : trésor trouvé en ${g.t + 1} fouilles par ${g.winner.slice(0, 8)}…${g.winner.slice(-4)} → ${ase(g.prize)} ASE`, 'found' + g.id, 1e12);
       }
     }
-  }
-  // Remboursements (fouilles faites après le trésor, grilles annulées)
-  for (let id = Math.max(1, st.cur - 5); id <= st.cur; id++) {
-    const g = await view('getGrid', [id]);
-    if (!g || g.refundFrom < 0 || g.refundFrom >= g.digs) continue;
-    const list = await view('getDigs', [id, g.refundFrom, Math.min(400, g.digs - g.refundFrom)]);
-    const p = list.find((d) => !d.paid);
-    if (p) await send('settle', [id, p.idx, 100]);
   }
 }
 
@@ -458,8 +416,6 @@ async function tick(values) {
   const st = await view('getState');
   // 2) Tirage du prochain tour en attente
   if (st.next < st.cur) await processRound(st.next, now, values);
-  // 3) Paiements / remboursements
-  await settle(await view('getState'), now);
   lastOk = Date.now();
 }
 

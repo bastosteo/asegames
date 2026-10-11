@@ -28,30 +28,31 @@
 </header>
 
 <main>
-  <!-- ===== Jackpot + compte à rebours ===== -->
-  <section class="hero" aria-labelledby="jpLabel">
-    <div class="hero-main">
-      <p id="jpLabel" class="hero-label">Next draw jackpot</p>
-      <p class="jackpot"><span id="jackpot">…</span> <span class="unit">ASE</span></p>
-      <p class="hero-sub"><span id="drawWhen">…</span></p>
+  <!-- ===== Tirage du soir : jackpot + compte à rebours ===== -->
+  <section class="lhero" aria-labelledby="jpLabel">
+    <div>
+      <p id="jpLabel" class="hero-label"><span id="drawWhen">…</span></p>
+      <p class="jackpot"><span id="jackpot">…</span> <span class="unit">ASE jackpot</span></p>
     </div>
-    <dl class="hero-stats">
+    <dl class="lhero-stats">
       <div><dt id="countdownLabel">Sales close in</dt><dd id="countdown" class="mono-num">--:--:--</dd></div>
-      <div><dt>Tickets played</dt><dd id="gridsPlayed" class="mono-num">–</dd></div>
-      <div><dt>Ticket price</dt><dd id="priceLabel" class="mono-num">–</dd></div>
+      <div><dt>Ticket</dt><dd id="priceLabel" class="mono-num">–</dd></div>
+      <div><dt>Played tonight</dt><dd id="gridsPlayed" class="mono-num">–</dd></div>
     </dl>
-    <div class="last-draw" id="lastDraw" hidden>
-      <p class="last-title">Last draw <span id="lastDrawId"></span></p>
-      <div class="balls" id="lastBalls"></div>
-      <button class="link-btn" id="lastVerify">Verify this draw</button>
-    </div>
     <p class="banner" id="pausedBanner" hidden>The game is paused: ticket sales are suspended. Draws and payouts continue.</p>
   </section>
+
+  <!-- ===== Étapes ===== -->
+  <ol class="steps3" id="lotoSteps" aria-label="How to play">
+    <li data-step="1"><b>1</b><span>Roll the 5 dice</span></li>
+    <li data-step="2"><b>2</b><span>Add more tickets (optional)</span></li>
+    <li data-step="3"><b>3</b><span>Confirm: one transaction</span></li>
+  </ol>
 
   <!-- ===== Jouer ===== -->
   <section class="play" aria-labelledby="playTitle">
     <div class="picker">
-      <h2 id="playTitle">Throw the dice</h2>
+      <h2 id="playTitle" class="sr-only">Roll the dice</h2>
       <p class="pick-count" id="pickCount" aria-live="polite">Five 20-sided dice pick your 5 numbers. No choices, pure luck.</p>
       <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="d20g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE68A"/><stop offset=".55" stop-color="#F4C542"/><stop offset="1" stop-color="#B8860B"/></linearGradient></defs></svg>
       <div class="dice-table" id="diceTable" aria-hidden="true">
@@ -73,25 +74,37 @@
         <p class="table-hint" id="tableHint">Throw the dice!</p>
       </div>
       <div class="balls roll-slots" id="rollSlots" aria-label="Rolled numbers"></div>
-      <div class="pick-actions">
-        <button class="btn btn-primary btn-wide" id="rollBtn" type="button">Throw the dice</button>
-      </div>
-      <p class="quick">Or throw several tickets at once
+      <button class="btn btn-primary btn-wide btn-roll" id="rollBtn" type="button">Roll the dice · <span class="js-price">2 ASE</span></button>
+      <p class="quick">Feeling lucky? Roll several at once:
         <button class="chip" data-roll="5" type="button">5 tickets</button>
         <button class="chip" data-roll="10" type="button">10 tickets</button>
       </p>
     </div>
 
     <aside class="cart" aria-labelledby="cartTitle">
-      <h2 id="cartTitle">My cart</h2>
+      <div class="card-head"><span id="cartTitle">Your tickets for tonight</span><span class="hot" id="cartCount">0 tickets</span></div>
       <ol class="cart-list" id="cartList"></ol>
-      <p class="cart-empty" id="cartEmpty">Your cart is empty. Throw the dice to get a ticket.</p>
+      <p class="cart-empty" id="cartEmpty">No ticket yet. Roll the dice: your numbers land here.</p>
       <div class="cart-foot">
-        <p class="cart-total"><span id="cartCount">0 tickets</span><strong id="cartSum">0 ASE</strong></p>
-        <button class="btn btn-primary btn-wide" id="playBtn" disabled>Confirm my tickets</button>
+        <p class="cart-total"><span>Total</span><strong id="cartSum">0 ASE</strong></p>
+        <button class="btn btn-primary btn-wide btn-confirm" id="playBtn" disabled>Confirm my tickets</button>
         <p class="cart-note" id="cartNote">One single transaction for the whole cart.</p>
       </div>
     </aside>
+  </section>
+
+  <!-- ===== Ce qu'on peut gagner ===== -->
+  <section class="wincards" aria-label="What you can win">
+    <div class="wc top"><span class="wc-l">5 matches</span><strong>Jackpot</strong><span class="muted">1 chance in 15,504</span></div>
+    <div class="wc"><span class="wc-l">4 matches</span><strong class="js-g4">50 ASE</strong><span class="muted">1 chance in 207 · + bonus</span></div>
+    <div class="wc"><span class="wc-l">3 matches</span><strong class="js-g3">5 ASE</strong><span class="muted">1 chance in 15 · + bonus</span></div>
+  </section>
+
+  <!-- ===== Dernier tirage ===== -->
+  <section class="last-draw" id="lastDraw" hidden>
+    <p class="last-title">Last draw <span id="lastDrawId"></span></p>
+    <div class="balls" id="lastBalls"></div>
+    <button class="link-btn" id="lastVerify">Verify this draw</button>
   </section>
 
   <!-- ===== Onglets ===== -->
@@ -144,8 +157,9 @@
     <h3>Randomness, and how to verify it</h3>
     <p>A blockchain has no built-in randomness. Here, two independent parties (the operator and a collaborator) each prepared a long chain of secrets, and only the tip of each chain is stored in the contract. After sales close, each one reveals the day's secret; the contract checks it matches their chain. The numbers are then computed from both secrets and the fingerprint of every ticket played.</p>
     <p>The “Verify this draw” button redoes the whole computation in your browser.</p>
-    <h3>If a secret isn't revealed</h3>
-    <p>If both secrets aren't published within <strong class="js-reveal">2 hours</strong> after sales close, the draw is cancelled and every player gets a 100% refund (sent automatically, or via the “Refund me” button).</p>
+    <h3>No cancellations, no refunds</h3>
+    <p>Every draw takes place, even with a single ticket. A ticket can't be cancelled or refunded. If a secret is late, the draw simply waits for it: the numbers are drawn as soon as both secrets are published.</p>
+    <p>The 15% commission is taken on each purchase: 7.5% goes straight to the <a href="../airdrop/">ASE Airdrop</a> pot, 7.5% to the team.</p>
     <p class="muted small">Asentum testnet: testnet ASE has no monetary value.</p>
   </section>
 
@@ -156,9 +170,8 @@
       <form class="admin-box" id="fPrice"><h3>Ticket price</h3><label>Price in ASE <input name="price" inputmode="decimal" required></label><p class="muted small">Applies from the next draw.</p><button class="btn" type="submit">Save</button></form>
       <form class="admin-box" id="fTime"><h3>Draw time (Paris)</h3><div class="row"><label>Hour <input name="h" type="number" min="6" max="23" required></label><label>Minutes <input name="m" type="number" min="0" max="59" required></label></div><p class="muted small">Applies from the next draw.</p><button class="btn" type="submit">Save</button></form>
       <form class="admin-box" id="fMax"><h3>Ticket limits</h3><div class="row"><label>Per purchase <input name="n" type="number" min="1" max="50" required></label><label>Per draw <input name="t" type="number" min="1" max="100000" required></label></div><p class="muted small">The per-draw limit prevents buying every combination (15,504).</p><button class="btn" type="submit">Save</button></form>
-      <form class="admin-box" id="fTimings"><h3>Timings</h3><div class="row"><label>Sales close (min before) <input name="close" type="number" min="2" max="60" required></label><label>Reveal window (min) <input name="reveal" type="number" min="30" max="1440" required></label></div><button class="btn" type="submit">Save</button></form>
+      <form class="admin-box" id="fTimings"><h3>Timings</h3><div class="row"><label>Sales close (min before) <input name="close" type="number" min="2" max="60" required></label><input name="reveal" type="hidden"></div><button class="btn" type="submit">Save</button></form>
       <form class="admin-box wide" id="fPayouts"><h3>Commission wallets</h3><label>Owner (75%) <input name="o" required spellcheck="false"></label><label>Collaborator (25%) <input name="c" required spellcheck="false"></label><button class="btn" type="submit">Save</button></form>
-      <form class="admin-box" id="fCancel"><h3>Cancel the current draw</h3><p class="muted small">Only possible before any secret is revealed. All players in the draw get a 100% refund.</p><button class="btn btn-danger" type="submit">Cancel and refund</button></form>
     </div>
   </section>
 </main>

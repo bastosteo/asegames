@@ -5,16 +5,17 @@
 //   - Un ticket = 5 ASE (réglable). 10 tickets maximum par wallet et par
 //     tombola. Tirage chaque dimanche à 21h00 (heure de Paris, heure d'été
 //     gérée) ; ventes fermées 10 min avant.
-//   - Ventes de la semaine : 15 % commission (7,5 % équipe 75/25 + 7,5 % au
-//     contrat ASE Airdrop), 85 % = cagnotte, partagée entre 3 gagnants : 50 / 30 / 20 %.
-//   - 3 wallets DIFFÉRENTS gagnent. Moins de 3 wallets participants à
-//     l'heure du tirage → la tombola est prolongée d'une semaine (tickets
-//     gardés, cagnotte qui continue de grossir).
+//   - À CHAQUE achat : 15 % de commission versés tout de suite (7,5 % équipe
+//     75/25 + 7,5 % au contrat ASE Airdrop) ; 85 % vont dans la cagnotte,
+//     partagée entre 3 gagnants : 50 / 30 / 20 %.
+//   - 3 wallets DIFFÉRENTS gagnent. Moins de 3 wallets → tirage quand même :
+//     les prix sans gagnant passent dans la tombola suivante. Aucun ticket →
+//     la tombola est simplement reportée d'une semaine.
 //   - Hasard : double secret en chaîne (owner puis collaborateur), révélés
 //     APRÈS la fermeture. Tirage k : ticket = SHA-256("ASERAFFLE|tour|sO|sC|
 //     empreinte|k") mod nombre de tickets ; un wallet déjà gagnant → k+1.
 //   - Les gains se RÉCLAMENT (claim), sans limite de temps.
-//   - Secrets non révélés à temps → tombola annulée, remboursement 100 %.
+//   - Jamais d'annulation ni de remboursement : un tirage attend ses secrets.
 //
 //  Sécurité : aucune fonction de retrait ; état enregistré AVANT chaque
 //  envoi d'ASE ; montants en BigInt (wei) stockés en texte.
@@ -29,7 +30,6 @@ const DAY = 86400000;
 const HOUR = 3600000;
 const MAX_CHAIN_SKIP = 1;      // un secret = exactement le maillon précédent (le collaborateur ne peut pas choisir)
 const MAX_BATCH = 400;
-const MAX_PAYS = 40;
 
 // ---------------------------------------------------------------------
 //  Outils de base
@@ -199,9 +199,9 @@ function schedule(r, c, after) {
 function newRound(id, c, after) {
   const r = {
     id, status: 'open', price: c.price, revealMin: c.revealMin, drawTs: 0, closeTs: 0,
-    sales: '0', tickets: 0, buys: 0, wallets: 0, weeks: 1,
+    sales: '0', tickets: 0, buys: 0, wallets: 0, weeks: 1, carryIn: '0', airdrop: '0',
     digest: sha256Text('ASERAFFLE-ROUND|' + id),
-    sO: null, sC: null, win: null, prizes: null, claimed: [false, false, false], commission: null,
+    sO: null, sC: null, win: null, prizes: null, claimed: [false, false, false], commission: '0',
   };
   schedule(r, c, after);
   putR(r);
@@ -209,12 +209,12 @@ function newRound(id, c, after) {
   return r;
 }
 
-// Ferme la tombola en cours à l'heure (ou la prolonge d'une semaine s'il
-// y a moins de 3 wallets), ouvre la suivante, avance "next".
+// Ferme la tombola en cours à l'heure (ou la reporte d'une semaine si elle
+// n'a aucun ticket), ouvre la suivante, avance "next".
 function sync(c, s) {
   const cur = getR(s.cur);
   if (cur.status === 'open' && nowMs() >= cur.closeTs) {
-    if (cur.wallets < WINNERS) {
+    if (cur.tickets === 0) {
       schedule(cur, c, cur.drawTs);
       cur.weeks++;
       putR(cur);
@@ -229,7 +229,7 @@ function sync(c, s) {
   }
   while (s.next < s.cur) {
     const r = getR(s.next);
-    if (r.status === 'done' || r.status === 'cancelled') s.next++;
+    if (r.status === 'done') s.next++;
     else break;
   }
   return s;
@@ -247,10 +247,10 @@ function purchaseOf(r, t, memo) {
   return [lo, get(lo).b];
 }
 
-// Tire 3 wallets différents. Tirage k : ticket = SHA-256(…|k) mod tickets.
+// Tire jusqu'à 3 wallets différents. Tirage k : ticket = SHA-256(…|k) mod tickets.
 function drawWinners(r) {
-  const win = [], seen = [], memo = {};
-  for (let k = 0; win.length < WINNERS && k < 3000; k++) {
+  const win = [], seen = [], memo = {}, want = Math.min(WINNERS, r.wallets);
+  for (let k = 0; win.length < want && k < 3000; k++) {
     const h = sha256Text('ASERAFFLE|' + r.id + '|' + r.sO + '|' + r.sC + '|' + r.digest + '|' + k);
     const t = Number(BigInt('0x' + h.slice(0, 13)) % BigInt(r.tickets));
     const [i, b] = purchaseOf(r, t, memo);
@@ -258,38 +258,32 @@ function drawWinners(r) {
     seen.push(b);
     win.push({ t, i, b });
   }
-  assert(win.length === WINNERS, 'draw failed');
+  assert(win.length === want, 'draw failed');
   return win;
 }
 
-function finalize(r, c, s) {
-  const S = big(r.sales);
-  const commission = (S * SHARE_COMMISSION) / BPS;
-  const cDrop = commission / 2n;                        // moitié → cagnotte ASE Airdrop
-  const cOwner = ((commission - cDrop) * OWNER_CUT) / BPS;
-  const pool = S - commission;
+// Cagnotte = report reçu + 85 % des ventes (la commission est déjà partie).
+// Prix sans gagnant (moins de 3 wallets) → ajoutés à la tombola en cours.
+function finalize(r, s) {
+  const pool = big(r.carryIn) + big(r.sales) - big(r.commission);
   const p1 = (pool * SPLIT[0]) / BPS, p2 = (pool * SPLIT[1]) / BPS;
+  const pr = [p1, p2, pool - p1 - p2];
   r.win = drawWinners(r);
-  r.prizes = [p1, p2, pool - p1 - p2].map(String);
-  r.commission = commission.toString();
-  r.airdrop = cDrop.toString();
+  let won = 0n, left = 0n;
+  pr.forEach((x, k) => { if (k < r.win.length) won += x; else { left += x; r.claimed[k] = true; } });
+  r.prizes = pr.map((x, k) => (k < r.win.length ? x : 0n).toString());
+  r.carryOut = left.toString();
   r.status = 'done';
   putR(r);
-  s.owed = (big(s.owed) + pool).toString();
-  s.tot.commission = (big(s.tot.commission) + commission).toString();
+  if (left > 0n) {
+    const cur = getR(s.cur);
+    cur.carryIn = (big(cur.carryIn) + left).toString();
+    putR(cur);
+  }
+  s.owed = (big(s.owed) + won).toString();
   s.next = r.id + 1;
   jset('st', s);
-  if (cOwner > 0n) transfer(c.payOwner, cOwner.toString());
-  if (commission - cDrop > cOwner) transfer(c.payCollab, (commission - cDrop - cOwner).toString());
-  if (cDrop > 0n) transfer(c.payAirdrop, cDrop.toString());
-  emit('Drawn', { round: String(r.id), winners: JSON.stringify(r.win), prizes: JSON.stringify(r.prizes), commission: r.commission, airdrop: r.airdrop });
-}
-
-function cancelRound(r, s, reason) {
-  r.status = 'cancelled';
-  putR(r);
-  s.owed = (big(s.owed) + big(r.sales)).toString();
-  emit('Cancelled', { round: String(r.id), reason, sales: r.sales });
+  emit('Drawn', { round: String(r.id), winners: JSON.stringify(r.win), prizes: JSON.stringify(r.prizes), carry: r.carryOut });
 }
 
 function batchRange(from, count, total) {
@@ -344,7 +338,7 @@ function batchRange(from, count, total) {
     const sd = seed === undefined || seed === null ? '' : String(seed).toLowerCase();
     assert(/^[0-9a-f]{0,64}$/.test(sd), 'invalid seed');
     const i = r.buys;
-    jset('p:' + r.id + ':' + i, { b: who, n: k, s: r.tickets, sd, paid: false });
+    jset('p:' + r.id + ':' + i, { b: who, n: k, s: r.tickets, sd, paid: false, t: nowMs() });
     jset('w:' + r.id + ':' + who, mine + k);
     if (mine === 0) r.wallets++;
     r.digest = sha256Text(r.digest + '|' + who + '|' + k + '|' + sd + '|' + i);
@@ -352,11 +346,18 @@ function batchRange(from, count, total) {
     r.tickets += k;
     r.buys = i + 1;
     r.sales = (big(r.sales) + cost).toString();
+    const com = (cost * SHARE_COMMISSION) / BPS, cDrop = com / 2n, cOwner = ((com - cDrop) * OWNER_CUT) / BPS;
+    r.commission = (big(r.commission) + com).toString();
+    r.airdrop = (big(r.airdrop) + cDrop).toString();
     putR(r);
     s.tot.sales = (big(s.tot.sales) + cost).toString();
+    s.tot.commission = (big(s.tot.commission) + com).toString();
     s.tot.tickets += k;
     s.tot.buys += 1;
     jset('st', s);
+    if (cOwner > 0n) transfer(c.payOwner, cOwner.toString());
+    if (com - cDrop > cOwner) transfer(c.payCollab, (com - cDrop - cOwner).toString());
+    if (cDrop > 0n) transfer(c.payAirdrop, cDrop.toString());
     emit('Buy', { round: String(r.id), idx: String(i), buyer: who, first: String(first), n: String(k), seed: sd, value: cost.toString() });
     return { round: r.id, idx: i, first, n: k };
   },
@@ -369,7 +370,7 @@ function batchRange(from, count, total) {
   },
 
   // TIRAGE (croupier) : reveal('owner', …) puis reveal('collab', …).
-  // Le 2e secret désigne les 3 gagnants et verse la commission.
+  // Le 2e secret désigne les gagnants. Pas de date limite : le tirage attend.
   reveal(who, roundId, secret) {
     noValue();
     const c = cfg();
@@ -379,26 +380,12 @@ function batchRange(from, count, total) {
     assert(o || who === 'collab', 'who: owner or collab');
     assert(r.id === s.next, 'draw first round ' + s.next);
     assert(r.status === 'closed', 'status: ' + r.status);
-    assert(nowMs() < r.closeTs + r.revealMin * 60000, 'too late');
     assert(o ? !r.sO : r.sO && !r.sC, o ? 'already revealed' : 'owner first, or already revealed');
     const sec = String(secret).toLowerCase();
     assert(isSecret(sec) && chainOk(sec, o ? s.tipO : s.tipC), 'invalid secret');
     if (o) { r.sO = sec; s.tipO = sec; putR(r); jset('st', s); }
-    else { r.sC = sec; s.tipC = sec; finalize(r, c, s); }
+    else { r.sC = sec; s.tipC = sec; finalize(r, s); }
     emit('Reveal', { round: String(r.id), who, secret: sec });
-    return true;
-  },
-
-  cancelExpired(roundId) {
-    noValue();
-    const c = cfg();
-    const s = sync(c, st());
-    const r = getR(Number(roundId));
-    assert(r.status === 'closed', 'status: ' + r.status);
-    assert(nowMs() >= r.closeTs + r.revealMin * 60000, 'too early');
-    cancelRound(r, s, 'timeout');
-    sync(c, s);
-    jset('st', s);
     return true;
   },
 
@@ -409,7 +396,7 @@ function batchRange(from, count, total) {
     const r = getR(Number(roundId));
     const k = Number(rank);
     assert(r.status === 'done', 'not drawn');
-    assert(k === 0 || k === 1 || k === 2, 'rank: 0, 1 or 2');
+    assert(Number.isInteger(k) && k >= 0 && k < r.win.length, 'no prize at this rank');
     assert(!r.claimed[k], 'already claimed');
     const amount = big(r.prizes[k]);
     r.claimed[k] = true;
@@ -422,30 +409,6 @@ function batchRange(from, count, total) {
     return amount.toString();
   },
 
-  // REMBOURSEMENTS d'une tombola annulée, par paquets (croupier ou joueur).
-  settle(roundId, from, count) {
-    noValue();
-    const s = st();
-    const r = getR(Number(roundId));
-    assert(r.status === 'cancelled', 'nothing to settle');
-    const [a, b] = batchRange(from, count, r.buys);
-    let total = 0n, n = 0, i = a;
-    for (; i < b && n < MAX_PAYS; i++) {
-      const p = getP(r.id, i);
-      if (p.paid) continue;
-      const amount = big(r.price) * big(p.n);
-      p.paid = true;
-      jset('p:' + r.id + ':' + i, p);
-      s.owed = (big(s.owed) - amount).toString();
-      s.tot.refunds = (big(s.tot.refunds) + amount).toString();
-      transfer(p.b, amount.toString());
-      emit('Refunded', { round: String(r.id), idx: String(i), to: p.b, amount: amount.toString() });
-      total += amount; n++;
-    }
-    jset('st', s);
-    return { amount: total.toString(), next: i, total: r.buys };
-  },
-
   // ADMIN
   setPaused(on) {
     noValue();
@@ -456,7 +419,7 @@ function batchRange(from, count, total) {
     return c.paused;
   },
   // prix (wei), jour (0 = dimanche … 6 = samedi), heure, minute, tickets max par
-  // wallet, fermeture (min avant), délai de révélation (min), tickets max par tombola.
+  // wallet, fermeture (min avant), revealMin (gardé pour compatibilité, sans effet), tickets max par tombola.
   // S'applique tout de suite si la tombola en cours n'a encore aucun ticket.
   setConfig(price, drawDay, drawH, drawM, maxPerWallet, closeMin, revealMin, maxRound) {
     noValue();
@@ -473,7 +436,7 @@ function batchRange(from, count, total) {
     jset('cfg', c);
     const s = sync(c, st());
     const r = getR(s.cur);
-    if (r.status === 'open' && r.tickets === 0) newRound(r.id, c, 0);
+    if (r.status === 'open' && r.tickets === 0) { r.price = c.price; schedule(r, c, 0); putR(r); }
     jset('st', s);
     emit('Config', { key: 'game', value: JSON.stringify([c.price, D, H, M, W, A, B, T]) });
     return true;
@@ -494,20 +457,6 @@ function batchRange(from, count, total) {
     c.admin = addr(newAdmin);
     jset('cfg', c);
     emit('Config', { key: 'admin', value: c.admin });
-    return true;
-  },
-  // Annulation d'urgence (remboursement) : seulement avant toute révélation.
-  emergencyCancel(roundId) {
-    noValue();
-    const c = cfg(); onlyAdmin(c);
-    let s = st();
-    const r = getR(Number(roundId));
-    assert(r.status === 'open' || r.status === 'closed', 'status: ' + r.status);
-    assert(!r.sO && !r.sC, 'secret already revealed');
-    cancelRound(r, s, 'admin');
-    if (r.id === s.cur) { s.cur = r.id + 1; newRound(s.cur, c, r.drawTs); }
-    s = sync(c, s);
-    jset('st', s);
     return true;
   },
   setTipOwner(tip) {
@@ -551,7 +500,7 @@ function batchRange(from, count, total) {
     const r = getR(Number(roundId));
     const [a, b] = batchRange(from, count, r.buys);
     const out = [];
-    for (let i = a; i < b; i++) { const p = getP(r.id, i); out.push({ idx: i, b: p.b, n: p.n, first: p.s, sd: p.sd, paid: p.paid, prize: '0' }); }
+    for (let i = a; i < b; i++) { const p = getP(r.id, i); out.push({ idx: i, b: p.b, n: p.n, first: p.s, sd: p.sd, paid: p.paid, prize: '0', t: p.t || 0 }); }
     return out;
   },
   getWallet(roundId, who) { return jget('w:' + Number(roundId) + ':' + addr(who), 0); },
@@ -564,7 +513,7 @@ function batchRange(from, count, total) {
       now: String(t), paused: c.paused, round: r.id, status: t >= r.closeTs ? 'closing' : r.status,
       drawTs: String(r.drawTs), closeTs: String(r.closeTs), price: r.price, maxPerWallet: c.maxPerWallet,
       tickets: r.tickets, wallets: r.wallets, sales: r.sales, weeks: r.weeks,
-      pot: ((big(r.sales) * (BPS - SHARE_COMMISSION)) / BPS).toString(),
+      pot: (big(r.carryIn) + big(r.sales) - big(r.commission)).toString(), carryIn: r.carryIn,
       nextToDraw: s.next, owed: s.owed, totals: s.tot,
     };
   },

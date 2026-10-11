@@ -22,7 +22,7 @@ const S = {
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const plural = (n, one, many) => `${Number(n).toLocaleString('en-GB')} ${n === 1 ? one : many}`;
-const ase = (w, d) => L.fmtAse(BigInt(w), d ?? (BigInt(w) % L.WEI === 0n ? 0 : 3));
+const ase = (w, d) => L.fmtAse(BigInt(w), d ?? (BigInt(w) % L.WEI === 0n ? 0 : 3)).replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0+$/, '');
 // Heures affichées en UTC
 const utcDay = (ms) => new Date(Number(ms)).toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' });
 const utcTime = (ms) => new Date(Number(ms)).toISOString().slice(11, 16) + ' UTC';
@@ -114,18 +114,27 @@ function renderHero() {
   $('#pot').textContent = g && g.status === 'found' ? ase(g.prize, 2) : ase(i.pot, 2);
   $('#potLabel').textContent = g && g.status === 'found' ? `Map #${g.id}: treasure found!` : 'Treasure to find';
   $('#gridWhen').textContent = !g ? 'The first map opens in a few minutes.'
-    : g.status === 'open' ? `Map #${g.id}, opened ${utcDay(g.openTs)} at ${utcTime(g.openTs)}. The treasure grows with every dig.`
+    : g.status === 'open' ? `Map #${g.id}, opened ${utcDay(g.openTs)} at ${utcTime(g.openTs)}. The treasure grows with every dig.` + (BigInt(g.carryIn || '0') > 0n ? ` Includes ${ase(g.carryIn)} ASE carried over from map #${g.id - 1}.` : '')
     : g.status === 'found' ? `Found by ${L.shortAddr(g.winner)} after ${plural(g.t + 1, 'dig', 'digs')}. A new map opens in a few minutes.`
-    : 'This map was cancelled and refunded. A new map opens in a few minutes.';
+    : 'A new map opens in a few minutes.';
   $('#digs').textContent = g ? g.digs : '–';
   $('#players').textContent = g ? g.wallets : '–';
   $('#left').textContent = S.wallet && S.cfg ? Math.max(0, S.cfg.maxPerWallet - myDigs().length) : '–';
   $('#pausedBanner').hidden = !i.paused;
+  // Dernière fouille du joueur : rappel de la réponse
+  const lastMine = myDigs().filter((d) => S.answers.has(d.c)).at(-1), ld = $('#lastDig');
+  ld.hidden = !lastMine || !g || g.status !== 'open';
+  if (lastMine) {
+    const a = S.answers.get(lastMine.c);
+    ld.className = 'lastdig ' + (a.ans === 'H' ? 'hot' : a.ans === 'T' ? 'tr' : 'cold');
+    ld.innerHTML = `<span class="ld-cell">${coord(lastMine.c)}</span><span>Your last dig at ${coord(lastMine.c)} is <strong>${NAME[a.ans]}</strong>${a.ans === 'H' ? ': the treasure is within 3 cells. Dig around it!' : a.ans === 'C' ? ': the treasure is more than 3 cells away.' : '!'}</span>`;
+  }
   const fb = $('#foundBanner');
   const t = [...S.answers.values()].find((a) => a.ans === 'T');
   if (g && g.status === 'open' && t && S.wallet && S.digs.some((d) => d.c === t.cell && d.b === S.wallet.address)) {
     fb.hidden = false;
-    fb.innerHTML = `<span>💰 You found the treasure! ${ase(i.pot)} ASE are waiting for you.</span><button class="btn btn-primary" id="claimBtn">Claim the treasure</button>`;
+    const k = S.digs.findIndex((d) => d.c === t.cell), net = BigInt(g.price) - (BigInt(g.price) * 1500n) / 10000n;
+    fb.innerHTML = `<span>💰 You found the treasure! ${ase(BigInt(g.carryIn || '0') + net * BigInt(k + 1))} ASE are waiting for you.</span><button class="btn btn-primary" id="claimBtn">Claim the treasure</button>`;
     $('#claimBtn').onclick = () => claimTreasure(t);
   } else if (g && g.status === 'found' && S.wallet && g.winner === S.wallet.address) {
     fb.hidden = false; fb.innerHTML = `<span>💰 You found the treasure of map #${g.id}: ${ase(g.prize)} ASE sent to your wallet.</span>`;
@@ -231,7 +240,7 @@ function renderResults() {
     ? `<div class="past"><div><h3>Map #${g.id}</h3><span class="tag warn">Cancelled, digs refunded</span></div></div>`
     : `<div class="past"><div class="mini" data-mini="${g.id}">${'<i></i>'.repeat(CELLS)}</div><div><h3>Map #${g.id}</h3>
        <p class="muted small">${utcDay(g.endTs)} · found at ${coord(g.cell)} after ${plural(g.t + 1, 'dig', 'digs')}</p>
-       <p>💰 ${esc(L.shortAddr(g.winner))} won <strong>${ase(g.prize)} ASE</strong></p><button class="link-btn" data-verify="${g.id}">Verify</button></div></div>`).join('');
+       <p>💰 ${esc(L.shortAddr(g.winner))} won <strong>${ase(g.prize)} ASE</strong></p>${BigInt(g.carryOut || '0') > 0n ? `<p class="muted small">Digs made after the treasure: ${ase(g.carryOut)} ASE carried over to map #${g.id + 1}.</p>` : ''}<button class="link-btn" data-verify="${g.id}">Verify</button></div></div>`).join('');
   $$('[data-verify]').forEach((b) => (b.onclick = () => verifyGrid(Number(b.dataset.verify))));
   rows.forEach((g) => { if (g.status === 'found') drawMini(g); });
 }
@@ -290,13 +299,7 @@ function adminForm(sel, fn) {
 }
 adminForm('#fPause', () => [S.cfg.paused ? 'Game resumed' : 'Game paused', 'setPaused', [!S.cfg.paused]]);
 adminForm('#fCfg', (f) => ['Settings saved', 'setConfig', [L.parseAse(f.get('price')).toString(), Number(f.get('w'))]]);
-let cancelArmed = 0;
-adminForm('#fCancel', () => {
-  const btn = $('#fCancel button');
-  if (Date.now() - cancelArmed > 6000) { cancelArmed = Date.now(); btn.textContent = 'Click again to confirm'; setTimeout(() => (btn.textContent = 'Cancel and refund'), 6000); throw new Error('Click again within 6 seconds to confirm the cancellation.'); }
-  cancelArmed = 0; btn.textContent = 'Cancel and refund';
-  return ['Map cancelled, digs will be refunded', 'emergencyCancel', [S.grid.id]];
-});
+
 
 // ------------------------------------------------------------- onglets, wallet
 function selectTab(name) {
@@ -351,6 +354,7 @@ function renderRulesValues() {
   if (!S.cfg) return;
   $$('.js-price').forEach((e) => (e.textContent = ase(S.grid ? S.grid.price : S.cfg.price) + ' ASE'));
   $$('.js-max').forEach((e) => (e.textContent = S.cfg.maxPerWallet));
+  $$('.js-grow').forEach((e) => (e.textContent = ase((BigInt(S.grid ? S.grid.price : S.cfg.price) * 85n) / 100n) + ' ASE'));
 }
 function renderAll() { renderWallet(); renderHero(); renderMap(); renderMine(); renderResults(); renderAdmin(); renderRulesValues(); }
 

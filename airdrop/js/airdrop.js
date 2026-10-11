@@ -82,7 +82,7 @@ async function refresh() {
     const prev = S.rounds.get(info.round - 1);
     const from = prev && prev.status !== 'cancelled' ? prev.drawTs : info.fromTs;
     // Estimation (*) : on compte aussi les tickets des tirages pas encore faits.
-    S.week = await buildWeek({ view: viewAt, loto: S.loto, raffle: S.raffle, treasure: S.treasure, fromTs: from, toTs: info.drawTs, now: Number(info.now), estimate: true });
+    S.week = await buildWeek({ view: viewAt, loto: S.loto, raffle: S.raffle, treasure: S.treasure, fromTs: from, toTs: info.drawTs, now: Number(info.now) });
     renderAll();
   } catch (e) { console.error(e); toast('Could not read the chain: ' + cleanError(e), 'err', 8000); }
 }
@@ -92,15 +92,14 @@ function renderHero() {
   const i = S.info, w = S.week; if (!i || !w) return;
   const total = BigInt(w.pot) + BigInt(i.carry);
   $('#pot').textContent = ase(total, 2);
-  split(total).forEach((x, k) => ($('#prize' + (k + 1)).textContent = ase(x) + ' ASE*'));
+  split(total).forEach((x, k) => ($('#prize' + (k + 1)).textContent = ase(x) + ' ASE'));
   const cut = Number(i.drawTs) - CUTOFF_MS;
-  $('#estNote').textContent = `* Estimated amounts: they include the tickets of this week's draws that haven't taken place yet` +
-    (w.pending ? ` (${plural(w.pending, 'ticket', 'tickets')})` : '') + `, assuming every Loto and Raffle draw takes place as scheduled. Tickets count until the Raffle draw on ${utcWeekday(cut)} at ${utcTime(cut)}.`;
+  $('#estNote').textContent = `Exact amount: 7.5% of every ticket and dig is already in the airdrop contract. Tickets count until the Raffle draw on ${utcWeekday(cut)} at ${utcTime(cut)}.`;
   const pending = [...S.rounds.values()].find((r) => r.id < i.round && (r.status === 'closed' || r.status === 'listed'));
   $('#drawWhen').textContent = `Airdrop #${i.round}, ${utcDay(i.drawTs)} at ${utcTime(i.drawTs)}` +
     (BigInt(i.carry) > 0n ? ` · includes ${ase(i.carry)} ASE rolled over` : '') + (pending ? ` · airdrop #${pending.id} is being drawn now` : '');
-  $('#chances').textContent = w.entries.reduce((a, e) => a + e[1], 0).toLocaleString('en-GB') + '*';
-  $('#players').textContent = w.entries.length.toLocaleString('en-GB') + '*';
+  $('#chances').textContent = w.entries.reduce((a, e) => a + e[1], 0).toLocaleString('en-GB');
+  $('#players').textContent = w.entries.length.toLocaleString('en-GB');
 }
 function tickCountdown() {
   const i = S.info; if (!i) return;
@@ -126,12 +125,11 @@ function renderMine() {
   const e = S.week.entries.find((x) => x[0] === S.me);
   const n = e ? e[1] : 0;
   const pot = BigInt(S.week.pot) + BigInt(S.info.carry);
-  let html = `<dl class="share"><div><dt>Your chances</dt><dd>${n.toLocaleString('en-GB')}*</dd></div><div><dt>Out of</dt><dd>${total.toLocaleString('en-GB')}*</dd></div><div><dt>Share</dt><dd>${pct(n, total)}</dd></div></dl>
+  let html = `<dl class="share"><div><dt>Your chances</dt><dd>${n.toLocaleString('en-GB')}</dd></div><div><dt>Out of</dt><dd>${total.toLocaleString('en-GB')}</dd></div><div><dt>Share</dt><dd>${pct(n, total)}</dd></div></dl>
     <div class="bar" aria-hidden="true"><i style="width:${total ? Math.max(n ? 1 : 0, (n * 100) / total) : 0}%"></i></div>`;
   html += n
-    ? `<p>Each of your tickets is one chance at the 1st prize (${ase(split(pot)[0])} ASE* so far). The more you play before ${utcWeekday(Number(S.info.drawTs) - CUTOFF_MS)} ${utcTime(Number(S.info.drawTs) - CUTOFF_MS)} (Raffle draw), the more chances you get.</p>`
-    : `<p class="muted">No chance yet this week for ${esc(L.shortAddr(S.me))}. Play <a href="../loto/">ASE Loto</a> or <a href="../raffle/">ASE Raffle</a>: every ticket played this week is one chance.</p>`;
-  html += `<p class="muted small">* Estimate: includes your tickets in draws that haven't taken place yet, assuming every draw takes place.</p>`;
+    ? `<p>Each of your tickets is one chance at the 1st prize (${ase(split(pot)[0])} ASE so far). The more you play before ${utcWeekday(Number(S.info.drawTs) - CUTOFF_MS)} ${utcTime(Number(S.info.drawTs) - CUTOFF_MS)} (Raffle draw), the more chances you get.</p>`
+    : `<p class="muted">No chance yet this week for ${esc(L.shortAddr(S.me))}. Play <a href="../loto/">ASE Loto</a>, <a href="../raffle/">ASE Raffle</a> or <a href="../treasure/">ASE Treasure</a>: every ticket or dig this week is one chance.</p>`;
   const won = [...S.rounds.values()].filter((r) => r.status === 'done' && r.win.some((w) => w.b === S.me)).sort((a, b) => b.id - a.id);
   if (won.length) html += '<h3>Your airdrop wins</h3><ol class="winners">' + won.map((r) => { const k = r.win.findIndex((w) => w.b === S.me); return `<li><span class="medal m${k + 1}">${k + 1}</span>Airdrop #${r.id}<span class="muted small">${utcDay(r.drawTs)}</span><span class="tag ok">Sent to your wallet</span><span class="amount">${ase(r.prizes[k])} ASE</span></li>`; }).join('') + '</ol>';
   box.innerHTML = html;
@@ -156,16 +154,16 @@ $('#checkForm').onsubmit = (ev) => {
 // ------------------------------------------------------------- joueurs
 function renderPlayers() {
   const w = S.week; if (!w) return;
-  if (!w.entries.length) { $('#playersBody').innerHTML = '<p class="muted">No player yet this week. Tickets count once their draw is completed.</p>'; return; }
+  if (!w.entries.length) { $('#playersBody').innerHTML = '<p class="muted">No player yet this week. Every ticket or dig counts as soon as it is bought.</p>'; return; }
   const total = w.entries.reduce((a, e) => a + e[1], 0);
   const top = [...w.entries].sort((a, b) => b[1] - a[1]);
   const shown = top.slice(0, 50);
   const mine = S.me && !shown.some((e) => e[0] === S.me) ? top.find((e) => e[0] === S.me) : null;
   if (mine) shown.push(mine);
-  $('#playersBody').innerHTML = `<p class="muted small">${plural(w.entries.length, 'player', 'players')}, ${plural(total, 'chance', 'chances')}* from ${plural(w.games.length, 'draw', 'draws')} this week.</p>
+  $('#playersBody').innerHTML = `<p class="muted small">${plural(w.entries.length, 'player', 'players')}, ${plural(total, 'chance', 'chances')} this week.</p>
     <table class="plist"><thead><tr><th>#</th><th>Wallet</th><th class="num">Chances</th><th class="num">Share</th></tr></thead><tbody>${
       shown.map((e) => `<tr class="${e[0] === S.me ? 'me' : ''}"><td>${top.indexOf(e) + 1}</td><td>${esc(L.shortAddr(e[0]))}</td><td class="num">${e[1]}</td><td class="num">${pct(e[1], total)}</td></tr>`).join('')
-    }</tbody></table><p class="muted small">* Estimate: includes tickets of draws that haven't taken place yet.</p>${top.length > 50 ? `<p class="muted small">Top 50 of ${top.length} shown.</p>` : ''}`;
+    }</tbody></table>${top.length > 50 ? `<p class="muted small">Top 50 of ${top.length} shown.</p>` : ''}`;
 }
 
 // ------------------------------------------------------------- gagnants
@@ -210,7 +208,7 @@ async function verify(id) {
     const steps = [];
     const step = (ok, title, detail) => steps.push(`<div class="verify-step"><span class="mark ${ok ? 'ok' : 'ko'}">${ok ? '✓' : '✗'}</span><div><strong>${title}</strong><br><span class="small">${detail}</span></div></div>`);
     step(JSON.stringify(wk.entries) === JSON.stringify(stored), 'List of players',
-      `Rebuilt from ${plural(wk.games.length, 'completed draw', 'completed draws')} (${wk.games.map((g) => ({ loto: 'Loto', raffle: 'Raffle', treasure: 'Treasure' }[g.game]) + ' #' + g.id).join(', ') || 'none'}): ${plural(wk.entries.length, 'player', 'players')}, ${plural(wk.entries.reduce((a, e) => a + e[1], 0), 'chance', 'chances')}`);
+      `Rebuilt from ${plural(wk.games.length, 'game round', 'game rounds')} (${wk.games.map((g) => ({ loto: 'Loto', raffle: 'Raffle', treasure: 'Treasure' }[g.game]) + ' #' + g.id).join(', ') || 'none'}): ${plural(wk.entries.length, 'player', 'players')}, ${plural(wk.entries.reduce((a, e) => a + e[1], 0), 'chance', 'chances')}`);
     step(wk.pot === r.pot, 'Pot of the week', `${ase(wk.pot)} ASE, from those draws`);
     let d = L.sha256Text('ASEDROP-ROUND|' + id);
     for (const c of chunks(stored)) d = L.sha256Text(d + '|' + JSON.stringify(c));
@@ -239,7 +237,18 @@ function renderRulesValues() {
   if (S.info) $$('.js-drawtime').forEach((e) => (e.textContent = `${utcWeekday(S.info.drawTs)} at ${utcTime(S.info.drawTs)}`));
   $$('.js-reveal').forEach((e) => (e.textContent = S.cfg.revealMin % 60 === 0 ? plural(S.cfg.revealMin / 60, 'hour', 'hours') : plural(S.cfg.revealMin, 'minute', 'minutes')));
 }
-function renderAll() { renderHero(); tickCountdown(); renderMine(); renderPlayers(); renderResults(); renderWinBanner(); renderRulesValues(); }
+function renderChanceCard() {
+  if (!S.week) return;
+  const total = S.week.entries.reduce((a, e) => a + e[1], 0);
+  const e = S.me ? S.week.entries.find((x) => x[0] === S.me) : null, n = e ? e[1] : 0;
+  $('#ccMine').textContent = S.me ? n : '–';
+  $('#ccAll').textContent = total;
+  $('#ccBar').style.width = (total && S.me ? Math.max(n ? 2 : 0, (n * 100) / total) : 0) + '%';
+  $('#ccText').textContent = !S.me ? 'Connect your wallet (top right) to see your chances.'
+    : n ? `About ${Math.min(99, Math.round(100 * (1 - Math.pow(1 - n / Math.max(total, 1), 3))))}% chance to win one of the 3 prizes. Each ticket or dig adds one chance.`
+    : 'No chance yet this week: play Loto, Raffle or Treasure, every ticket or dig is one free chance.';
+}
+function renderAll() { renderChanceCard(); renderHero(); tickCountdown(); renderMine(); renderPlayers(); renderResults(); renderWinBanner(); renderRulesValues(); }
 
 async function restoreWallet() {
   const saved = store.get('loto.wallet', null);   // même wallet que sur ASE Loto et ASE Raffle
@@ -271,9 +280,10 @@ async function restoreWallet() {
     return;
   }
   S.contract = L.toHex(CONFIG.CONTRACT);
-  S.loto = LOTO.CONTRACT ? L.toHex(LOTO.CONTRACT) : '';
-  S.raffle = RAFFLE.CONTRACT ? L.toHex(RAFFLE.CONTRACT) : '';
-  S.treasure = TREASURE.CONTRACT ? L.toHex(TREASURE.CONTRACT) : '';
+  const both = (a, b) => [a, b].filter(Boolean).map((x) => L.toHex(x));
+  S.loto = both(LOTO.CONTRACT, CONFIG.OLD_LOTO);
+  S.raffle = both(RAFFLE.CONTRACT, CONFIG.OLD_RAFFLE);
+  S.treasure = both(TREASURE.CONTRACT, CONFIG.OLD_TREASURE);
   const link = $('#contractLink');
   link.textContent = L.shortAddr(S.contract);
   link.href = `${CONFIG.EXPLORER}/address/${L.toAse1(S.contract)}`;

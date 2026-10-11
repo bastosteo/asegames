@@ -131,7 +131,7 @@ function openWins() {
   const list = V.wins;
   const d = dialog('dlgWins', `
     <h2>My wins</h2>
-    ${list.length ? `<p class="muted">Prizes and refunds waiting for you on ASE Vegas. They never expire.</p>
+    ${list.length ? `<p class="muted">Prizes waiting for you on ASE Vegas. They never expire.</p>
       <ol class="wins-list">${list.map((w, i) => `<li><span class="tag win">${esc(w.game)}</span><span>${esc(w.label)}</span><strong>${ase(w.amount)} ASE</strong><button class="btn btn-small" data-win="${i}">Claim</button></li>`).join('')}</ol>
       <div class="wins-total"><span>Total</span><strong>${ase(total())} ASE</strong></div>
       <button class="btn btn-primary btn-wide" id="claimAllWins">${list.length > 1 ? `Claim all (${list.length} transactions)` : 'Claim'}</button>`

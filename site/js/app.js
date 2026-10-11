@@ -251,7 +251,7 @@ async function rollTickets(n) {
   } finally {
     S.rolling = false;
     $$('#rollBtn, [data-roll]').forEach((b) => (b.disabled = false));
-    $('#rollBtn').textContent = 'Throw again';
+    { const pr = currentPrice(); $('#rollBtn').innerHTML = `Roll again · <span class="js-price">${L.fmtAse(pr, pr % L.WEI === 0n ? 0 : 2)} ASE</span>`; }
   }
 }
 function addToCart(grid) {
@@ -275,6 +275,8 @@ function renderCart() {
   const txs = Math.ceil(n / max);
   if (!S.wallet) { btn.textContent = 'Connect wallet to play'; btn.disabled = false; }
   else { btn.textContent = n ? `Play ${plural(n, 'ticket', 'tickets')} (${L.fmtAse(cost, cost % L.WEI === 0n ? 0 : 2)} ASE)` : 'Confirm my tickets'; btn.disabled = !n || S.busy || (S.info && S.info.paused); }
+  // Étapes : 1 lancer → 3 confirmer dès qu'il y a des tickets dans le panier
+  $$('#lotoSteps li').forEach((li) => { const k = Number(li.dataset.step); li.className = n ? (k === 3 ? 'active' : 'done') : (k === 1 ? 'active' : ''); });
   $('#cartNote').textContent = txs > 1 ? `More than ${max} tickets: ${txs} transactions to approve, one after the other.` : 'One single transaction for the whole cart.';
 }
 
@@ -530,19 +532,7 @@ adminForm('#fTime', (f) => ['Draw time saved', 'setConfig', gameArgs({ drawH: Nu
 adminForm('#fMax', (f) => ['Limits saved', 'setConfig', gameArgs({ maxGrids: Number(f.get('n')), maxRound: Number(f.get('t')) })]);
 adminForm('#fTimings', (f) => ['Timings saved', 'setConfig', gameArgs({ closeMin: Number(f.get('close')), revealMin: Number(f.get('reveal')) })]);
 adminForm('#fPayouts', (f) => ['Wallets saved', 'setPayouts', [L.toHex(f.get('o')), L.toHex(f.get('c'))]]);
-let cancelArmed = 0;
-adminForm('#fCancel', () => {
-  const id = S.st.next < S.st.cur ? S.st.next : S.info.round;
-  const btn = $('#fCancel button');
-  if (Date.now() - cancelArmed > 8000) {
-    cancelArmed = Date.now();
-    btn.textContent = `Confirm: cancel draw #${id}`;
-    setTimeout(() => { if (Date.now() - cancelArmed >= 8000) btn.textContent = 'Cancel and refund'; }, 8100);
-    throw new Error(`Click again within 8 s to cancel draw #${id}.`);
-  }
-  cancelArmed = 0; btn.textContent = 'Cancel and refund';
-  return ['Draw cancelled, refunds available', 'emergencyCancel', [id]];
-});
+
 
 // ------------------------------------------------------------- onglets
 function selectTab(name) {

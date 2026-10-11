@@ -74,9 +74,12 @@ fi
 echo "[5/6] Service de réponses sur Cloudflare (réglages secrets du site asevegas)…"
 $W whoami 2>/dev/null | grep -qi "logged in" || $W login
 $W pages project create asevegas --production-branch main > /dev/null 2>&1 || true
-printf %s "$SEED" | $W pages secret put TREASURE_SEED --project-name asevegas > /dev/null
-printf %s "$NEW" | $W pages secret put TREASURE_CONTRACT --project-name asevegas > /dev/null
-echo "      OK"
+# Envoi des 2 réglages d'un coup, sans question (fichier temporaire supprimé aussitôt)
+TMPJ=$(mktemp); chmod 600 "$TMPJ"
+printf '{"TREASURE_SEED":"%s","TREASURE_CONTRACT":"%s"}' "$SEED" "$NEW" > "$TMPJ"
+if $W pages secret bulk "$TMPJ" --project-name asevegas < /dev/null 2>&1 | grep -v "out-of-date\|wrangler@4\|npx wrangler\|latest version\|^\s*$\|WARNING"; then :; fi
+rm -f "$TMPJ"
+echo "      OK (réglages TREASURE_SEED et TREASURE_CONTRACT envoyés à Cloudflare)"
 
 echo "[6/6] Mise en ligne du site (avec /api/treasure)…"
 bash outils/mettre-en-ligne.sh

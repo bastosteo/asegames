@@ -23,5 +23,12 @@ rm -f asegame/loto/js/lotomath.test.mjs
 [ -f .tombola-v2-fait ] && sed -i "s|CONTRACT: '[^']*'|CONTRACT: '$(cat .tombola-v2-fait)'|" asegame/raffle/js/config.js
 [ -f .tresor-fait ] && sed -i "s|CONTRACT: '[^']*'|CONTRACT: '$(cat .tresor-fait)'|" asegame/treasure/js/config.js
 [ -f .airdrop-fait ] && sed -i "s|CONTRACT: '[^']*'|CONTRACT: '$(cat .airdrop-fait)'|" asegame/airdrop/js/config.js
+# Version « sans remboursement » (loto v4, tombola v3, trésor v2)
+[ -f .loto-v4-fait ] && sed -i "s|CONTRACT: '[^']*'|CONTRACT: '$(cat .loto-v4-fait)'|" asegame/loto/js/config.js
+[ -f .tombola-v3-fait ] && sed -i "s|CONTRACT: '[^']*'|CONTRACT: '$(cat .tombola-v3-fait)'|" asegame/raffle/js/config.js
+[ -f .tresor-v2-fait ] && sed -i "s|CONTRACT: '[^']*'|CONTRACT: '$(cat .tresor-v2-fait)'|" asegame/treasure/js/config.js
+[ -f .old-loto ] && sed -i "s|OLD_LOTO: '[^']*'|OLD_LOTO: '$(cat .old-loto)'|" asegame/airdrop/js/config.js
+[ -f .old-raffle ] && sed -i "s|OLD_RAFFLE: '[^']*'|OLD_RAFFLE: '$(cat .old-raffle)'|" asegame/airdrop/js/config.js
+[ -f .old-tresor ] && sed -i "s|OLD_TREASURE: '[^']*'|OLD_TREASURE: '$(cat .old-tresor)'|" asegame/airdrop/js/config.js
 echo "Dossier prêt : $(pwd)/asegame"
 find asegame -type f | sort

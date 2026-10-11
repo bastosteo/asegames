@@ -85,14 +85,15 @@ sec('Semaine complète : loto + tombola → airdrop');
   const bal0 = w.chain.balanceOf(w.a.address);
   w.chain.mineUntil(w.raffle.view('getRound', [1]).closeTs); w.chain.mine(1);
   t('dimanche : loto n°2 et grosse tombola n°1 tirés', w.drawLoto(2) && w.drawRaffle(1));
-  t('achat loto lundi', w.buyLoto(P[1], 1).success);
+  w.chain.mineUntil(w.raffle.view('getRound', [1]).drawTs + 60000);   // après la grosse tombola du dimanche
+  t('achat loto après la tombola du dimanche', w.buyLoto(P[1], 1).success);
   t('airdrop prévu lundi 12/10 à 21:00 Paris', new Date(w.round(1).drawTs).toISOString() === '2026-10-12T19:00:00.000Z');
   w.closeAirdrop(1);
   t('airdrop fermé lundi à 21h00', w.round(1).status === 'closed' && w.st().cur === 2);
   let wk = await w.week(1);
-  t('liste prête tout de suite : le loto du lundi compte pour la semaine suivante', wk.ready && !wk.games.some((g) => g.game === 'loto' && g.id === 3), JSON.stringify(wk));
-  const est = await buildWeek({ view: w.view, loto: w.loto.address, raffle: w.raffle.address, fromTs: w.round(1).drawTs, toTs: w.round(2).drawTs, now: Number(w.chain.timestampMs), estimate: true });
-  t('estimation (*) de la semaine suivante : inclut le loto du lundi pas encore tiré', est.pending === 1 && est.pot === (2n * ASE * 75n / 1000n).toString() && !est.ready, JSON.stringify(est));
+  t('liste prête tout de suite : l\'achat d\'après la tombola compte pour la semaine suivante', wk.ready && !wk.games.some((g) => g.game === 'loto' && g.id === 3), JSON.stringify(wk));
+  const nx = await buildWeek({ view: w.view, loto: w.loto.address, raffle: w.raffle.address, fromTs: w.round(1).drawTs, toTs: w.round(2).drawTs, now: Number(w.chain.timestampMs) });
+  t('semaine suivante en cours : montant exact, tirage pas encore fait compris', JSON.stringify(nx.entries) === JSON.stringify([[P[1], 1]]) && nx.pot === (2n * ASE * 75n / 1000n).toString() && !nx.ready, JSON.stringify(nx));
   t('loto n°3 (lundi) tiré', w.drawLoto(3));
   const received = w.chain.balanceOf(w.a.address) - bal0 + bal0;
   t('liste prête', wk.ready, JSON.stringify(wk.waiting));
@@ -261,16 +262,17 @@ sec('ASE Treasure : 1 fouille = 1 chance (grille trouvée dans la semaine)');
   const cold = B.cells.map((c, i) => [c.ans, i]).filter(([x]) => x !== 'T').map(([, i]) => i);
   T.call(P[0], 'dig', [1, cold[0]], PR); T.call(P[1], 'dig', [1, cold[1]], PR); T.call(P[0], 'dig', [1, cold[2]], PR);
   const view = async (a, m, args) => (a === T.address ? T : w.a).view(m, args);
-  let est = await buildWeek({ view, treasure: T.address, fromTs: 0, toTs: w.round(1).drawTs, now: Number(w.chain.timestampMs), estimate: true });
-  t('estimation : grille ouverte comptée (3 fouilles)', est.pending === 3 && JSON.stringify(est.entries) === JSON.stringify([[P[0], 2], [P[1], 1]]), JSON.stringify(est));
+  const share = PR * 15n / 100n / 2n;
+  let cur = await buildWeek({ view, treasure: T.address, fromTs: 0, toTs: w.round(1).drawTs, now: Number(w.chain.timestampMs) });
+  t('grille ouverte : fouilles déjà comptées, montant exact', !cur.ready && JSON.stringify(cur.entries) === JSON.stringify([[P[0], 2], [P[1], 1]]) && cur.pot === (3n * share).toString(), JSON.stringify(cur));
   T.call(P[2], 'dig', [1, B.treasure], PR);
-  T.call(P[3], 'dig', [1, cold[3]], PR);   // après le trésor : remboursée, ne compte pas
+  T.call(P[3], 'dig', [1, cold[3]], PR);   // après le trésor : reportée à la grille suivante, compte quand même
   const a = B.answer(B.treasure);
   t('trésor réclamé', T.call(P[9], 'claim', [1, a.cell, a.salt, a.proof]).success);
   w.closeAirdrop(1);
   const wk = await buildWeek({ view, treasure: T.address, fromTs: 0, toTs: w.round(1).drawTs, now: Number(w.chain.timestampMs) });
-  t('liste : fouilles jusqu\'au trésor', wk.ready && JSON.stringify(wk.entries) === JSON.stringify([[P[0], 2], [P[1], 1], [P[2], 1]]), JSON.stringify(wk.entries));
-  t('cagnotte = part Airdrop reçue (3,75 % de 4 fouilles × 2)', wk.pot === T.view('getGrid', [1]).airdrop && BigInt(wk.pot) === w.chain.balanceOf(w.a.address));
+  t('liste : toutes les fouilles de la semaine', wk.ready && JSON.stringify(wk.entries) === JSON.stringify([[P[0], 2], [P[1], 1], [P[2], 1], [P[3], 1]]), JSON.stringify(wk.entries));
+  t('cagnotte = part Airdrop reçue (7,5 % de 5 fouilles)', wk.pot === (5n * share).toString() && BigInt(wk.pot) === w.chain.balanceOf(w.a.address) && wk.pot === T.view('getGrid', [1]).airdrop);
 }
 
 console.log(`\n${ok} réussis, ${ko} échoués`);

@@ -17,3 +17,7 @@ ses-check/
 .loto-v2-fait
 .tombola-contrat
 .tombola-fait
+.*-fait
+.*-contrat
+.migre-*
+.old-*

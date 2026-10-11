@@ -1,9 +1,9 @@
-// Lecture seule : ce qu'il reste à faire sur un ANCIEN contrat (loto ou tombola) avant de le
+// Lecture seule : ce qu'il reste à faire sur un ANCIEN contrat (loto, tombola ou trésor) avant de le
 // remplacer. Aucune transaction ici : le script bash demande (o/n) puis envoie chaque appel.
-//   node outils/migration.mjs plan <contrat> loto|raffle
+//   node outils/migration.mjs plan <contrat> loto|raffle|treasure
 //        → une ligne par appel à faire : méthode<TAB>arguments JSON<TAB>description en français
 //          ou "ATTENTE<TAB><raison>" si un tirage est en cours (les croupiers doivent finir)
-//   node outils/migration.mjs attendre <contrat> loto|raffle <méthode> <arguments JSON>
+//   node outils/migration.mjs attendre <contrat> loto|raffle|treasure <méthode> <arguments JSON>
 //        → attend (10 min max) que cet appel ait pris effet sur la chaîne
 import { toHex } from '../site/js/lotomath.js';
 const RPC = (process.env.RPC_URL || 'https://testnet.asentum.com').replace(/\/$/, '');
@@ -21,7 +21,34 @@ async function purchases(c, r) {
   return out;
 }
 
+async function planTreasure(c) {
+  const cfg = await view(c, 'getConfig'), st = await view(c, 'getState');
+  const todo = [];
+  if (!cfg.paused) todo.push(['setPaused', [true], 'Mettre l\'ancien ASE Treasure en pause (plus aucune fouille)']);
+  if (st.cur > 0) {
+    const g = await view(c, 'getGrid', [st.cur]);
+    if (g.status === 'open' && g.digs > 0) {
+      // Trésor déjà fouillé mais pas encore réclamé : le croupier envoie la preuve, on attend
+      // (graine des grilles lue sur ce PC, jamais affichée).
+      if (process.env.TREASURE_SEED) {
+        const { board } = await import('../functions/_lib/board.mjs');
+        if ((await view(c, 'cellOf', [g.id, board(process.env.TREASURE_SEED, g.id).treasure])) >= 0) return [['ATTENTE', `le trésor de la grille n°${g.id} vient d'être trouvé : le croupier envoie le gain au gagnant`]];
+      }
+      todo.push(['emergencyCancel', [g.id], `Annuler la grille n°${g.id} en cours (${g.digs} fouilles) : chaque fouille est remboursée`]);
+    }
+  }
+  for (let id = Math.max(1, st.cur - 10); id <= st.cur; id++) {
+    const g = await view(c, 'getGrid', [id]);
+    if (!g || g.refundFrom < 0 || g.refundFrom >= g.digs) continue;
+    const list = await view(c, 'getDigs', [id, g.refundFrom, Math.min(400, g.digs - g.refundFrom)]);
+    const p = list.find((d) => !d.paid);
+    if (p) todo.push(['settle', [id, p.idx, 400], `Rembourser les fouilles de la grille n°${id} (${list.filter((d) => !d.paid).length})`]);
+  }
+  return todo;
+}
+
 export async function plan(c, game) {
+  if (game === 'treasure') return planTreasure(c);
   const cfg = await view(c, 'getConfig'), st = await view(c, 'getState');
   const todo = [];
   if (!cfg.paused) todo.push(['setPaused', [true], 'Mettre l\'ancien contrat en pause (plus aucun achat)']);
@@ -64,5 +91,5 @@ if (cmd === 'plan') {
   }
   console.log('pas encore confirmé après 10 min'); process.exit(1);
 } else if (cmd) {
-  console.log('usage : plan <contrat> loto|raffle | attendre <contrat> loto|raffle <méthode> <args>');
+  console.log('usage : plan <contrat> loto|raffle|treasure | attendre <contrat> loto|raffle|treasure <méthode> <args>');
 }

@@ -31,7 +31,7 @@ function world({ start = Date.UTC(2026, 9, 10, 12, 0) } = {}) {
     purchases: (id) => c.view('getPurchases', [id, 0, 400]).map((p) => ({ b: p.b, n: p.n, first: p.first })),
     expectedBalance: () => {
       const s = w.st(); let pend = 0n;
-      for (let id = s.next; id <= s.cur; id++) { const r = w.round(id); if (['open', 'closed'].includes(r.status)) pend += BigInt(r.sales); }
+      for (let id = s.next; id <= s.cur; id++) { const r = w.round(id); if (['open', 'closed'].includes(r.status)) pend += BigInt(r.carryIn) + BigInt(r.sales) - BigInt(r.commission); }
       return pend + BigInt(s.owed);
     },
   };
@@ -76,25 +76,54 @@ sec('Achat de tickets');
   t('solde cohérent', balanceOk(w));
 }
 
-sec('Moins de 3 participants → prolongation d\'une semaine');
+sec('Commission versée à chaque achat');
 {
   const w = world();
-  w.buy(P[0], 5); w.buy(P[1], 1);
+  const bO = w.chain.balanceOf(OWNER_PAY), bC = w.chain.balanceOf(COLLAB);
+  w.buy(P[0], 2);
+  const com = 2n * PRICE * 15n / 100n, drop = com / 2n, own = (com - drop) * 3n / 4n;
+  t('Airdrop reçoit 7,5 % tout de suite', w.chain.balanceOf(DROP) === drop && w.round(1).airdrop === drop.toString());
+  t('équipe 75 / 25 tout de suite', w.chain.balanceOf(OWNER_PAY) - bO === own && w.chain.balanceOf(COLLAB) - bC === com - drop - own);
+  t('85 % restent dans le contrat', w.chain.balanceOf(w.c.address) === 2n * PRICE - com && balanceOk(w));
+  t('achat horodaté', w.c.view('getPurchases', [1, 0, 1])[0].t > 0);
+}
+
+sec('Personne → reportée d\'une semaine');
+{
+  const w = world();
   const before = w.round(1);
   w.close(1);
   const r = w.round(1);
   t('toujours ouverte, même tombola', r.status === 'open' && w.st().cur === 1);
   t('tirage décalé d\'une semaine', r.drawTs - before.drawTs === 7 * 86400000 && r.weeks === 2);
-  t('tickets conservés', r.tickets === 6 && r.wallets === 2);
-  t('on peut encore acheter', w.buy(P[2], 1).success);
-  t('3 wallets maintenant → tirage normal', w.draw(1).success && w.round(1).status === 'done');
+}
+
+sec('2 wallets → 2 gagnants, le 3e prix passe à la tombola suivante');
+{
+  const w = world();
+  w.buy(P[0], 5); w.buy(P[1], 1);
+  const d = w.draw(1);
+  const r = w.round(1);
+  t('tirage fait malgré 2 wallets', d.success && r.status === 'done' && r.win.length === 2, d.error);
+  t('2 wallets différents', new Set(r.win.map((x) => x.b)).size === 2);
+  t('gagnants = référence', JSON.stringify(r.win) === JSON.stringify(ref.raffleWinners(1, r.sO, r.sC, r.digest, w.purchases(1))));
+  const pz = ref.rafflePrizes(r.sales, 0n, 2);
+  t('prix 1 et 2 normaux, 3e = 0', JSON.stringify(r.prizes) === JSON.stringify(pz.prizes.map(String)) && r.prizes[2] === '0');
+  t('le 3e prix est ajouté à la tombola 2', w.round(2).carryIn === pz.carry.toString() && r.carryOut === pz.carry.toString() && pz.carry > 0n);
+  t('rang 3 non réclamable', !w.c.call(P[0], 'claim', [1, 2]).success);
+  t('cagnotte affichée de la tombola 2 = report', w.c.view('info').pot === pz.carry.toString());
+  t('solde cohérent', balanceOk(w));
+  w.buy(P[3], 1);
+  const d2 = w.draw(2), r2 = w.round(2);
+  const pz2 = ref.rafflePrizes(r2.sales, pz.carry, 1);
+  t('1 seul wallet → il gagne le 1er prix, 2e et 3e reportés', d2.success && r2.win.length === 1 && r2.prizes[0] === pz2.prizes[0].toString() && w.round(3).carryIn === pz2.carry.toString());
+  t('solde cohérent (2)', balanceOk(w));
 }
 
 sec('Tirage : 3 wallets différents, référence indépendante');
 {
   const w = world();
   for (let i = 0; i < 40; i++) w.buy(P[i], 1 + (i % 10));
-  const bO = w.chain.balanceOf(OWNER_PAY), bC = w.chain.balanceOf(COLLAB), bD = w.chain.balanceOf(DROP);
   t('révélation avant fermeture refusée', !w.revealO(1).success);
   w.close(1);
   t('tombola 2 ouverte après la fermeture', w.st().cur === 2 && w.round(2).status === 'open');
@@ -111,7 +140,7 @@ sec('Tirage : 3 wallets différents, référence indépendante');
   const pz = ref.rafflePrizes(r.sales);
   t('prix 50 / 30 / 20 % de 85 %', JSON.stringify(r.prizes) === JSON.stringify(pz.prizes.map(String)));
   t('1er = 42,5 % des ventes', BigInt(r.prizes[0]) * 200n === BigInt(r.sales) * 85n);
-  t('commission : moitié Airdrop, moitié équipe 75 / 25', w.chain.balanceOf(OWNER_PAY) - bO === pz.owner && w.chain.balanceOf(COLLAB) - bC === pz.commission - pz.airdrop - pz.owner && w.chain.balanceOf(DROP) - bD === pz.airdrop);
+  t('commission totale = 15 %, dont 7,5 % Airdrop', r.commission === pz.commission.toString() && r.airdrop === pz.airdrop.toString() && w.chain.balanceOf(DROP) === pz.airdrop);
   t('dû aux gagnants = 85 % des ventes', w.st().owed === (BigInt(r.sales) - pz.commission).toString());
   t('solde cohérent', balanceOk(w));
 
@@ -171,30 +200,22 @@ sec('Grosse tombola : 500 wallets × 10 tickets');
   t('= référence', JSON.stringify(r.win) === JSON.stringify(ref.raffleWinners(1, r.sO, r.sC, r.digest, all)));
 }
 
-sec('Secrets non révélés → annulation et remboursement');
+sec('Secret en retard : le tirage attend');
 {
   const w = world();
   w.buy(P[0], 2); w.buy(P[1], 1); w.buy(P[2], 4);
   w.close(1); w.revealO(1);
-  t('annulation refusée avant le délai', !w.c.call(P[5], 'cancelExpired', [1]).success);
-  w.chain.mineUntil(w.round(1).closeTs + 120 * 60000);
-  t('collab trop tard', !w.revealC(1).success);
-  t('n\'importe qui annule après 2 h', w.c.call(P[5], 'cancelExpired', [1]).success);
-  const b = [0, 1, 2].map((i) => w.chain.balanceOf(P[i]));
-  const s = w.c.call(P[9], 'settle', [1, 0, 10]);
-  t('remboursements (settle)', s.success && s.returnValue.next === 3, s.error);
-  t('chacun récupère 100 %', w.chain.balanceOf(P[0]) - b[0] === 2n * PRICE && w.chain.balanceOf(P[1]) - b[1] === PRICE && w.chain.balanceOf(P[2]) - b[2] === 4n * PRICE);
-  t('pas de double remboursement', w.c.call(P[9], 'settle', [1, 0, 10]).returnValue.amount === '0');
-  t('aucune commission prélevée', w.chain.balanceOf(OWNER_PAY) === 100000n * ASE);
+  w.chain.mineUntil(w.round(1).closeTs + 3 * 86400000);
+  t('aucune fonction d\'annulation ni de remboursement', !w.c.api.cancelExpired && !w.c.api.emergencyCancel && !w.c.api.settle);
+  t('la tombola 2 se vend pendant l\'attente', w.buy(P[3], 1).success && w.st().cur === 2);
+  t('collab révèle 3 jours plus tard : tirage OK', w.revealC(1).success && w.round(1).status === 'done');
   t('solde cohérent', balanceOk(w));
-  w.buy(P[0], 1); w.buy(P[1], 1); w.buy(P[2], 1);
-  t('tombola suivante tirée normalement', w.draw(w.st().cur).success);
 }
 
 sec('Admin');
 {
   const w = world();
-  for (const [m, a] of [['setPaused', [true]], ['setConfig', [PRICE.toString(), 0, 21, 0, 10, 10, 120, 10000]], ['setPayouts', [P[0], P[0]]], ['setAdmin', [P[0]]], ['emergencyCancel', [1]], ['setTipOwner', ['a'.repeat(64)]]])
+  for (const [m, a] of [['setPaused', [true]], ['setConfig', [PRICE.toString(), 0, 21, 0, 10, 10, 120, 10000]], ['setPayouts', [P[0], P[0]]], ['setAdmin', [P[0]]], ['setTipOwner', ['a'.repeat(64)]]])
     t(`${m} refusé à un joueur`, !w.c.call(P[0], m, a).success);
   t('pause', w.c.call(ADMIN, 'setPaused', [true]).success && !w.buy(P[0], 1).success);
   w.c.call(ADMIN, 'setPaused', [false]);
@@ -204,9 +225,6 @@ sec('Admin');
   t('6e ticket refusé (5 max)', w.c.call(P[0], 'buy', [5, ''], 15n * ASE).success && !w.c.call(P[0], 'buy', [1, ''], 3n * ASE).success);
   for (const bad of [['1', 0, 21, 0, 10, 10, 120, 100], [PRICE.toString(), 7, 21, 0, 10, 10, 120, 100], [PRICE.toString(), 0, 5, 0, 10, 10, 120, 100], [PRICE.toString(), 0, 21, 0, 0, 10, 120, 100], [PRICE.toString(), 0, 21, 0, 21, 10, 120, 100], [PRICE.toString(), 0, 21, 0, 10, 1, 120, 100], [PRICE.toString(), 0, 21, 0, 10, 10, 120, 2]])
     t('setConfig hors bornes refusé ' + JSON.stringify(bad), !w.c.call(ADMIN, 'setConfig', bad).success);
-  const cur = w.st().cur;
-  t('annulation d\'urgence de la tombola ouverte', w.c.call(ADMIN, 'emergencyCancel', [cur]).success && w.round(cur).status === 'cancelled' && w.st().cur === cur + 1);
-  t('remboursement', (() => { const b = w.chain.balanceOf(P[0]); return w.c.call(P[0], 'settle', [cur, 0, 5]).success && w.chain.balanceOf(P[0]) - b === 15n * ASE; })());
   t('aucune fonction de retrait', !Object.keys(w.c.api).some((k) => /withdraw|sweep|drain|rescue/i.test(k)));
   t('solde cohérent', balanceOk(w));
 }
@@ -221,21 +239,22 @@ sec('Simulation : 52 semaines, conservation au wei près');
 {
   const w = world();
   let seed = 7; const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
-  let draws = 0, ext = 0, cancels = 0;
+  let draws = 0, ext = 0, partial = 0;
   for (let k = 0; k < 52; k++) {
     const id = w.st().cur;
-    const nWallets = rnd() < 0.1 ? 2 : 3 + Math.floor(rnd() * 60);
+    const x0 = rnd(), nWallets = x0 < 0.05 ? 0 : x0 < 0.15 ? 1 + Math.floor(rnd() * 2) : 3 + Math.floor(rnd() * 60);
     for (let i = 0; i < nWallets; i++) { const who = P[Math.floor(rnd() * 600)]; const have = w.c.view('getWallet', [id, who]); if (have < 10) w.buy(who, 1 + Math.floor(rnd() * (10 - have))); }
     w.close(id);
     if (w.round(id).status === 'open') { ext++; continue; }
-    if (rnd() < 0.05) { w.revealO(id); w.chain.mineUntil(w.round(id).closeTs + 121 * 60000); w.c.call(P[0], 'cancelExpired', [id]); let i = 0; while (i < w.round(id).buys) i = w.c.call(P[0], 'settle', [id, i, 100]).returnValue.next; cancels++; }
-    else { w.revealO(id); const x = w.revealC(id); if (!x.success) throw new Error(x.error); draws++; for (let r = 0; r < 3; r++) if (rnd() < 0.8) w.c.call(P[0], 'claim', [id, r]); }
+    w.revealO(id); const x = w.revealC(id); if (!x.success) throw new Error(x.error); draws++;
+    if (w.round(id).win.length < 3) partial++;
+    for (let r = 0; r < 3; r++) if (rnd() < 0.8) w.c.call(P[0], 'claim', [id, r]);
     const s = w.st(), T = s.tot;
-    let pend = 0n; for (let j = s.next; j <= s.cur; j++) { const x = w.round(j); if (['open', 'closed'].includes(x.status)) pend += BigInt(x.sales); }
-    if (BigInt(T.sales) !== BigInt(T.commission) + BigInt(T.prizes) + BigInt(T.refunds) + BigInt(s.owed) + pend) throw new Error('conservation violée');
+    let pend = 0n; for (let j = s.next; j <= s.cur; j++) { const x = w.round(j); if (['open', 'closed'].includes(x.status)) pend += BigInt(x.carryIn) + BigInt(x.sales) - BigInt(x.commission); }
+    if (BigInt(T.sales) !== BigInt(T.commission) + BigInt(T.prizes) + BigInt(s.owed) + pend) throw new Error('conservation violée');
     if (!balanceOk(w)) throw new Error('solde incohérent');
   }
-  t(`52 semaines : ${draws} tirages, ${ext} prolongations, ${cancels} annulations, conservation OK`, draws > 30);
+  t(`52 semaines : ${draws} tirages (${partial} partiels), ${ext} reports, conservation OK`, draws > 30 && partial > 0);
 }
 
 console.log(`\n${ok} réussis, ${ko} échoués`);

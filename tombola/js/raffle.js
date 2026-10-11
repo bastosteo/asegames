@@ -29,7 +29,9 @@ const plural = (n, one, many) => `${Number(n).toLocaleString('en-GB')} ${n === 1
 const ase = (w, d) => L.fmtAse(BigInt(w), d ?? (BigInt(w) % L.WEI === 0n ? 0 : 2));
 const tno = (t) => '#' + String(t + 1).padStart(4, '0');
 const rankName = ['1st', '2nd', '3rd'];
-const prizesOf = (sales) => { const S0 = BigInt(sales), pool = S0 - (S0 * 1500n) / 10000n, p1 = pool / 2n, p2 = (pool * 3n) / 10n; return [p1, p2, pool - p1 - p2]; };
+// Prix d'une cagnotte (report compris) : 50 / 30 / 20 %. Rangs sans gagnant → 0 (reportés).
+const prizesOfPool = (pool, winners = 3) => { const P = BigInt(pool), p1 = P / 2n, p2 = (P * 3n) / 10n; return [p1, p2, P - p1 - p2].map((x, k) => (k < winners ? x : 0n)); };
+const poolOf = (r) => BigInt(r.carryIn || '0') + BigInt(r.sales) - BigInt(r.commission || '0');
 
 // ------------------------------------------------------------- thème, notifications
 function applyTheme(t) { if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }
@@ -80,12 +82,13 @@ async function refresh() {
 // ------------------------------------------------------------- hero
 function renderHero() {
   const i = S.info; if (!i) return;
-  const pr = prizesOf(i.sales);
+  const pr = prizesOfPool(i.pot);
   $('#pot').textContent = ase(BigInt(i.pot), 0);
   [0, 1, 2].forEach((k) => ($('#prize' + (k + 1)).textContent = ase(pr[k]) + ' ASE'));
   $('#drawWhen').textContent = `Raffle #${i.round}, draw ${utcDay(i.drawTs)} at ${utcTime(i.drawTs)}`;
-  $('#rolled').hidden = i.weeks <= 1;
-  $('#rolled').textContent = `Extended ${plural(i.weeks - 1, 'week', 'weeks')}: fewer than 3 players`;
+  const carry = BigInt(i.carryIn || '0');
+  $('#rolled').hidden = carry <= 0n;
+  $('#rolled').textContent = `Includes ${ase(carry)} ASE carried over`;
   $('#ticketsSold').textContent = i.tickets.toLocaleString('en-GB');
   $('#players').textContent = i.wallets.toLocaleString('en-GB');
   $('#pausedBanner').hidden = !i.paused;
@@ -123,6 +126,17 @@ function renderBuy() {
   else { b.textContent = S.busy ? 'Printing your tickets…' : `Buy ${plural(S.qty, 'ticket', 'tickets')}`; b.disabled = S.busy || (S.info && (S.info.paused || S.info.status === 'closing')); }
   const mine = S.wallet && S.info ? (S.purchases.get(S.info.round) || []).filter((p) => p.b === S.wallet.address) : [];
   const nums = mine.flatMap((p) => Array.from({ length: p.n }, (_, k) => p.first + k));
+  // Tickets détenus, choix rapides, chances
+  const held = max - room;
+  $('#holdLabel').textContent = `You hold ${held} / ${max}`;
+  document.querySelectorAll('#qPick [data-q]').forEach((b) => {
+    const v = b.dataset.q === 'max' ? room : Number(b.dataset.q);
+    b.disabled = !room || v > room || S.busy;
+    b.classList.toggle('on', !!room && v === S.qty);
+    if (b.dataset.q === 'max') b.textContent = room ? `Max (${room})` : 'Max';
+  });
+  const tot = S.info ? S.info.tickets : 0, mineAfter = held + (room ? S.qty : 0), all = tot + (room ? S.qty : 0);
+  $('#chanceLine').textContent = all ? `With ${room ? 'these' : 'your'} tickets: ${mineAfter} out of ${all} tickets this week (${Math.round((mineAfter * 100) / all)}%).` : '';
   $('#mineNow').textContent = nums.length ? `Your tickets this week: ${nums.map(tno).join(' ')}` : '';
   if (!S.busy) renderPrinterIdle(nums);
 }
@@ -135,6 +149,7 @@ function renderPrinterIdle(nums) {
 }
 $('#minusBtn').onclick = () => { S.qty--; renderBuy(); };
 $('#plusBtn').onclick = () => { S.qty++; renderBuy(); };
+document.querySelectorAll('#qPick [data-q]').forEach((b) => (b.onclick = () => { const max = S.cfg ? S.cfg.maxPerWallet : 10; S.qty = b.dataset.q === 'max' ? Math.max(1, max - myCount()) : Number(b.dataset.q); renderBuy(); }));
 
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -237,7 +252,7 @@ function renderMine() {
       const unpaid = mine.filter((p) => !p.paid);
       right = unpaid.length ? `<button class="btn btn-small" data-refund="${id}:${unpaid[0].idx}">Refund me</button>` : '<span class="tag ok">Refunded</span>';
       for (const p of unpaid) todo.push(['refund', id, p.idx, BigInt(r.price) * BigInt(p.n)]);
-    } else if (r.weeks > 1) status = `<span class="tag">Extended to ${utcDay(r.drawTs)}</span>`;
+    } else if (r.weeks > 1) status = `<span class="tag">Moved to ${utcDay(r.drawTs)}</span>`;
     html += `<div class="round-block"><div class="round-head"><h3>Raffle #${id}</h3><span class="muted small">${utcDay(r.drawTs)}</span>${status}</div>
       <div class="ticket"><div class="stubs">${nums.map((t) => `<span class="stub${winT.includes(t) ? ' win' : ''}">${tno(t)}</span>`).join('')}</div><div class="right">${right}</div></div></div>`;
   }
@@ -273,13 +288,13 @@ function renderResults() {
   $('#resultsBody').innerHTML = rows.map((r) => {
     if (r.status === 'cancelled') return `<div class="round-block"><div class="round-head"><h3>Raffle #${r.id}</h3><span class="muted small">${utcDay(r.drawTs)}</span><span class="tag warn">Cancelled, players refunded</span></div></div>`;
     return `<div class="round-block"><div class="round-head"><h3>Raffle #${r.id}</h3><span class="muted small">${utcDay(r.drawTs)} · ${plural(r.tickets, 'ticket', 'tickets')} · ${plural(r.wallets, 'player', 'players')}</span><button class="link-btn" data-verify="${r.id}">Verify</button></div>
-      <ol class="winners">${r.win.map((w, k) => `<li><span class="medal m${k + 1}">${k + 1}</span><span class="stub win">${tno(w.t)}</span><span class="who">${L.shortAddr(w.b)}</span>${r.claimed[k] ? '<span class="tag ok">Claimed</span>' : '<span class="tag">Not claimed yet</span>'}<span class="amount">${ase(r.prizes[k])} ASE</span></li>`).join('')}</ol></div>`;
+      <ol class="winners">${r.win.map((w, k) => `<li><span class="medal m${k + 1}">${k + 1}</span><span class="stub win">${tno(w.t)}</span><span class="who">${L.shortAddr(w.b)}</span>${r.claimed[k] ? '<span class="tag ok">Claimed</span>' : '<span class="tag">Not claimed yet</span>'}<span class="amount">${ase(r.prizes[k])} ASE</span></li>`).join('')}</ol>${BigInt(r.carryOut || '0') > 0n ? `<p class="muted small">Only ${plural(r.win.length, 'player', 'players')}: ${ase(r.carryOut)} ASE carried over to raffle #${r.id + 1}.</p>` : ''}</div>`;
   }).join('');
   $$('[data-verify]').forEach((b) => (b.onclick = () => verify(Number(b.dataset.verify))));
 }
 function drawWinners(id, sO, sC, digest, list) {
-  const total = list.reduce((a, p) => a + p.n, 0), win = [];
-  for (let k = 0; win.length < 3 && k < 3000; k++) {
+  const total = list.reduce((a, p) => a + p.n, 0), win = [], want = Math.min(3, new Set(list.map((p) => p.b)).size);
+  for (let k = 0; win.length < want && k < 3000; k++) {
     const h = L.sha256Text('ASERAFFLE|' + id + '|' + sO + '|' + sC + '|' + digest + '|' + k);
     const t = Number(BigInt('0x' + h.slice(0, 13)) % BigInt(total));
     const i = list.findIndex((p) => t >= p.first && t < p.first + p.n);
@@ -310,8 +325,8 @@ async function verify(id) {
     step(c1, 'Collaborator secret', `<code>${r.sC}</code><br>${c2}`);
     const w = drawWinners(id, r.sO, r.sC, d, list);
     step(JSON.stringify(w) === JSON.stringify(r.win), 'Winning tickets', w.map((x, k) => `${rankName[k]}: ${tno(x.t)} (${L.shortAddr(x.b)})`).join(', '));
-    const pz = prizesOf(r.sales);
-    step(pz.every((x, k) => x.toString() === r.prizes[k]), 'Prizes', `50 / 30 / 20% of the pot: ${pz.map((x) => ase(x)).join(' / ')} ASE`);
+    const pz = prizesOfPool(poolOf(r), r.win.length);
+    step(pz.every((x, k) => x.toString() === r.prizes[k]), 'Prizes', `50 / 30 / 20% of the pot (carry-over included): ${pz.map((x) => ase(x)).join(' / ')} ASE` + (r.win.length < 3 ? ' (prizes without a winner carried over)' : ''));
     body.innerHTML = steps.join('') + '<p class="small muted" style="margin-top:12px">Everything is recomputed in your browser from the contract\'s public data.</p>';
   } catch (e) { body.innerHTML = `<p class="error">Verification failed: ${esc(cleanError(e))}</p>`; }
 }
@@ -348,13 +363,7 @@ adminForm('#fPrice', (f) => ['Price saved', 'setConfig', cfgArgs({ price: L.pars
 adminForm('#fTime', (f) => ['Draw time saved', 'setConfig', cfgArgs({ drawDay: Number(f.get('d')), drawH: Number(f.get('h')), drawM: Number(f.get('m')) })]);
 adminForm('#fMax', (f) => ['Limits saved', 'setConfig', cfgArgs({ maxPerWallet: Number(f.get('w')), maxRound: Number(f.get('t')) })]);
 adminForm('#fTimings', (f) => ['Timings saved', 'setConfig', cfgArgs({ closeMin: Number(f.get('close')), revealMin: Number(f.get('reveal')) })]);
-let cancelArmed = 0;
-adminForm('#fCancel', () => {
-  const btn = $('#fCancel button');
-  if (Date.now() - cancelArmed > 6000) { cancelArmed = Date.now(); btn.textContent = 'Click again to confirm'; setTimeout(() => (btn.textContent = 'Cancel and refund'), 6000); throw new Error('Click again within 6 seconds to confirm the cancellation.'); }
-  cancelArmed = 0; btn.textContent = 'Cancel and refund';
-  return ['Raffle cancelled, refunds available', 'emergencyCancel', [S.info.round]];
-});
+
 
 // ------------------------------------------------------------- onglets, wallet
 function selectTab(name) {

@@ -1,6 +1,7 @@
 // Petits outils de lecture pour le changement de contrat (aucune transaction ici).
 //   node outils/loto-aide.mjs info <contrat>      → état utile en JSON
 //   node outils/loto-aide.mjs hex <ase1…>         → adresse 0x
+//   node outils/loto-aide.mjs cfg <contrat>       → réglages (getConfig) en JSON
 //   node outils/loto-aide.mjs attendre <contrat> <deploye|initialise|pause> → attend que la chaîne le confirme
 import { toHex } from '../site/js/lotomath.js';
 const RPC = (process.env.RPC_URL || 'https://testnet.asentum.com').replace(/\/$/, '');
@@ -11,6 +12,7 @@ async function view(contract, method, args = []) {
   return r.json();
 }
 if (cmd === 'hex') console.log(toHex(a));
+else if (cmd === 'cfg') console.log(JSON.stringify((await view(a, 'getConfig')).returnValue));
 else if (cmd === 'info') {
   const c = (await view(a, 'getConfig')).returnValue, s = (await view(a, 'getState')).returnValue;
   const r = (await view(a, 'getRound', [s.cur])).returnValue;

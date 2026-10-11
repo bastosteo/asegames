@@ -6,14 +6,15 @@
 //     (réglable), 5 fouilles maximum par wallet et par grille, une case ne se
 //     fouille qu'une fois.
 //   - Réponse : trésor, chaud (trésor à 3 cases ou moins, diagonales comprises)
-//     ou froid. Le trésor = 85 % des fouilles de la grille ; 15 % de commission
-//     (moitié équipe 75/25, moitié cagnotte ASE Airdrop).
+//     ou froid. À CHAQUE fouille : 15 % de commission versés tout de suite
+//     (moitié équipe 75/25, moitié contrat ASE Airdrop) ; 85 % vont au trésor.
 //   - La position est scellée au départ : l'opérateur publie la racine d'un arbre
 //     de Merkle qui fixe les 400 réponses (voir functions/_lib/board.mjs). Le
 //     service de réponses donne, pour chaque case fouillée, la réponse et sa
 //     preuve ; claim() vérifie la preuve de la case trésor et paie le gagnant.
-//   - Les fouilles faites après celle du trésor (avant le claim) sont remboursées.
-//   - Grille sans trésor trouvé au bout de 30 jours → annulée, tout est remboursé.
+//   - Trésor = report de la grille précédente + 85 % des fouilles jusqu'à celle
+//     du trésor incluse. Les 85 % des fouilles faites après (avant le claim)
+//     passent dans la grille suivante. Jamais d'annulation ni de remboursement.
 //
 //  Sécurité : aucune fonction de retrait ; état enregistré AVANT chaque envoi
 //  d'ASE ; montants en BigInt (wei) stockés en texte.
@@ -23,9 +24,7 @@ const BPS = 10000n;
 const SHARE_COMMISSION = 1500n;  // 15 % : moitié équipe (75/25), moitié cagnotte ASE Airdrop
 const OWNER_CUT = 7500n;
 const SIZE = 20, CELLS = 400, DEPTH = 9;
-const EXPIRY_MS = 30 * 86400000;
 const MAX_BATCH = 400;
-const MAX_PAYS = 40;
 
 // ---------------------------------------------------------------------
 //  Outils de base
@@ -125,7 +124,7 @@ function isSecret(s) { return typeof s === 'string' && /^[0-9a-f]{64}$/.test(s);
 // ---------------------------------------------------------------------
 //  État
 //   cfg, st          réglages, état global
-//   g:<id>           une grille          p:<id>:<i>   une fouille (b, c, paid)
+//   g:<id>           une grille          p:<id>:<i>   une fouille (b, c, t)
 //   d:<id>:<case>    n° de la fouille de cette case   w:<id>:<a>   fouilles d'un wallet
 // ---------------------------------------------------------------------
 function cfg() { return jget('cfg', null); }
@@ -154,13 +153,8 @@ function batchRange(from, count, total) {
   assert(Number.isInteger(n) && n > 0 && n <= MAX_BATCH, 'count: 1 to ' + MAX_BATCH);
   return [a, Math.min(total, a + n)];
 }
-function cancel(g, s, reason) {
-  g.status = 'cancelled'; g.refundFrom = 0; g.endTs = nowMs();
-  putG(g);
-  s.owed = (big(s.owed) + big(g.sales)).toString();
-  jset('st', s);
-  emit('Cancelled', { grid: String(g.id), reason, sales: g.sales });
-}
+// Part d'une fouille qui va au trésor (85 %).
+function netOf(price) { return big(price) - (big(price) * SHARE_COMMISSION) / BPS; }
 
 ({
   // INITIALISATION (une fois) : opérateur (publie les grilles, croupier GitHub),
@@ -174,7 +168,7 @@ function cancel(g, s, reason) {
       maxPerWallet: 5, paused: false,
     };
     jset('cfg', c);
-    jset('st', { cur: 0, owed: '0', tot: { digs: 0, sales: '0', commission: '0', prizes: '0', refunds: '0', grids: 0 } });
+    jset('st', { cur: 0, owed: '0', carry: '0', tot: { digs: 0, sales: '0', commission: '0', prizes: '0', refunds: '0', grids: 0 } });
     emit('Init', { admin: c.admin });
     return true;
   },
@@ -185,12 +179,13 @@ function cancel(g, s, reason) {
     const c = cfg(), s = st();
     assert(sender() === c.operator || sender() === c.admin, 'operator only');
     assert(Number(id) === s.cur + 1, 'next grid is ' + (s.cur + 1));
-    if (s.cur > 0) { const prev = getG(s.cur); assert(prev.status === 'found' || prev.status === 'cancelled', 'current grid still open'); }
+    if (s.cur > 0) { const prev = getG(s.cur); assert(prev.status === 'found', 'current grid still open'); }
     const r = String(root).toLowerCase();
     assert(isSecret(r), 'invalid root');
-    const g = { id: s.cur + 1, status: 'open', root: r, price: c.price, digs: 0, sales: '0', wallets: 0, openTs: nowMs(), endTs: 0, t: -1, cell: -1, winner: null, prize: '0', airdrop: '0', commission: '0', refundFrom: -1 };
+    const g = { id: s.cur + 1, status: 'open', root: r, price: c.price, digs: 0, sales: '0', wallets: 0, openTs: nowMs(), endTs: 0, t: -1, cell: -1, winner: null, prize: '0', airdrop: '0', commission: '0', carryIn: s.carry || '0', carryOut: '0' };
     putG(g);
     s.cur = g.id;
+    s.carry = '0';
     jset('st', s);
     emit('GridOpened', { grid: String(g.id), root: r, price: g.price });
     return g.id;
@@ -209,16 +204,23 @@ function cancel(g, s, reason) {
     assert(mine < c.maxPerWallet, 'max ' + c.maxPerWallet + ' digs per wallet on this grid');
     assert(big(msg.value || 0) === big(g.price), 'wrong amount, expected: ' + g.price + ' wei');
     const i = g.digs;
-    jset('p:' + g.id + ':' + i, { b: who, c: k, paid: false });
+    jset('p:' + g.id + ':' + i, { b: who, c: k, paid: false, t: nowMs() });
     jset('d:' + g.id + ':' + k, i);
     jset('w:' + g.id + ':' + who, mine + 1);
     if (mine === 0) g.wallets++;
     g.digs = i + 1;
     g.sales = (big(g.sales) + big(g.price)).toString();
+    const com = big(g.price) - netOf(g.price), cDrop = com / 2n, cOwner = ((com - cDrop) * OWNER_CUT) / BPS;
+    g.commission = (big(g.commission) + com).toString();
+    g.airdrop = (big(g.airdrop) + cDrop).toString();
     putG(g);
     s.tot.digs++;
     s.tot.sales = (big(s.tot.sales) + big(g.price)).toString();
+    s.tot.commission = (big(s.tot.commission) + com).toString();
     jset('st', s);
+    if (cOwner > 0n) transfer(c.payOwner, cOwner.toString());
+    if (com - cDrop > cOwner) transfer(c.payCollab, (com - cDrop - cOwner).toString());
+    if (cDrop > 0n) transfer(c.payAirdrop, cDrop.toString());
     emit('Dig', { grid: String(g.id), idx: String(i), cell: String(k), by: who });
     return { grid: g.id, idx: i, cell: k };
   },
@@ -227,7 +229,7 @@ function cancel(g, s, reason) {
   // preuve de la case trésor. Le prix part toujours au wallet qui l'a fouillée.
   claim(id, cell, salt, proof) {
     noValue();
-    const c = cfg(), s = st();
+    const s = st();
     const g = getG(Number(id));
     assert(g.status === 'open', 'grid not open');
     const k = cellOk(cell);
@@ -236,71 +238,23 @@ function cancel(g, s, reason) {
     const t = jget('d:' + g.id + ':' + k, -1);
     assert(t >= 0, 'treasure cell not dug yet');
     const p = getP(g.id, t);
-    const S = big(g.price) * big(t + 1);                 // fouilles jusqu'au trésor inclus
-    const commission = (S * SHARE_COMMISSION) / BPS;
-    const cDrop = commission / 2n;
-    const cOwner = ((commission - cDrop) * OWNER_CUT) / BPS;
-    const prize = S - commission;
-    Object.assign(g, { status: 'found', t, cell: k, winner: p.b, prize: prize.toString(), commission: commission.toString(), airdrop: cDrop.toString(), refundFrom: t + 1, endTs: nowMs() });
+    const net = netOf(g.price);
+    const prize = big(g.carryIn) + net * big(t + 1);      // report + fouilles jusqu'au trésor inclus
+    const after = net * big(g.digs - t - 1);              // fouilles après le trésor → grille suivante
+    Object.assign(g, { status: 'found', t, cell: k, winner: p.b, prize: prize.toString(), carryOut: after.toString(), endTs: nowMs() });
     putG(g);
     p.paid = true;
     jset('p:' + g.id + ':' + t, p);
-    const refunds = big(g.price) * big(g.digs - t - 1);
-    s.owed = (big(s.owed) + refunds).toString();
-    s.tot.commission = (big(s.tot.commission) + commission).toString();
+    s.carry = (big(s.carry || '0') + after).toString();
     s.tot.prizes = (big(s.tot.prizes) + prize).toString();
     s.tot.grids++;
     jset('st', s);
     transfer(p.b, prize.toString());
-    if (cOwner > 0n) transfer(c.payOwner, cOwner.toString());
-    if (commission - cDrop > cOwner) transfer(c.payCollab, (commission - cDrop - cOwner).toString());
-    if (cDrop > 0n) transfer(c.payAirdrop, cDrop.toString());
-    emit('Found', { grid: String(g.id), cell: String(k), idx: String(t), winner: p.b, prize: g.prize, digs: String(t + 1) });
+    emit('Found', { grid: String(g.id), cell: String(k), idx: String(t), winner: p.b, prize: g.prize, digs: String(t + 1), carry: g.carryOut });
     return g.prize;
   },
 
-  // REMBOURSEMENTS (fouilles après le trésor, ou grille annulée), par paquets.
-  settle(id, from, count) {
-    noValue();
-    const s = st();
-    const g = getG(Number(id));
-    assert((g.status === 'found' || g.status === 'cancelled') && g.refundFrom >= 0, 'nothing to settle');
-    const [a, b] = batchRange(Math.max(Number(from), g.refundFrom), count, g.digs);
-    let total = 0n, n = 0, i = a;
-    for (; i < b && n < MAX_PAYS; i++) {
-      const p = getP(g.id, i);
-      if (p.paid) continue;
-      p.paid = true;
-      jset('p:' + g.id + ':' + i, p);
-      s.owed = (big(s.owed) - big(g.price)).toString();
-      s.tot.refunds = (big(s.tot.refunds) + big(g.price)).toString();
-      transfer(p.b, g.price);
-      emit('Refunded', { grid: String(g.id), idx: String(i), to: p.b, amount: g.price });
-      total += big(g.price); n++;
-    }
-    jset('st', s);
-    return { amount: total.toString(), next: i, total: g.digs };
-  },
-
-  // Grille sans trésor trouvé au bout de 30 jours (n'importe qui) → remboursement.
-  cancelExpired(id) {
-    noValue();
-    const g = getG(Number(id));
-    assert(g.status === 'open', 'grid not open');
-    assert(nowMs() >= g.openTs + EXPIRY_MS, 'too early');
-    cancel(g, st(), 'timeout');
-    return true;
-  },
-
   // ADMIN
-  emergencyCancel(id) {
-    noValue();
-    const c = cfg(); onlyAdmin(c);
-    const g = getG(Number(id));
-    assert(g.status === 'open', 'grid not open');
-    cancel(g, st(), 'admin');
-    return true;
-  },
   setPaused(on) {
     noValue();
     const c = cfg(); onlyAdmin(c);
@@ -355,7 +309,7 @@ function cancel(g, s, reason) {
     const g = getG(Number(id));
     const [a, b] = batchRange(from, count, g.digs);
     const out = [];
-    for (let i = a; i < b; i++) { const p = getP(g.id, i); out.push({ idx: i, b: p.b, c: p.c, paid: p.paid }); }
+    for (let i = a; i < b; i++) { const p = getP(g.id, i); out.push({ idx: i, b: p.b, c: p.c, paid: p.paid, t: p.t || 0 }); }
     return out;
   },
   cellOf(id, cell) { return jget('d:' + Number(id) + ':' + cellOk(cell), -1); },
@@ -366,8 +320,8 @@ function cancel(g, s, reason) {
     return {
       now: String(nowMs()), paused: c.paused, price: c.price, maxPerWallet: c.maxPerWallet, grid: s.cur,
       status: g ? g.status : 'none', digs: g ? g.digs : 0, wallets: g ? g.wallets : 0,
-      pot: g && g.status === 'open' ? ((big(g.sales) * (BPS - SHARE_COMMISSION)) / BPS).toString() : '0',
-      owed: s.owed, totals: s.tot,
+      pot: g && g.status === 'open' ? (big(g.carryIn) + netOf(g.price) * big(g.digs)).toString() : s.carry || '0',
+      carry: s.carry || '0', owed: s.owed, totals: s.tot,
     };
   },
 });

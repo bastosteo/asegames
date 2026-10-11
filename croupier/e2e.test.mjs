@@ -106,14 +106,10 @@ t('l\'owner a révélé son secret', !!view('getRound', [cur2]).sO);
 await fetch(mock.url + '/__warp', { method: 'POST', body: JSON.stringify({ to: r2.closeTs + 16 * 60000 }) });
 await waitFor(() => mock.alerts.some((a) => a.includes('collaborateur n\'est toujours pas révélé')), 10000, 'alerte retard');
 t('alerte "secret collaborateur en retard" envoyée', mock.alerts.some((a) => a.includes('collaborateur n\'est toujours pas révélé')));
-const balsBefore = players.map((p) => mock.chain.balanceOf(p));
-await fetch(mock.url + '/__warp', { method: 'POST', body: JSON.stringify({ to: r2.closeTs + 121 * 60000 }) });
-const refunded = await waitFor(() => view('getRound', [cur2]).status === 'cancelled' && C.view('getPurchases', [cur2, 0, 400]).every((p) => p.paid), 30000, 'annulation + remboursements');
-t('tour annulé après 2 h', view('getRound', [cur2]).status === 'cancelled');
-t('tous les joueurs remboursés automatiquement', refunded);
-const gained = players.reduce((s, p, i) => s + (mock.chain.balanceOf(p) - balsBefore[i]), 0n);
-t('remboursé = ventes du tour (au wei près)', gained === BigInt(view('getRound', [cur2]).sales), `${gained} vs ${view('getRound', [cur2]).sales}`);
-t('alerte d\'annulation envoyée', mock.alerts.some((a) => a.includes('annulation')));
+await fetch(mock.url + '/__warp', { method: 'POST', body: JSON.stringify({ to: r2.closeTs + 5 * 3600000 }) });
+await new Promise((ok) => setTimeout(ok, 4000));
+t('5 h plus tard : le tour attend toujours (jamais annulé)', view('getRound', [cur2]).status === 'closed');
+t('l\'alerte dit que le tirage attend', mock.alerts.some((a) => a.includes('Le tirage attend')));
 
 // ---------------- Scénario 3 : retour du collaborateur ----------------
 console.log('Scénario 3 : le collaborateur revient');
@@ -122,8 +118,8 @@ const cur3 = view('getState').cur;
 buyRandom(15);
 const r3 = view('getRound', [cur3]);
 await fetch(mock.url + '/__warp', { method: 'POST', body: JSON.stringify({ to: r3.closeTs + 1000 }) });
-const done3 = await waitFor(() => view('getRound', [cur3]).status === 'done', 60000, 'tour 3') && (claimAll(cur3), view('getState').owed === '0');
-t(`tour ${cur3} tiré et payé normalement (chaîne owner avancée d'un cran de plus)`, done3);
+const done3 = await waitFor(() => view('getRound', [cur2]).status === 'done' && view('getRound', [cur3]).status === 'done', 60000, 'tours 2 et 3') && (claimAll(cur2), claimAll(cur3), view('getState').owed === '0');
+t(`tour en attente ${cur2} puis tour ${cur3} tirés et payés normalement`, done3);
 
 pO.kill(); pC2.kill();
 

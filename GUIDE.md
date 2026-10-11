@@ -122,9 +122,9 @@ Commandes utiles : `sudo systemctl restart loto-croupier`, `sudo systemctl stop 
 puis ouvre `https://api.telegram.org/bot<TOKEN>/getUpdates` pour lire ton `chat id`.
 Mets les deux dans `.env` et redémarre le service.
 Tu reçois : démarrage, résultat de chaque tirage, retard d'un secret (15 min après la fermeture),
-annulation, erreurs répétées, chaîne bientôt épuisée.
-Si le PC est éteint à 21h, personne ne révèle : au bout de 2 h le tirage est annulé et les joueurs
-remboursés (sans perte pour eux). Pour un fonctionnement 24 h/24, on passera le croupier sur Fly.io.
+erreurs répétées, chaîne bientôt épuisée.
+Si personne ne révèle, le tirage attend (depuis la v4, plus d'annulation ni de remboursement) : les
+croupiers GitHub (section 4 bis) tournent même PC éteint.
 
 ## 3 bis. Passer au contrat v2 (5 numéros sur 20, gains fixes + bonus)
 
@@ -212,6 +212,39 @@ passage suivant (10 min au plus). Carte non trouvée en 30 jours → annulée et
 Installation : double-clique sur `Deployer-ASE-Treasure.bat` (après l'Airdrop). 2 transactions
 demandées (o/n) ⚠️ : déploiement et `init`. Il range la graine dans GitHub et Cloudflare, puis met le
 site en ligne.
+
+## 3 sexies. Sans remboursement : loto v4, tombola v3, trésor v2
+
+Nouvelles règles (l'ASE Airdrop ne change pas) :
+- **Commission à chaque achat** : sur chaque ticket ou fouille, 15 % partent tout de suite
+  (7,5 % au contrat Airdrop, 7,5 % à l'équipe 75/25). Le montant de l'Airdrop affiché est donc
+  exact à tout moment : plus d'astérisque ni d'estimation.
+- **Plus jamais d'annulation ni de remboursement** : un tirage a toujours lieu, même avec 1 seul
+  ticket. Si un secret est en retard, le tirage **attend** (alerte Telegram toutes les heures) et se
+  fait dès que le secret est publié. ⚠️ Conséquence : si une chaîne de secrets était perdue, le tirage
+  resterait bloqué ; garde bien tes sauvegardes (`croupier/data*`).
+- **Tombola** : moins de 3 joueurs → tirage quand même. 2 joueurs : 1er et 2e prix tirés, le 3e prix
+  passe dans la tombola suivante ; 1 joueur : il gagne le 1er prix, le reste passe à la suivante.
+  Aucun ticket : la tombola est reportée d'une semaine.
+- **Trésor** : les fouilles faites après celle du trésor ne sont plus remboursées, leurs 85 % vont
+  dans le trésor de la carte suivante. Une carte reste ouverte jusqu'à ce que le trésor soit trouvé.
+- **Airdrop** : chaque achat est horodaté ; il compte dans la semaine où il est fait (de la tombola
+  du dimanche à la suivante).
+
+Installation : double-clique sur `Mettre-a-jour-ASE-Vegas-v4.bat`. Il :
+1. termine les anciens contrats : pause, **dernier** remboursement du tirage / de la carte en cours
+   (l'argent d'un ancien contrat ne peut pas passer dans le nouveau), envoi des gains pas encore
+   réclamés. S'il dit « relance dans 30 minutes », un tirage ou un trésor est en train d'être payé ;
+2. déploie et initialise les 3 nouveaux contrats ⚠️ (6 transactions, chacune demandée o/n), avec les
+   mêmes wallets et les mêmes chaînes de secrets ;
+3. crée une **nouvelle graine** pour les cartes du trésor (`croupier/data-tresor/seed-v2.txt`, **à
+   sauvegarder**) et la range dans GitHub et Cloudflare ;
+4. met à jour GitHub (variables `CONTRACT`, `RAFFLE_CONTRACT`, `TREASURE_CONTRACT`, et `OLD_LOTO`,
+   `OLD_RAFFLE`, `OLD_TREASURE` pour que les tickets des anciens contrats comptent encore à l'Airdrop
+   de la semaine), puis remet le site en ligne.
+
+Le jackpot de l'ancien loto reste dans l'ancien contrat (aucun contrat n'a de fonction de retrait,
+par sécurité) : c'est de l'ASE de testnet.
 
 ## 4 bis. Les croupiers sur GitHub (gratuit, PC éteint possible)
 

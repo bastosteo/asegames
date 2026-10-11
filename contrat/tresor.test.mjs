@@ -57,8 +57,13 @@ sec('Ouverture d\'une grille');
 sec('Fouilles');
 {
   const w = world(); const [, b] = w.open(1); const cs = colds(b);
+  const bo = w.chain.balanceOf(OWN), bc = w.chain.balanceOf(COL), bd = w.chain.balanceOf(DROP);
   const r = w.dig(P[0], 1, cs[0]);
   t('fouille OK (gas ' + r.gas + ')', r.success && r.returnValue.idx === 0, r.error);
+  const com = PRICE * 15n / 100n, drop = com / 2n, own = (com - drop) * 3n / 4n;
+  t('commission versée dès la fouille (Airdrop 7,5 %, équipe 75/25)', w.chain.balanceOf(DROP) - bd === drop && w.chain.balanceOf(OWN) - bo === own && w.chain.balanceOf(COL) - bc === com - drop - own);
+  t('85 % restent pour le trésor', w.bal() === PRICE - com);
+  t('fouille horodatée', w.c.view('getDigs', [1, 0, 1])[0].t > 0);
   t('événement Dig', r.events.some((e) => e.name === 'Dig' && e.data.cell === String(cs[0])));
   t('case déjà fouillée refusée', !w.dig(P[1], 1, cs[0]).success);
   t('mauvais montant refusé', !w.dig(P[1], 1, cs[1], ASE).success);
@@ -79,25 +84,26 @@ sec('Trésor trouvé');
   t('claim avec une case froide refusé', !w.c.call(P[0], 'claim', [1, fake.cell, fake.salt, fake.proof]).success);
   t('claim du trésor pas encore fouillé refusé', !w.claim(1, b).success);
   w.dig(P[50], 1, b.treasure);                 // 13e fouille : le trésor
-  w.dig(P[51], 1, cs[20]); w.dig(P[52], 1, cs[21]);  // 2 fouilles juste après (à rembourser)
-  const bw = w.chain.balanceOf(P[50]), bo = w.chain.balanceOf(OWN), bc = w.chain.balanceOf(COL), bd = w.chain.balanceOf(DROP);
+  w.dig(P[51], 1, cs[20]); w.dig(P[52], 1, cs[21]);  // 2 fouilles juste après → grille suivante
+  const bw = w.chain.balanceOf(P[50]), bd = w.chain.balanceOf(DROP);
   const r = w.claim(1, b);
   t('claim par un tiers (gas ' + r.gas + ')', r.success, r.error);
-  const S = 13n * PRICE, com = S * 15n / 100n, drop = com / 2n, own = (com - drop) * 3n / 4n;
+  const S = 13n * PRICE, com = S * 15n / 100n, net = PRICE * 85n / 100n;
   t('le gagnant reçoit 85 % des 13 fouilles (5,525 ASE)', w.chain.balanceOf(P[50]) - bw === S - com && S - com === 5525n * 10n ** 15n);
-  t('commission : moitié Airdrop, moitié équipe 75/25', w.chain.balanceOf(DROP) - bd === drop && w.chain.balanceOf(OWN) - bo === own && w.chain.balanceOf(COL) - bc === com - drop - own);
+  t('rien de plus pour l\'Airdrop au claim (déjà versé)', w.chain.balanceOf(DROP) === bd);
   const g = w.g(1);
   t('grille terminée', g.status === 'found' && g.winner === P[50] && g.t === 12 && g.cell === b.treasure);
   t('double claim refusé', !w.claim(1, b).success);
   t('plus de fouille sur la grille terminée', !w.dig(P[60], 1, cs[30]).success);
-  t('dû = 2 remboursements', w.st().owed === (2n * PRICE).toString() && w.bal() === 2n * PRICE);
-  const b51 = w.chain.balanceOf(P[51]);
-  const s = w.c.call(P[0], 'settle', [1, 0, 100]);
-  t('remboursement des fouilles après le trésor', s.success && w.chain.balanceOf(P[51]) - b51 === PRICE && w.st().owed === '0' && w.bal() === 0n, s.error);
-  t('pas de double remboursement', w.c.call(P[0], 'settle', [1, 0, 100]).returnValue.amount === '0');
+  t('2 fouilles après le trésor → reportées (pas de remboursement)', w.st().carry === (2n * net).toString() && g.carryOut === (2n * net).toString() && w.bal() === 2n * net && !w.c.api.settle);
+  t('info : trésor de départ de la prochaine grille', w.c.view('info').pot === (2n * net).toString());
   const [r2, b2] = w.open(2);
-  t('grille suivante ouverte', r2.success && w.c.view('info').grid === 2);
+  t('grille suivante ouverte avec le report', r2.success && w.c.view('info').grid === 2 && w.g(2).carryIn === (2n * net).toString() && w.st().carry === '0');
   t('le compteur par wallet repart à 0', w.dig(P[0], 2, colds(b2)[0]).success);
+  t('trésor affiché = report + 85 %', w.c.view('info').pot === (3n * net).toString());
+  const bt = w.chain.balanceOf(P[1]);
+  w.dig(P[1], 2, b2.treasure);
+  t('le gagnant de la grille 2 touche aussi le report', w.claim(2, b2).success && w.chain.balanceOf(P[1]) - bt === 4n * net - PRICE && w.bal() === 0n);
 }
 
 sec('Le trésor au 1er coup');
@@ -117,21 +123,15 @@ sec('Grille complète : 400 fouilles');
   w.dig(P[0], 1, b.treasure);
   const r = w.claim(1, b2);
   t('399 fouilles puis trésor (gas max fouille ' + maxGas + ', claim ' + r.gas + ')', r.success && maxGas < 200000 && r.gas < 1_000_000);
-  t('aucun remboursement', w.st().owed === '0' && w.bal() === 0n);
+  t('contrat vide après le claim', w.st().carry === '0' && w.bal() === 0n);
 }
 
-sec('Annulation');
+sec('Aucune annulation');
 {
-  const w = world(); const [, b] = w.open(1); const cs = colds(b);
-  for (let k = 0; k < 3; k++) w.dig(P[k], 1, cs[k]);
-  t('cancelExpired refusé avant 30 jours', !w.c.call(P[9], 'cancelExpired', [1]).success);
-  w.chain.mineUntil(w.g(1).openTs + 30 * 86400000);
-  t('cancelExpired après 30 jours', w.c.call(P[9], 'cancelExpired', [1]).success && w.g(1).status === 'cancelled');
-  const b0 = w.chain.balanceOf(P[0]);
-  t('tout le monde remboursé', w.c.call(P[9], 'settle', [1, 0, 50]).success && w.chain.balanceOf(P[0]) - b0 === PRICE && w.bal() === 0n);
-  t('claim impossible sur grille annulée', !w.claim(1, b).success);
-  const w2 = world(); w2.open(1);
-  t('emergencyCancel réservé à l\'admin', !w2.c.call(P[0], 'emergencyCancel', [1]).success && w2.c.call(ADMIN, 'emergencyCancel', [1]).success);
+  const w = world(); w.open(1);
+  t('ni cancelExpired, ni emergencyCancel, ni settle', !w.c.api.cancelExpired && !w.c.api.emergencyCancel && !w.c.api.settle);
+  w.chain.mineUntil(w.g(1).openTs + 60 * 86400000);
+  t('grille toujours ouverte après 60 jours', w.g(1).status === 'open' && w.dig(P[0], 1, colds(board(SEED, 1))[0]).success);
 }
 
 sec('Admin');

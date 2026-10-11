@@ -36,6 +36,7 @@ owner + collaborateur. ASE Airdrop : tirage hebdomadaire des frais, 1 ticket = 1
 | `tresor/` | Page du site ASE Treasure (`/treasure/`, `?demo` pour la démo) |
 | `croupier/e2e-tresor.test.mjs` | Croupier + service de réponses sur une fausse chaîne |
 | `outils/deployer-tresor.sh` + `Deployer-ASE-Treasure.bat` | Installation d'ASE Treasure |
+| `outils/deployer-v4.sh` + `Mettre-a-jour-ASE-Vegas-v4.bat` | Sans remboursement : loto v4, tombola v3, trésor v2 (fin propre des anciens contrats) |
 | `sim/` | Simulateur de la machine virtuelle Asentum + faux nœud local |
 | `sonde/` | Résultats de la sonde (ce qui a été vérifié sur la vraie chaîne) |
 | `GUIDE.md` | Déploiement pas à pas + checklist |

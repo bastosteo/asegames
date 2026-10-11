@@ -6,6 +6,7 @@ import TREASURE from './treasure/js/config.js';
 import { Rpc } from './loto/js/chain.js';
 import { fmtAse } from './loto/js/lotomath.js';
 import { startVegas } from './vegas.js';
+import { buildWeek } from './airdrop/js/liste.mjs';
 startVegas({ walletButton: true });
 
 const $ = (s) => document.querySelector(s);
@@ -66,33 +67,6 @@ setInterval(loadRaffle, 60000);
 
 // ASE Airdrop : frais de la semaine déjà reçus (+ report) et compte à rebours
 let dinfo = null, doff = 0;
-async function weekFees(rpc, contract, from, to) {
-  if (!contract) return 0n;
-  const st = await rpc.view(contract, 'getState', []);
-  let sum = 0n;
-  for (let id = st.cur; id >= 1; id--) {
-    const r = await rpc.view(contract, 'getRound', [id]);
-    if (!r) continue;
-    if (Number(r.drawTs) <= from) break;
-    if (Number(r.drawTs) > to || ['cancelled', 'empty'].includes(r.status)) continue;
-    // Estimation (*) : tirages faits + tirages à venir de la semaine (7,5 % des ventes)
-    sum += r.status === 'done' ? BigInt(r.airdrop || '0') : (BigInt(r.sales || '0') * 1500n / 10000n) / 2n;
-  }
-  return sum;
-}
-async function treasureFees(rpc, contract, from, to) {
-  if (!contract) return 0n;
-  const st = await rpc.view(contract, 'getState', []);
-  let sum = 0n;
-  for (let id = st.cur; id >= 1; id--) {
-    const g = await rpc.view(contract, 'getGrid', [id]);
-    if (!g) continue;
-    if (g.status === 'open') { sum += (BigInt(g.sales) * 1500n / 10000n) / 2n; continue; }
-    if (g.endTs <= from) break;
-    if (g.status === 'found' && g.endTs <= to) sum += BigInt(g.airdrop || '0');
-  }
-  return sum;
-}
 async function loadDrop() {
   if (!DROP.CONTRACT) { $('#dropPot').textContent = 'soon'; $('#dropCountdown').textContent = '–'; return; }
   try {
@@ -103,10 +77,11 @@ async function loadDrop() {
     $('#dropTime').textContent = `${utcWeekday(dinfo.drawTs)} at ${utcTime(dinfo.drawTs)}`;
     const prev = dinfo.round > 1 ? await rpc.view(DROP.CONTRACT, 'getRound', [dinfo.round - 1]) : null;
     // Semaine des tickets : de la tombola du dimanche à la suivante (24 h avant chaque Airdrop du lundi)
-    const DAY = 86400000, f0 = prev && prev.status !== 'cancelled' ? Number(prev.drawTs) : Number(dinfo.fromTs);
-    const from = f0 > 0 ? f0 - DAY : 0, to = Number(dinfo.drawTs) - DAY;
-    const [a, b, c] = await Promise.all([weekFees(rpc, CONFIG.CONTRACT, from, to), weekFees(rpc, RAFFLE.CONTRACT, from, to), treasureFees(rpc, TREASURE.CONTRACT, from, to)]);
-    $('#dropPot').textContent = fmtAse(a + b + c + BigInt(dinfo.carry), 2) + ' ASE*';
+    const f0 = prev && prev.status !== 'cancelled' ? Number(prev.drawTs) : Number(dinfo.fromTs);
+    // Montant exact : 7,5 % de chaque achat de la semaine, déjà versés au contrat Airdrop.
+    const both = (x, y) => [x, y].filter(Boolean);
+    const wk = await buildWeek({ view: (c, m, a) => rpc.view(c, m, a), loto: both(CONFIG.CONTRACT, DROP.OLD_LOTO), raffle: both(RAFFLE.CONTRACT, DROP.OLD_RAFFLE), treasure: both(TREASURE.CONTRACT, DROP.OLD_TREASURE), fromTs: f0, toTs: dinfo.drawTs, now: dinfo.now });
+    $('#dropPot').textContent = fmtAse(BigInt(wk.pot) + BigInt(dinfo.carry), 2) + ' ASE';
   } catch { $('#dropPot').textContent = '–'; }
 }
 function tickDrop() {

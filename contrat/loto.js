@@ -21,12 +21,13 @@
 //   - Hasard : double secret en chaîne (owner puis collaborateur),
 //     révélés APRÈS la fermeture des ventes. Numéros =
 //     SHA-256("LOTOASE|tour|secretOwner|secretCollab|empreinteDesGrilles").
-//     Si les secrets ne sont pas révélés à temps → tour annulé, chaque
-//     joueur est remboursé à 100 %.
+//     Aucun tirage n'est jamais annulé ni remboursé : il attend simplement
+//     les deux secrets (le croupier les révèle en quelques minutes).
 //
 //  Sécurité :
 //   - Aucune fonction ne permet à l'admin de retirer des fonds. Seule la
-//     commission (15 %) est envoyée, automatiquement, à la fin d'un tirage.
+//     commission (15 %) est envoyée, automatiquement, À CHAQUE ACHAT
+//     (la part Airdrop arrive donc tout de suite dans la cagnotte Airdrop).
 //   - L'état est enregistré AVANT chaque envoi d'ASE.
 //   - Montants en BigInt (wei), stockés en texte.
 //
@@ -256,7 +257,7 @@ function newRound(id, c, prevDrawTs) {
     sO: null, sC: null, nums: null, cursor: 0,
     cnt: [0, 0, 0],                 // gagnants à 3, 4, 5 bons
     per: ['0', '0', '0'],           // gain par grille gagnante à 3, 4, 5 bons
-    jackpotIn: null, carryOut: null, commission: null,
+    jackpotIn: null, carryOut: null, commission: '0', airdrop: '0',
   };
   putR(r);
   emit('RoundOpened', { round: String(id), drawTs: String(drawTs), closeTs: String(r.closeTs), price: c.price });
@@ -276,7 +277,7 @@ function sync(c, s) {
   }
   while (s.next < s.cur) {
     const r = getR(s.next);
-    if (r.status === 'empty' || r.status === 'done' || r.status === 'cancelled') s.next++;
+    if (r.status === 'empty' || r.status === 'done') s.next++;
     else break;
   }
   return s;
@@ -286,9 +287,7 @@ function sync(c, s) {
 function finalize(r, c, s) {
   const S = big(r.sales), P = big(r.price), J = big(s.jackpot);
   const [n3, n4, n5] = r.cnt.map(big);
-  const commission = (S * SHARE_COMMISSION) / BPS;
-  const cDrop = commission / 2n;                        // moitié → cagnotte ASE Airdrop
-  const cOwner = ((commission - cDrop) * OWNER_CUT) / BPS;
+  const commission = big(r.commission);              // déjà versée, achat par achat
   const pj = (S * SHARE_JACKPOT) / BPS;               // part jackpot du tour
   const F = S - commission - pj;                      // caisse des gains fixes (50 %)
   let g3 = (P * 5n) / 2n, g4 = P * 25n, g5 = 0n;      // gains fixes : 2,5 et 25 mises
@@ -310,19 +309,12 @@ function finalize(r, c, s) {
   r.per = per;
   r.jackpotIn = J.toString();
   r.carryOut = carry.toString();
-  r.commission = commission.toString();
-  r.airdrop = cDrop.toString();
   r.status = 'done';
   putR(r);
   s.jackpot = carry.toString();
   s.owed = (big(s.owed) + owed).toString();
-  s.tot.commission = (big(s.tot.commission) + commission).toString();
   s.next = r.id + 1;
   jset('st', s);
-  // Envois APRÈS l'enregistrement de l'état.
-  if (cOwner > 0n) transfer(c.payOwner, cOwner.toString());
-  if (commission - cDrop > cOwner) transfer(c.payCollab, (commission - cDrop - cOwner).toString());
-  if (cDrop > 0n) transfer(c.payAirdrop, cDrop.toString());
   emit('Finalized', {
     round: String(r.id), nums: JSON.stringify(r.nums), counts: JSON.stringify(r.cnt), per: JSON.stringify(per),
     jackpotIn: r.jackpotIn, carryOut: r.carryOut, commission: r.commission, airdrop: r.airdrop,
@@ -356,27 +348,6 @@ function payOne(r, i, s) {
   return prize;
 }
 
-// Rembourse un achat d'un tour annulé. Renvoie le montant remboursé.
-function refundOne(r, i, s) {
-  const p = getP(r.id, i);
-  if (p.paid) return 0n;
-  const amount = big(r.price) * big(p.g.length);
-  p.paid = true;
-  jset('p:' + r.id + ':' + i, p);
-  s.owed = (big(s.owed) - amount).toString();
-  s.tot.refunds = (big(s.tot.refunds) + amount).toString();
-  transfer(p.b, amount.toString());
-  emit('Refunded', { round: String(r.id), idx: String(i), to: p.b, amount: amount.toString() });
-  return amount;
-}
-
-function cancelRound(r, s, reason) {
-  r.status = 'cancelled';
-  putR(r);
-  s.owed = (big(s.owed) + big(r.sales)).toString();
-  emit('Cancelled', { round: String(r.id), reason, sales: r.sales });
-}
-
 function batchRange(from, count, total) {
   const a = Number(from), n = Number(count);
   assert(Number.isInteger(a) && a >= 0, 'invalid start');
@@ -402,7 +373,7 @@ function batchRange(from, count, total) {
       price: (2n * 10n ** 18n).toString(),   // 2 ASE
       maxGrids: 20, maxRound: 3000,          // grilles max par achat / par tirage
       drawH: 21, drawM: 0,                   // 21h00 Paris
-      closeMin: 10, revealMin: 120,          // fermeture 10 min avant, 2 h pour révéler
+      closeMin: 10, revealMin: 120,          // fermeture 10 min avant ; alerte du croupier si pas révélé en 2 h
       paused: false,
     };
     jset('cfg', c);
@@ -438,16 +409,24 @@ function batchRange(from, count, total) {
     assert(/^[0-9a-f]{0,64}$/.test(sd), 'invalid seed');
     const who = sender();
     const i = r.buys;
-    jset('p:' + r.id + ':' + i, { b: who, g: clean, s: sd, paid: false });
+    jset('p:' + r.id + ':' + i, { b: who, g: clean, s: sd, paid: false, t: nowMs() });
     r.digest = sha256Text(r.digest + '|' + who + '|' + JSON.stringify(clean) + '|' + sd + '|' + i);
     r.buys = i + 1;
     r.grids += clean.length;
     r.sales = (big(r.sales) + cost).toString();
+    // Commission prélevée tout de suite : moitié Airdrop, moitié équipe 75/25
+    const com = (cost * SHARE_COMMISSION) / BPS, cDrop = com / 2n, cOwner = ((com - cDrop) * OWNER_CUT) / BPS;
+    r.commission = (big(r.commission) + com).toString();
+    r.airdrop = (big(r.airdrop) + cDrop).toString();
     putR(r);
     s.tot.sales = (big(s.tot.sales) + cost).toString();
+    s.tot.commission = (big(s.tot.commission) + com).toString();
     s.tot.grids += clean.length;
     s.tot.buys += 1;
     jset('st', s);
+    if (cOwner > 0n) transfer(c.payOwner, cOwner.toString());
+    if (com - cDrop > cOwner) transfer(c.payCollab, (com - cDrop - cOwner).toString());
+    if (cDrop > 0n) transfer(c.payAirdrop, cDrop.toString());
     emit('Buy', { round: String(r.id), idx: String(i), buyer: who, grids: JSON.stringify(clean), seed: sd, value: cost.toString() });
     return { round: r.id, idx: i };
   },
@@ -475,7 +454,6 @@ function batchRange(from, count, total) {
     assert(o || who === 'collab', 'who: owner or collab');
     assert(r.id === s.next, 'draw first round ' + s.next);
     assert(r.status === 'closed', 'status: ' + r.status);
-    assert(nowMs() < r.closeTs + r.revealMin * 60000, 'too late');
     assert(o ? !r.sO : r.sO && !r.sC, o ? 'already revealed' : 'owner first, or already revealed');
     const sec = String(secret).toLowerCase();
     assert(isSecret(sec) && chainOk(sec, o ? s.tipO : s.tipC), 'invalid secret');
@@ -509,38 +487,22 @@ function batchRange(from, count, total) {
     return { done: false, cursor: b, total: r.buys };
   },
 
-  // Annule un tour dont les secrets n'ont pas été révélés à temps.
-  // Appelable par TOUT LE MONDE → les joueurs ne dépendent pas du croupier.
-  cancelExpired(roundId) {
-    noValue();
-    const c = cfg();
-    const s = sync(c, st());
-    const r = getR(Number(roundId));
-    assert(r.status === 'closed', 'status: ' + r.status);
-    assert(nowMs() >= r.closeTs + r.revealMin * 60000, 'too early');
-    cancelRound(r, s, 'timeout');
-    sync(c, s);
-    jset('st', s);
-    return true;
-  },
-
   // ===================================================================
   //  PAIEMENTS
   // ===================================================================
   // Le croupier (ou n'importe qui) règle un tour par paquets : paie les
-  // gagnants d'un tour tiré, ou rembourse les joueurs d'un tour annulé.
+  // gagnants d'un tour tiré.
   // Reprendre à "next" tant que next < total. L'argent va toujours à
   // l'acheteur : un joueur peut régler SON achat avec settle(tour, idx, 1).
   settle(roundId, from, count) {
     noValue();
     const s = st();
     const r = getR(Number(roundId));
-    const pay = r.status === 'done';
-    assert(pay || r.status === 'cancelled', 'nothing to settle');
+    assert(r.status === 'done', 'nothing to settle');
     const [a, b] = batchRange(from, count, r.buys);
     let total = 0n, n = 0, i = a;
     for (; i < b && n < MAX_PAYS; i++) {
-      const x = pay ? payOne(r, i, s) : refundOne(r, i, s);
+      const x = payOne(r, i, s);
       if (x > 0n) { total += x; n++; }
     }
     jset('st', s);
@@ -603,21 +565,6 @@ function batchRange(from, count, total) {
     emit('Config', { key: 'admin', value: c.admin });
     return true;
   },
-  // Annulation d'urgence (avec remboursement) : seulement AVANT toute
-  // révélation, donc quand PERSONNE ne peut connaître le résultat.
-  emergencyCancel(roundId) {
-    noValue();
-    const c = cfg(); onlyAdmin(c);
-    let s = st();
-    const r = getR(Number(roundId));
-    assert(r.status === 'open' || r.status === 'closed', 'status: ' + r.status);
-    assert(!r.sO && !r.sC, 'secret already revealed');
-    cancelRound(r, s, 'admin');
-    if (r.id === s.cur) { s.cur = r.id + 1; newRound(s.cur, c, r.drawTs); }
-    s = sync(c, s);
-    jset('st', s);
-    return true;
-  },
   // Renouveler une chaîne de secrets (épuisée ou compromise) : seulement
   // quand aucun tour n'attend de révélation. Chacun gère SA chaîne.
   setTipOwner(tip) {
@@ -666,7 +613,7 @@ function batchRange(from, count, total) {
     for (let i = a; i < b; i++) {
       const p = getP(r.id, i);
       const [prize, w] = r.status === 'done' ? prizeOf(r, p) : [0n, [0, 0, 0]];
-      out.push({ idx: i, b: p.b, g: p.g, s: p.s || '', paid: p.paid, prize: prize.toString(), w });
+      out.push({ idx: i, b: p.b, g: p.g, s: p.s || '', paid: p.paid, prize: prize.toString(), w, t: p.t || 0 });
     }
     return out;
   },

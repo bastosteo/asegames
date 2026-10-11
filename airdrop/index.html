@@ -23,10 +23,11 @@
 </header>
 
 <main>
+  <div class="agrid">
   <section class="hero" aria-labelledby="potLabel">
     <div class="hero-main">
       <p id="potLabel" class="hero-label">This week's airdrop</p>
-      <p class="jackpot"><span id="pot">…</span> <span class="unit">ASE*</span></p>
+      <p class="jackpot"><span id="pot">…</span> <span class="unit">ASE</span></p>
       <p class="hero-sub"><span id="drawWhen">…</span></p>
       <div class="week" aria-label="Week progress">
         <div class="week-row"><span>Ticket week</span><span class="hot" id="weekPct">–</span></div>
@@ -70,10 +71,18 @@
       <li><span class="medal m2">2</span><span class="p-label">2nd, 30%</span><strong id="prize2">–</strong></li>
       <li><span class="medal m3">3</span><span class="p-label">3rd, 20%</span><strong id="prize3">–</strong></li>
     </ol>
-    <p class="est-note small muted" id="estNote">* Estimated amounts, assuming every Loto and Raffle draw of the week takes place.</p>
+    <p class="est-note small muted" id="estNote">Exact amount: 7.5% of every ticket and dig is already in the airdrop contract.</p>
     <p class="banner" id="soonBanner" hidden>The ASE Airdrop is launching soon: the first draw will be announced here.</p>
     <p class="banner win-banner" id="winBanner" hidden></p>
   </section>
+  <aside class="chance-card" id="chanceCard" aria-label="Your chances this week">
+    <p class="cc-eyebrow">Your chances this week</p>
+    <p class="cc-big"><span id="ccMine">–</span> <small>out of <span id="ccAll">–</span></small></p>
+    <div class="bar" aria-hidden="true"><i id="ccBar" style="width:0%"></i></div>
+    <p class="cc-text" id="ccText">Connect your wallet (top right) to see your chances.</p>
+    <a class="btn btn-primary btn-wide" href="../">Get more chances</a>
+  </aside>
+  </div>
 
   <section class="how panel-like" aria-labelledby="howTitle">
     <div class="card-head"><span>How it works</span><span class="hot">×1 chance per ticket</span></div>
@@ -109,8 +118,8 @@
   </section>
   <section class="panel rules" id="tab-rules" role="tabpanel" hidden>
     <h3>Who can win</h3>
-    <p>Every ticket played during the week counts: <strong>1 Loto ticket = 1 chance</strong>, <strong>1 Raffle ticket = 1 chance</strong> and <strong>1 Treasure dig = 1 chance</strong> (Treasure digs count in the week their treasure is found). The week runs from the Sunday Raffle draw to the next Sunday Raffle draw: Loto draws of Monday to Sunday, plus the Sunday Raffle. Cancelled (refunded) draws don't count.</p>
-    <p>The amounts shown during the week are <strong>estimates (*)</strong>: they already include the tickets of draws that haven't taken place yet, assuming every draw takes place. The final amount is fixed once all the week's draws are done.</p>
+    <p>Every ticket played during the week counts: <strong>1 Loto ticket = 1 chance</strong>, <strong>1 Raffle ticket = 1 chance</strong> and <strong>1 Treasure dig = 1 chance</strong>. A ticket counts in the week it is bought: the week runs from the Sunday Raffle draw to the next Sunday Raffle draw.</p>
+    <p>On every ticket and dig, 7.5% is sent straight to the airdrop contract. The amount shown is therefore exact at any time: it is what the contract already holds for this week.</p>
     <h3>The draw</h3>
     <p>Every <strong class="js-drawtime">Monday at 19:00 UTC</strong>, the day after the big Sunday raffle, 3 <strong>different wallets</strong> are drawn, each with chances proportional to its tickets:</p>
     <table class="odds">

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { Chain } from '../sim/vm-sim.mjs';
 import * as ref from './ref.mjs';
 
-const SRC = readFileSync(new URL('./loto.js', import.meta.url), 'utf8');
+const SRC = readFileSync(new URL(process.env.LOTO_FILE || './loto.js', import.meta.url), 'utf8');
 const ASE = 10n ** 18n;
 const PRICE = 2n * ASE;
 
@@ -49,7 +49,7 @@ function world({ start = Date.UTC(2026, 9, 10, 12, 0) } = {}) {
       let pend = 0n;
       for (let id = s.next; id <= s.cur; id++) {
         const r = w.round(id);
-        if (['open', 'closed', 'tally'].includes(r.status)) pend += BigInt(r.sales);
+        if (['open', 'closed', 'tally'].includes(r.status)) pend += BigInt(r.sales) - BigInt(r.commission);   // commission déjà versée
       }
       return pend + BigInt(s.jackpot) + BigInt(s.owed);
     },
@@ -90,7 +90,9 @@ sec('Achat');
   t('grilles triées et enregistrées', JSON.stringify(pur[0].g) === '[[1,2,3,4,5],[14,15,16,17,18]]');
   t('acheteur enregistré', pur[0].b === P[0]);
   t('événement Buy émis (avec la graine)', r.events.some((e) => e.name === 'Buy' && e.data.grids === '[[1,2,3,4,5],[14,15,16,17,18]]' && e.data.seed === 'abcd'));
-  t('contrat a reçu 4 ASE', w.chain.balanceOf(w.c.address) === 2n * PRICE);
+  t('contrat garde 85 % de 4 ASE (commission versée tout de suite)', w.chain.balanceOf(w.c.address) === 2n * PRICE * 85n / 100n);
+  t('Airdrop reçoit 7,5 % dès l\'achat', w.chain.balanceOf(DROP) === 2n * PRICE * 75n / 1000n && w.round(1).airdrop === (2n * PRICE * 75n / 1000n).toString());
+  t('achat horodaté', pur[0].t > 0);
   const rd = w.round(1);
   t('ventes du tour = 4 ASE, 2 grilles, 1 achat', rd.sales === (2n * PRICE).toString() && rd.grids === 2 && rd.buys === 1);
   let d = ref.nextDigest(ref.initialDigest(1), P[0], [[1, 2, 3, 4, 5], [14, 15, 16, 17, 18]], 'abcd', 0);
@@ -121,7 +123,7 @@ sec('Grilles invalides');
   bad('montant insuffisant refusé', [[1, 2, 3, 4, 5]], PRICE - 1n);
   bad('montant en trop refusé', [[1, 2, 3, 4, 5]], PRICE + 1n);
   bad('21 grilles refusées (plafond 20)', Array.from({ length: 21 }, () => [1, 2, 3, 4, 5]));
-  t('rien encaissé après tous ces refus', w.chain.balanceOf(w.c.address) === PRICE);
+  t('rien encaissé après tous ces refus', w.chain.balanceOf(w.c.address) === PRICE * 85n / 100n);
   t('graine non hexa refusée', !w.c.call(P[0], 'buy', [[[1, 2, 3, 4, 5]], 'zz'], PRICE).success);
 }
 
@@ -162,8 +164,7 @@ sec('Tirage et ordre des révélations');
   t('numéros = référence indépendante', JSON.stringify(rd.nums) === JSON.stringify(exp), JSON.stringify([rd.nums, exp]));
   t('5 numéros distincts entre 1 et 20', rd.nums.length === 5 && new Set(rd.nums).size === 5 && rd.nums.every((n) => n >= 1 && n <= 20));
     t('statut "tally"', rd.status === 'tally');
-  t('pas d\'annulation d\'urgence après révélation', !w.c.call(ADMIN, 'emergencyCancel', [1]).success);
-  t('pas d\'annulation pour délai après révélation complète', !w.c.call(P[0], 'cancelExpired', [1]).success);
+  t('aucune fonction d\'annulation ni de remboursement', !w.c.api.emergencyCancel && !w.c.api.cancelExpired);
   const ta = w.tallyAll(1);
   t('comptage terminé', ta.success && w.round(1).status === 'done', ta.error);
   t('solde cohérent', balanceOk(w));
@@ -207,8 +208,9 @@ sec('Commission 15 % : moitié Airdrop, moitié équipe 75/25');
 {
   const w = world();
   // 7 grilles = 14 ASE → 2,1 ASE de commission → 1,05 Airdrop, 0,7875 owner, 0,2625 collab
-  w.buy(P[0], Array.from({ length: 7 }, () => ref.randomGrid()));
   const bO = w.chain.balanceOf(OWNER_PAY), bC = w.chain.balanceOf(COLLAB), bD = w.chain.balanceOf(DROP);
+  w.buy(P[0], Array.from({ length: 7 }, () => ref.randomGrid()));
+  t('commission versée dès l\'achat (avant le tirage)', w.chain.balanceOf(DROP) - bD === 1050000000000000000n);
   const d = w.draw(1);
   t('tirage OK', d.success, d.error);
   t('owner reçoit 0,7875 ASE', w.chain.balanceOf(OWNER_PAY) - bO === 787500000000000000n);
@@ -219,8 +221,8 @@ sec('Commission 15 % : moitié Airdrop, moitié équipe 75/25');
   const w2 = world();
   w2.c.call(ADMIN, 'setConfig', ['33333333333333333', 21, 0, 20, 10, 120]);
   w2.close(1); // tour 1 vide ; le tour 2 prend le nouveau prix
-  w2.c.call(P[0], 'buy', [[[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7]], ''], 3n * 33333333333333333n);
   const bO2 = w2.chain.balanceOf(OWNER_PAY), bC2 = w2.chain.balanceOf(COLLAB), bD2 = w2.chain.balanceOf(DROP);
+  w2.c.call(P[0], 'buy', [[[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7]], ''], 3n * 33333333333333333n);
   const d2 = w2.draw(2);
   t('tirage avec prix non rond OK', d2.success, d2.error);
   const r2 = w2.round(2);
@@ -306,12 +308,9 @@ sec('Pause');
   t('achat refusé en pause', !w.buy(P[1], [[1, 2, 3, 4, 5]]).success);
   t('le tirage continue en pause (joueurs servis)', w.draw(1).success);
   t('reprise', w.c.call(ADMIN, 'setPaused', [false]).success && w.buy(P[1], [[1, 2, 3, 4, 5]]).success);
-  // Pause + annulation d'urgence avec remboursement
+  // Pause : le tour en cours est quand même tiré (jamais annulé)
   w.c.call(ADMIN, 'setPaused', [true]);
-  const cur = w.st().cur;
-  t('annulation d\'urgence du tour ouvert', w.c.call(ADMIN, 'emergencyCancel', [cur]).success);
-  const b = w.chain.balanceOf(P[1]);
-  t('remboursement 100 %', w.c.call(P[1], 'settle', [cur, 0, 1]).success && w.chain.balanceOf(P[1]) - b === PRICE);
+  t('tour en pause tiré normalement', w.draw(w.st().cur).success);
   t('solde cohérent', balanceOk(w));
 }
 
@@ -320,7 +319,7 @@ sec('Accès admin refusé aux autres');
 {
   const w = world();
   for (const [m, a] of [['setPaused', [true]], ['setConfig', ['1000000000000000000', 20, 0, 5, 5, 60]],
-    ['setPayouts', [P[0], P[0]]], ['setAdmin', [P[0]]], ['emergencyCancel', [1]], ['setTipOwner', ['a'.repeat(64)]]]) {
+    ['setPayouts', [P[0], P[0]]], ['setAdmin', [P[0]]], ['setTipOwner', ['a'.repeat(64)]]]) {
     t(`${m} refusé à un joueur`, !w.c.call(P[0], m, a).success);
   }
   for (const bad of [['1', 21, 0, 20, 10, 120], ['2000000000000000000', 5, 0, 20, 10, 120], ['2000000000000000000', 21, 60, 20, 10, 120], ['2000000000000000000', 21, 0, 51, 10, 120], ['2000000000000000000', 21, 0, 20, 1, 120], ['2000000000000000000', 21, 0, 20, 10, 20]])
@@ -335,29 +334,19 @@ sec('Accès admin refusé aux autres');
 }
 
 // ---------------------------------------------------------------------
-sec('Pas de révélation → annulation et remboursement');
+sec('Secret en retard : le tirage attend, jamais d\'annulation');
 {
   const w = world();
   w.buy(P[0], [[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]]);
   w.buy(P[1], [[1, 2, 3, 4, 6]]);
   w.close(1);
   t('owner révèle', w.revealO(1).success);
-  // le collaborateur ne révèle pas…
-  t('annulation refusée avant le délai', !w.c.call(P[2], 'cancelExpired', [1]).success);
-  w.chain.mineUntil(w.round(1).closeTs + 120 * 60000);
-  t('collab trop tard : refusé', !w.revealC(1).success);
-  t('n\'importe quel joueur peut annuler après 2 h', w.c.call(P[2], 'cancelExpired', [1]).success);
-  const b0 = w.chain.balanceOf(P[0]), b1 = w.chain.balanceOf(P[1]);
-  const rb = w.c.call(P[3], 'settle', [1, 0, 10]);
-  t('remboursement par paquet OK', rb.success, rb.error);
-  t('joueur A remboursé 10 ASE', w.chain.balanceOf(P[0]) - b0 === 2n * PRICE);
-  t('joueur B remboursé 5 ASE', w.chain.balanceOf(P[1]) - b1 === PRICE);
-  t('double remboursement impossible', (() => { const b = w.chain.balanceOf(P[0]); const x = w.c.call(P[0], 'settle', [1, 0, 1]); return x.success && w.chain.balanceOf(P[0]) === b; })());
-  t('aucune commission prélevée', w.chain.balanceOf(OWNER_PAY) === 100000n * ASE);
-  // Le jeu repart : la chaîne owner a avancé d'un cran, pas celle du collaborateur.
-  w.buy(P[0], [[1, 2, 3, 4, 5]]);
-  const d = w.draw(w.st().cur);
-  t('tour suivant tiré normalement malgré le cran sauté', d.success, d.error);
+  w.chain.mineUntil(w.round(1).closeTs + 3 * 86400000);   // le collaborateur a 3 jours de retard…
+  w.c.call(P[3], 'poke');
+  t('le tour attend toujours (statut closed)', w.round(1).status === 'closed');
+  t('les ventes continuent sur les tours suivants', w.buy(P[2], [[1, 2, 3, 4, 5]]).success);
+  t('le collaborateur révèle enfin : tirage normal', w.revealC(1).success && w.tallyAll(1).success && w.round(1).status === 'done');
+  t('remboursement impossible (settle refusé sur un tour non tiré)', !w.c.call(P[0], 'settle', [2, 0, 1]).success || w.round(2).status === 'done');
   t('solde cohérent', balanceOk(w));
 }
 

@@ -72,3 +72,17 @@ a.how-card:hover { border-color: var(--gold); }
 @media (prefers-reduced-motion: reduce) { .chute-svg, .chute-swing, .cloud { animation: none; } }
 
 .est-note { margin: 0; grid-column: 1 / -1; font-size: .78rem; }
+
+/* ===================== Airdrop « intuitif » : vos chances à côté de la cagnotte ===================== */
+.agrid { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 8px; align-items: stretch; }
+.agrid .hero { flex: 999 1 600px; min-width: 0; margin-top: 0 !important; }
+.chance-card { flex: 1 1 300px; display: flex; flex-direction: column; gap: 14px; padding: 24px 22px; background: #1C130A; border: 1px solid #3A2A18; }
+.cc-eyebrow { margin: 0; color: #F8D4A4; font-family: var(--body); text-transform: uppercase; letter-spacing: .14em; font-size: .72rem; }
+.cc-eyebrow::before { content: "•"; margin-right: .9em; color: #8A6A48; }
+.cc-big { margin: 0; font-family: var(--display); font-size: 3.4rem; line-height: 1; }
+.cc-big small { font-family: var(--body); font-size: .95rem; color: #CFCFCF; }
+.chance-card .bar { background: #2A1E12 !important; margin: 0; }
+.cc-text { margin: 0; color: #CFCFCF; line-height: 1.6; }
+.chance-card .btn { margin-top: auto; text-align: center; text-decoration: none; }
+@media (min-width: 760px) { .agrid .hero { grid-template-columns: minmax(0, 1fr) 180px; } .agrid .hero .chute-svg { width: 140px; } .agrid .hero .drop-art { min-height: 200px; } }
+.agrid .hero-stats dd { font-size: clamp(1.1rem, 3.6vw, 1.45rem) !important; white-space: nowrap; }

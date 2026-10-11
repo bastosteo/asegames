@@ -96,9 +96,9 @@ jobs:
           GAME: airdrop
           CROUPIER_NAME: airdrop-owner-github
           CONTRACT: ${{ vars.AIRDROP_CONTRACT }}
-          LOTO_CONTRACT: ${{ vars.CONTRACT }}
-          RAFFLE_CONTRACT: ${{ vars.RAFFLE_CONTRACT }}
-          TREASURE_CONTRACT: ${{ vars.TREASURE_CONTRACT }}
+          LOTO_CONTRACT: ${{ vars.CONTRACT }},${{ vars.OLD_LOTO }}
+          RAFFLE_CONTRACT: ${{ vars.RAFFLE_CONTRACT }},${{ vars.OLD_RAFFLE }}
+          TREASURE_CONTRACT: ${{ vars.TREASURE_CONTRACT }},${{ vars.OLD_TREASURE }}
           SIGNER_SEED: ${{ secrets.OWNER_SIGNER_SEED }}
           CHAIN_SEED: ${{ secrets.AIRDROP_OWNER_CHAIN_SEED }}
         run: node croupier/croupier.mjs once
@@ -109,9 +109,9 @@ jobs:
           GAME: airdrop
           CROUPIER_NAME: airdrop-collab-github
           CONTRACT: ${{ vars.AIRDROP_CONTRACT }}
-          LOTO_CONTRACT: ${{ vars.CONTRACT }}
-          RAFFLE_CONTRACT: ${{ vars.RAFFLE_CONTRACT }}
-          TREASURE_CONTRACT: ${{ vars.TREASURE_CONTRACT }}
+          LOTO_CONTRACT: ${{ vars.CONTRACT }},${{ vars.OLD_LOTO }}
+          RAFFLE_CONTRACT: ${{ vars.RAFFLE_CONTRACT }},${{ vars.OLD_RAFFLE }}
+          TREASURE_CONTRACT: ${{ vars.TREASURE_CONTRACT }},${{ vars.OLD_TREASURE }}
           SIGNER_SEED: ${{ secrets.COLLAB_SIGNER_SEED }}
           CHAIN_SEED: ${{ secrets.AIRDROP_COLLAB_CHAIN_SEED }}
         run: node croupier/croupier.mjs once
