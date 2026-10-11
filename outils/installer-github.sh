@@ -85,13 +85,13 @@ git add -A
 if git diff --cached --name-only | grep -E '(-chain\.json|gh-signers\.json|(^|/)\.env($|\.)|croupier/data)' | grep -v '\.env\.exemple$'; then
   echo "ERREUR : un fichier secret allait être publié (voir ci-dessus). Arrêt, rien n'a été envoyé."; exit 1
 fi
-git commit -qm "ASE Game : loto, site et croupiers" || true
+git commit -qm "ASE Vegas : loto, site et croupiers" || true
 if gh repo view "$LOGIN/$REPO_NAME" >/dev/null 2>&1; then
   git remote get-url origin >/dev/null 2>&1 || git remote add origin "https://github.com/$LOGIN/$REPO_NAME.git"
   git push -q -u origin main
 else
   gh repo create "$REPO_NAME" --public --source . --remote origin --push \
-    --description "ASE Game : jeux sur le testnet Asentum (ASE Loto)" >/dev/null
+    --description "ASE Vegas : jeux sur le testnet Asentum (ASE Loto)" >/dev/null
 fi
 R="$LOGIN/$REPO_NAME"
 echo "      https://github.com/$R"

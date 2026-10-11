@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Assemble le site complet ASE Game dans le dossier "asegame" :
+# Assemble le site complet ASE Vegas dans le dossier "asegame" :
 #   asegame/            page d'accueil (liste des jeux)
 #   asegame/loto/       ASE Loto
 #   asegame/raffle/     ASE Raffle (tombola hebdomadaire)

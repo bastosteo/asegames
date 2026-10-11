@@ -38,7 +38,7 @@ function toast(text, kind = '', ms = 6000) {
 function cleanError(e) { const m = String(e && e.message ? e.message : e); const i = m.lastIndexOf('failed: '); return i >= 0 ? m.slice(i + 8) : m; }
 function confetti(n = 90) {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const box = $('#confetti'), colors = ['#F4C542', '#7272FF', '#43D39A', '#FF6B6B', '#FFFFFF', '#FF9467'];
+  const box = $('#confetti'), colors = ['#F4C542', '#F29A5B', '#43D39A', '#FF6B6B', '#FFFFFF', '#FF9467'];
   for (let i = 0; i < n; i++) {
     const c = document.createElement('i');
     c.style.left = Math.random() * 100 + 'vw';
@@ -96,6 +96,9 @@ function renderHero() {
 }
 function tickCountdown() {
   const i = S.info; if (!i) return;
+  const WEEK = 7 * 86400000, f = Math.min(1, Math.max(0, 1 - (Number(i.drawTs) - chainNow()) / WEEK));
+  $('#weekBar').style.width = (f * 100).toFixed(1) + '%';
+  $('#weekPct').textContent = `Day ${Math.min(7, Math.floor(f * 7) + 1)} / 7`;
   const left = Math.floor((Number(i.drawTs) - chainNow()) / 1000);
   if (left > 0) {
     const d = Math.floor(left / 86400), h = Math.floor((left % 86400) / 3600), m = Math.floor((left % 3600) / 60), x = left % 60;

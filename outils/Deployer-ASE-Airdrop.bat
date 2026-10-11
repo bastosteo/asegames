@@ -25,7 +25,7 @@ if errorlevel 3 goto plus_tard
 if errorlevel 1 goto fin_erreur
 echo.
 echo  TERMINE ! ASE Airdrop, le nouveau loto et la nouvelle tombola sont en ligne.
-echo  Site : https://asegame.pages.dev/airdrop/
+echo  Site : https://asevegas.pages.dev/airdrop/
 echo.
 pause
 exit /b 0

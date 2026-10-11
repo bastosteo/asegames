@@ -142,4 +142,4 @@ echo
 echo "ASE Airdrop : $AIRDROP"
 echo "ASE Loto    : $LOTO"
 echo "ASE Raffle  : $RAFFLE"
-echo "Site : https://asegame.pages.dev/airdrop/"
+echo "Site : https://asevegas.pages.dev/airdrop/"

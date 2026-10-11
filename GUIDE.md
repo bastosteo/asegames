@@ -233,9 +233,9 @@ cd ~/loto-ase/site && python3 -m http.server 8080
 Ouvre **http://localhost:8080** dans ton navigateur Windows (celui où est installée l'extension
 Asentum Wallet). `http://localhost:8080/?demo` force le mode démo.
 
-### Mise en ligne : ASE Game sur Cloudflare Pages
+### Mise en ligne : ASE Vegas sur Cloudflare Pages
 
-Le site complet est organisé ainsi : `asegame.pages.dev/` (accueil, liste des jeux), `/loto/` (ASE Loto),
+Le site complet est organisé ainsi : `asevegas.pages.dev/` (accueil, liste des jeux), `/loto/` (ASE Loto),
 `/slot/` (ASE Slot, bientôt). Pour ajouter un jeu plus tard, on ajoute un dossier.
 
 1. Assemble le dossier à mettre en ligne :
@@ -244,7 +244,7 @@ Le site complet est organisé ainsi : `asegame.pages.dev/` (accueil, liste des j
    ```
    Il crée `~/loto-ase/asegame` (visible dans Windows : `\\wsl$\Debian\home\bastos\loto-ase\asegame`).
 2. Sur **dash.cloudflare.com** (compte gratuit) : **Workers & Pages → Créer → Pages → Importer des fichiers
-   (Upload assets)**. Nom du projet : `asegame` (l'adresse sera `asegame.pages.dev`).
+   (Upload assets)**. Nom du projet : `asegame` (l'adresse sera `asevegas.pages.dev`).
 3. Glisse le **contenu** du dossier `asegame` (ou le dossier lui-même), puis **Déployer**.
 4. Pour une mise à jour : relance le script, puis dans le projet **Créer un nouveau déploiement** et
    glisse à nouveau le dossier.

@@ -24,7 +24,7 @@ wsl -e bash /home/bastos/loto-ase/outils/deployer-tombola.sh
 if errorlevel 1 goto fin_erreur
 echo.
 echo  TERMINE ! ASE Raffle est en ligne.
-echo  Site : https://asegame.pages.dev/raffle/
+echo  Site : https://asevegas.pages.dev/raffle/
 echo.
 pause
 exit /b 0

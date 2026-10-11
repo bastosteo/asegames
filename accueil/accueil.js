@@ -1,4 +1,4 @@
-// ASE Game — page d'accueil : thème + infos en direct du loto (lues sur la chaîne).
+// ASE Vegas — page d'accueil : thème + infos en direct du loto (lues sur la chaîne).
 import CONFIG from './loto/js/config.js';
 import RAFFLE from './raffle/js/config.js';
 import DROP from './airdrop/js/config.js';
@@ -11,7 +11,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
 const applyTheme = (t) => { if (t) document.documentElement.dataset.theme = t; };
-applyTheme('dark');   // ASE Game est uniquement en mode sombre, comme Asentum
+applyTheme('dark');   // ASE Vegas est uniquement en mode sombre, comme Asentum
 
 let info = null, offset = 0;
 async function load() {

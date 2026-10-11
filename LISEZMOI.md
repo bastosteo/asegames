@@ -1,4 +1,4 @@
-# ASE Game : ASE Loto, ASE Raffle et ASE Airdrop
+# ASE Vegas : ASE Loto, ASE Raffle et ASE Airdrop
 
 Loto à numéros sur le testnet Asentum : 5 numéros sur 20, une grille = 2 ASE, un tirage par jour à 21h
 (heure de Paris), jackpot partagé + gains fixes (4 et 3 bons) avec bonus, 85 % redistribués, commission
@@ -24,7 +24,7 @@ owner + collaborateur. ASE Airdrop : tirage hebdomadaire des frais, 1 ticket = 1
 | `outils/deployer-tombola.sh` + `Deployer-tombola.bat` | Installation de la tombola (chaînes, contrat, GitHub, site) |
 | `outils/deployer-loto-v2.sh` + `.bat` | Passage au contrat v2 (pause de l'ancien, déploiement, init, mise à jour) |
 | `site/` | ASE Loto, le site du loto (statique ; `?demo` pour la démo) |
-| `accueil/` | ASE Game : page d'accueil avec la liste des jeux, et `slot/` (bientôt) |
+| `accueil/` | ASE Vegas : page d'accueil avec la liste des jeux, et `slot/` (bientôt) |
 | `outils/assembler-asegame.sh` | Assemble `asegame/` (accueil + `loto/` + `raffle/` + `airdrop/` + `slot/`) à mettre sur Cloudflare Pages |
 | `contrat/airdrop.js` (+ `.deploy.js`, `airdrop.test.mjs`) | ASE Airdrop : tirage hebdomadaire des frais (69 tests) |
 | `airdrop/` | Page du site ASE Airdrop (`/airdrop/`) ; `airdrop/js/liste.mjs` calcule la liste des joueurs (site et croupier) |

@@ -24,7 +24,7 @@ wsl -e bash /home/bastos/loto-ase/outils/deployer-loto-v2.sh
 if errorlevel 1 goto fin_erreur
 echo.
 echo  TERMINE ! ASE Loto tourne sur le nouveau contrat.
-echo  Site : https://asegame.pages.dev/loto/
+echo  Site : https://asevegas.pages.dev/loto/
 echo.
 pause
 exit /b 0

@@ -30,7 +30,7 @@ const prizesOf = (sales) => { const S0 = BigInt(sales), pool = S0 - (S0 * 1500n)
 
 // ------------------------------------------------------------- thème, notifications
 function applyTheme(t) { if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }
-applyTheme('dark');   // ASE Game est uniquement en mode sombre, comme Asentum
+applyTheme('dark');   // ASE Vegas est uniquement en mode sombre, comme Asentum
 function toast(text, kind = '', ms = 6000) {
   const el = document.createElement('div');
   el.className = 'toast ' + kind; el.textContent = text;
@@ -137,7 +137,7 @@ const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function confetti(n = 90) {
   if (reduceMotion) return;
-  const box = $('#confetti'), colors = ['#F4C542', '#7272FF', '#43D39A', '#FF6B6B', '#FFFFFF', '#FF9467'];
+  const box = $('#confetti'), colors = ['#F4C542', '#F29A5B', '#43D39A', '#FF6B6B', '#FFFFFF', '#FF9467'];
   for (let i = 0; i < n; i++) {
     const c = document.createElement('i');
     c.style.left = Math.random() * 100 + 'vw';

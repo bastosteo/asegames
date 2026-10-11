@@ -29,7 +29,7 @@ const plural = (n, one, many) => `${n.toLocaleString('en-GB')} ${n === 1 ? one :
 
 // ------------------------------------------------------------- thème
 function applyTheme(t) { if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }
-applyTheme('dark');   // ASE Game est uniquement en mode sombre, comme Asentum
+applyTheme('dark');   // ASE Vegas est uniquement en mode sombre, comme Asentum
 
 // ------------------------------------------------------------- notifications
 function toast(text, kind = '', ms = 6000) {

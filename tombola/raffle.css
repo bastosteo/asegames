@@ -29,7 +29,7 @@ select { font: inherit; color: var(--ink); background: var(--deep); border: 1px 
 
 /* Imprimante à tickets */
 .printer { position: relative; display: grid; justify-items: center; align-content: start; min-height: 230px; }
-.printer-head { width: min(260px, 90%); height: 64px; border-radius: 18px 18px 8px 8px; background: linear-gradient(180deg, #5C5CF0, #3434A8); color: #fff;
+.printer-head { width: min(260px, 90%); height: 64px; border-radius: 18px 18px 8px 8px; background: linear-gradient(180deg, #F29A5B, #7A3C14); color: #fff;
   display: flex; align-items: center; justify-content: center; gap: 10px; font-family: var(--display); font-weight: 800; letter-spacing: .14em; font-size: .85rem; box-shadow: 0 14px 24px -14px rgba(0,0,0,.6); position: relative; z-index: 2; }
 .printer-light { width: 10px; height: 10px; border-radius: 50%; background: #2E2F6E; box-shadow: inset 0 0 0 2px rgba(255,255,255,.2); }
 .printer-light.on { background: var(--ok); box-shadow: 0 0 10px var(--ok); animation: blink .6s steps(2) infinite; }

@@ -79,4 +79,4 @@ echo "[6/6] Mise en ligne du site…"
 bash outils/mettre-en-ligne.sh
 echo
 echo "ASE Raffle : $NEW"
-echo "Site : https://asegame.pages.dev/raffle/"
+echo "Site : https://asevegas.pages.dev/raffle/"
