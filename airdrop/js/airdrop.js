@@ -4,6 +4,7 @@
 import CONFIG from './config.js';
 import LOTO from '../../loto/js/config.js';
 import RAFFLE from '../../raffle/js/config.js';
+import TREASURE from '../../treasure/js/config.js';
 import { Rpc, ExtensionWallet, TelegramWallet } from '../../loto/js/chain.js';
 import * as L from '../../loto/js/lotomath.js';
 import { buildWeek, chunks, CUTOFF_MS } from './liste.mjs';
@@ -80,7 +81,7 @@ async function refresh() {
     const prev = S.rounds.get(info.round - 1);
     const from = prev && prev.status !== 'cancelled' ? prev.drawTs : info.fromTs;
     // Estimation (*) : on compte aussi les tickets des tirages pas encore faits.
-    S.week = await buildWeek({ view: viewAt, loto: S.loto, raffle: S.raffle, fromTs: from, toTs: info.drawTs, now: Number(info.now), estimate: true });
+    S.week = await buildWeek({ view: viewAt, loto: S.loto, raffle: S.raffle, treasure: S.treasure, fromTs: from, toTs: info.drawTs, now: Number(info.now), estimate: true });
     renderAll();
   } catch (e) { console.error(e); toast('Could not read the chain: ' + cleanError(e), 'err', 8000); }
 }
@@ -204,11 +205,11 @@ async function verify(id) {
   try {
     const r = await view('getRound', [id]);
     const stored = await entriesOf(r);
-    const wk = await buildWeek({ view: viewAt, loto: S.loto, raffle: S.raffle, fromTs: r.fromTs, toTs: r.drawTs, now: chainNow() });
+    const wk = await buildWeek({ view: viewAt, loto: S.loto, raffle: S.raffle, treasure: S.treasure, fromTs: r.fromTs, toTs: r.drawTs, now: chainNow() });
     const steps = [];
     const step = (ok, title, detail) => steps.push(`<div class="verify-step"><span class="mark ${ok ? 'ok' : 'ko'}">${ok ? '✓' : '✗'}</span><div><strong>${title}</strong><br><span class="small">${detail}</span></div></div>`);
     step(JSON.stringify(wk.entries) === JSON.stringify(stored), 'List of players',
-      `Rebuilt from ${plural(wk.games.length, 'completed draw', 'completed draws')} (${wk.games.map((g) => (g.game === 'loto' ? 'Loto' : 'Raffle') + ' #' + g.id).join(', ') || 'none'}): ${plural(wk.entries.length, 'player', 'players')}, ${plural(wk.entries.reduce((a, e) => a + e[1], 0), 'chance', 'chances')}`);
+      `Rebuilt from ${plural(wk.games.length, 'completed draw', 'completed draws')} (${wk.games.map((g) => ({ loto: 'Loto', raffle: 'Raffle', treasure: 'Treasure' }[g.game]) + ' #' + g.id).join(', ') || 'none'}): ${plural(wk.entries.length, 'player', 'players')}, ${plural(wk.entries.reduce((a, e) => a + e[1], 0), 'chance', 'chances')}`);
     step(wk.pot === r.pot, 'Pot of the week', `${ase(wk.pot)} ASE, from those draws`);
     let d = L.sha256Text('ASEDROP-ROUND|' + id);
     for (const c of chunks(stored)) d = L.sha256Text(d + '|' + JSON.stringify(c));
@@ -265,6 +266,7 @@ async function restoreWallet() {
   S.contract = L.toHex(CONFIG.CONTRACT);
   S.loto = LOTO.CONTRACT ? L.toHex(LOTO.CONTRACT) : '';
   S.raffle = RAFFLE.CONTRACT ? L.toHex(RAFFLE.CONTRACT) : '';
+  S.treasure = TREASURE.CONTRACT ? L.toHex(TREASURE.CONTRACT) : '';
   const link = $('#contractLink');
   link.textContent = L.shortAddr(S.contract);
   link.href = `${CONFIG.EXPLORER}/address/${L.toAse1(S.contract)}`;

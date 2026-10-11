@@ -1,4 +1,4 @@
-# ASE Vegas : ASE Loto, ASE Raffle et ASE Airdrop
+# ASE Vegas : ASE Loto, ASE Raffle, ASE Airdrop et ASE Treasure
 
 Loto à numéros sur le testnet Asentum : 5 numéros sur 20, une grille = 2 ASE, un tirage par jour à 21h
 (heure de Paris), jackpot partagé + gains fixes (4 et 3 bons) avec bonus, 85 % redistribués, commission
@@ -31,6 +31,11 @@ owner + collaborateur. ASE Airdrop : tirage hebdomadaire des frais, 1 ticket = 1
 | `croupier/e2e-airdrop.test.mjs` | Croupier + Airdrop + loto + tombola sur une fausse chaîne |
 | `outils/deployer-airdrop.sh` + `Deployer-ASE-Airdrop.bat` | Airdrop + loto v3 + tombola v2 (fin propre des anciens contrats) |
 | `outils/migration.mjs` | Ce qu'il reste à faire sur un ancien contrat (lecture seule) |
+| `contrat/tresor.js` (+ `.deploy.js`, `tresor.test.mjs`) | ASE Treasure : chasse au trésor 20 × 20 (48 tests) |
+| `functions/` | Service de réponses d'ASE Treasure (Cloudflare Pages Function `/api/treasure`) et `_lib/board.mjs` (grille secrète, preuves) |
+| `tresor/` | Page du site ASE Treasure (`/treasure/`, `?demo` pour la démo) |
+| `croupier/e2e-tresor.test.mjs` | Croupier + service de réponses sur une fausse chaîne |
+| `outils/deployer-tresor.sh` + `Deployer-ASE-Treasure.bat` | Installation d'ASE Treasure |
 | `sim/` | Simulateur de la machine virtuelle Asentum + faux nœud local |
 | `sonde/` | Résultats de la sonde (ce qui a été vérifié sur la vraie chaîne) |
 | `GUIDE.md` | Déploiement pas à pas + checklist |

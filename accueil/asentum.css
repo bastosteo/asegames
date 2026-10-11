@@ -133,7 +133,7 @@ input, select { border-radius: 0 !important; font-family: var(--body); backgroun
 .game { transition: border-color .15s !important; }
 .game:hover { transform: none !important; border-color: var(--line-strong) !important; }
 .game-art { background: #050505 !important; background-image: radial-gradient(circle, rgba(255,255,255,.12) 1px, transparent 1.4px) !important; background-size: 7px 7px !important; border-bottom: 1px solid var(--line); }
-.game.soon .game-art, .game.raffle .game-art { border-bottom: 0; border-right: 1px solid var(--line); }
+.game.soon .game-art, .game.raffle .game-art, .game.airdrop .game-art, .game.treasure .game-art { border-bottom: 0; border-right: 1px solid var(--line); }
 .foot { font-family: var(--body); font-size: .75rem; letter-spacing: .04em; border-top: 0; background: var(--dash) top left / 100% 1px no-repeat; padding-top: 18px !important; }
 
 /* Tapis de dés : noir avec trame de points, comme les visuels d'Asentum */

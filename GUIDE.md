@@ -193,6 +193,26 @@ Les anciens contrats gardent le jackpot de test du loto (aucune fonction de retr
 Le script peut être relancé sans risque (fichiers `.migre-*`, `.airdrop-fait`, `.loto-v3-fait`,
 `.tombola-v2-fait` gardés sur le PC).
 
+## 3 quinquies. ASE Treasure (chasse au trésor)
+
+Règles : carte de 20 × 20 (400 cases), un trésor caché ; 0,5 ASE la fouille, 5 fouilles par wallet
+et par carte, une case ne se fouille qu'une fois ; réponse 🔥 chaud (trésor à 3 cases ou moins,
+diagonales comprises) ou ❄️ froid ; le trésor = 85 % des fouilles jusqu'à celle du trésor ; 15 % de
+commission (moitié équipe 75/25, moitié Airdrop) ; 1 fouille = 1 chance à l'Airdrop ; environ 13
+fouilles en moyenne avant de trouver, soit un trésor de ~5 ASE.
+
+Fonctionnement : une graine secrète (`croupier/data-tresor/seed.txt`, **à sauvegarder**, aussi rangée
+dans GitHub `TREASURE_SEED` et dans Cloudflare) fixe chaque carte. Le croupier GitHub publie l'empreinte
+(racine de Merkle) des 400 réponses avant la 1re fouille. Le service `/api/treasure` (Cloudflare Pages
+Function, dossier `functions/`) donne la réponse et sa preuve dès qu'une fouille est confirmée, et
+seulement pour une case fouillée. Le gagnant réclame le trésor depuis le site (sinon le croupier le
+fait au passage suivant) ; les fouilles faites juste après sont remboursées ; carte suivante au
+passage suivant (10 min au plus). Carte non trouvée en 30 jours → annulée et remboursée.
+
+Installation : double-clique sur `Deployer-ASE-Treasure.bat` (après l'Airdrop). 2 transactions
+demandées (o/n) ⚠️ : déploiement et `init`. Il range la graine dans GitHub et Cloudflare, puis met le
+site en ligne.
+
 ## 4 bis. Les croupiers sur GitHub (gratuit, PC éteint possible)
 
 GitHub lance les deux croupiers toutes les 10 minutes sur ses propres serveurs (gratuit pour un dépôt

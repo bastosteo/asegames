@@ -4,7 +4,7 @@
 #   asegame/loto/       ASE Loto
 #   asegame/raffle/     ASE Raffle (tombola hebdomadaire)
 #   asegame/airdrop/    ASE Airdrop (tirage hebdomadaire des frais)
-#   asegame/slot/       ASE Slot (bientôt)
+#   asegame/treasure/   ASE Treasure (chasse au trésor) + functions/ (service de réponses)
 # C'est ce dossier qu'on envoie sur Cloudflare Pages.
 set -e
 cd "$(dirname "$0")/.."
@@ -13,12 +13,15 @@ cp -r accueil/. asegame/
 cp -r site/. asegame/loto/
 mkdir -p asegame/raffle && cp -r tombola/. asegame/raffle/
 mkdir -p asegame/airdrop && cp -r airdrop/. asegame/airdrop/
+mkdir -p asegame/treasure && cp -r tresor/. asegame/treasure/ && cp functions/_lib/board.mjs asegame/treasure/js/board.mjs && cp contrat/tresor.js asegame/treasure/contrat/tresor.js
+rm -rf asegame/slot
 rm -f asegame/loto/js/lotomath.test.mjs
 # Adresses des contrats déjà déployés (gardées sur ce PC, le zip ne les contient pas toujours)
 [ -f .loto-v2-fait ] && sed -i "s|CONTRACT: '[^']*'|CONTRACT: '$(cat .loto-v2-fait)'|" asegame/loto/js/config.js
 [ -f .tombola-fait ] && sed -i "s|CONTRACT: '[^']*'|CONTRACT: '$(cat .tombola-fait)'|" asegame/raffle/js/config.js
 [ -f .loto-v3-fait ] && sed -i "s|CONTRACT: '[^']*'|CONTRACT: '$(cat .loto-v3-fait)'|" asegame/loto/js/config.js
 [ -f .tombola-v2-fait ] && sed -i "s|CONTRACT: '[^']*'|CONTRACT: '$(cat .tombola-v2-fait)'|" asegame/raffle/js/config.js
+[ -f .tresor-fait ] && sed -i "s|CONTRACT: '[^']*'|CONTRACT: '$(cat .tresor-fait)'|" asegame/treasure/js/config.js
 [ -f .airdrop-fait ] && sed -i "s|CONTRACT: '[^']*'|CONTRACT: '$(cat .airdrop-fait)'|" asegame/airdrop/js/config.js
 echo "Dossier prêt : $(pwd)/asegame"
 find asegame -type f | sort

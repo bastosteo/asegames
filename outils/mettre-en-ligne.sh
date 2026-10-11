@@ -22,6 +22,6 @@ echo "[4/4] Redirection de l'ancienne adresse asegame.pages.dev…"
 R=$(mktemp -d)
 printf '/* https://asevegas.pages.dev/:splat 301\n' > "$R/_redirects"
 printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=https://asevegas.pages.dev/"><title>ASE Vegas</title><a href="https://asevegas.pages.dev/">ASE Vegas has moved to asevegas.pages.dev</a>\n' > "$R/index.html"
-$W pages deploy "$R" --project-name asegame --branch main --commit-dirty=true > /dev/null 2>&1 \
+(cd "$R" && $W pages deploy . --project-name asegame --branch main --commit-dirty=true > /dev/null 2>&1) \
   && echo "      asegame.pages.dev → asevegas.pages.dev" || echo "      (redirection non faite : pas grave, l'ancien site reste tel quel)"
 rm -rf "$R"

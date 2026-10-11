@@ -28,6 +28,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
 import { buildWeek, chunks } from '../airdrop/js/liste.mjs';
+import { board } from '../functions/_lib/board.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -65,6 +66,8 @@ const CFG = {
   game: (process.env.GAME || '').toLowerCase(),
   loto: process.env.LOTO_CONTRACT || '',
   raffle: process.env.RAFFLE_CONTRACT || '',
+  treasure: process.env.TREASURE_CONTRACT || '',
+  treasureSeed: (process.env.TREASURE_SEED || '').trim(),   // ASE Treasure (GAME=treasure) : graine secrète des grilles
   // Mode "sans CLI" (GitHub Actions, serveurs) : signature directe avec la librairie officielle.
   signerSeed: (process.env.SIGNER_SEED || '').trim(),   // graine 32 octets (hexa) du compte qui paie le gas
   chainSeed: (process.env.CHAIN_SEED || '').trim(),     // 1er élément de la chaîne de secrets (hexa)
@@ -371,7 +374,7 @@ async function airdropRound(id, now, values) {
   const st = await view('getState');
   if (r.status === 'closed') {
     if (CFG.role !== 'owner') return;
-    const wk = await buildWeek({ view: viewAt, loto: CFG.loto && toHex(CFG.loto), raffle: CFG.raffle && toHex(CFG.raffle), fromTs: st.lastTs, toTs: r.drawTs, now });
+    const wk = await buildWeek({ view: viewAt, loto: CFG.loto && toHex(CFG.loto), raffle: CFG.raffle && toHex(CFG.raffle), treasure: CFG.treasure && toHex(CFG.treasure), fromTs: st.lastTs, toTs: r.drawTs, now });
     if (!wk.ready) {
       log(`Airdrop ${id} : en attente des jeux (${wk.waiting.join(', ')})`);
       if (late > 90 * 60000) await alert(`⏰ Airdrop ${id} : toujours en attente de ${wk.waiting.join(', ')}.`, 'wait' + id, 60 * 60000);
@@ -403,8 +406,41 @@ async function airdropRound(id, now, values) {
   if (late > 120 * 60000) await alert(`⏰ Airdrop ${id} : le secret ${!r.sO ? 'owner' : 'collaborateur'} n'est pas encore révélé.`, 'late' + id, 60 * 60000);
 }
 
+// --- ASE Treasure : ouvre les grilles, envoie la preuve du trésor, rembourse ---
+async function treasureTick() {
+  const st = await view('getState');
+  const cur = st.cur ? await view('getGrid', [st.cur]) : null;
+  if (!cur || cur.status === 'found' || cur.status === 'cancelled') {
+    if (CFG.role !== 'owner') return;
+    const b = board(CFG.treasureSeed, st.cur + 1);
+    log(`Treasure : ouverture de la grille ${st.cur + 1}`);
+    await send('openGrid', [st.cur + 1, b.root]);
+  } else {
+    // Le trésor a-t-il été fouillé ? (le gagnant le réclame souvent lui-même depuis le site)
+    const b = board(CFG.treasureSeed, cur.id);
+    if ((await view('cellOf', [cur.id, b.treasure])) >= 0) {
+      const a = b.answer(b.treasure);
+      await send('claim', [cur.id, a.cell, a.salt, a.proof]).catch((e) => log(e.message));
+      const g = await view('getGrid', [cur.id]);
+      if (g.status === 'found' && STATE.lastDrawn < g.id) {
+        STATE.lastDrawn = g.id; saveState();
+        await alert(`💰 ASE Treasure, grille n°${g.id} : trésor trouvé en ${g.t + 1} fouilles par ${g.winner.slice(0, 8)}…${g.winner.slice(-4)} → ${ase(g.prize)} ASE`, 'found' + g.id, 1e12);
+      }
+    }
+  }
+  // Remboursements (fouilles faites après le trésor, grilles annulées)
+  for (let id = Math.max(1, st.cur - 5); id <= st.cur; id++) {
+    const g = await view('getGrid', [id]);
+    if (!g || g.refundFrom < 0 || g.refundFrom >= g.digs) continue;
+    const list = await view('getDigs', [id, g.refundFrom, Math.min(400, g.digs - g.refundFrom)]);
+    const p = list.find((d) => !d.paid);
+    if (p) await send('settle', [id, p.idx, 100]);
+  }
+}
+
 let lastOk = Date.now(), lastError = '';
 async function tick(values) {
+  if (CFG.game === 'treasure') { await treasureTick(); lastOk = Date.now(); return; }
   if (CFG.game === 'airdrop') {
     const info = await view('info');
     const now = Number(info.now);
@@ -432,6 +468,12 @@ async function prepare() {
   if (!CFG.contract) throw new Error('CONTRACT est obligatoire');
   if (!CFG.signerSeed && !CFG.account) throw new Error('ACCOUNT (compte CLI) ou SIGNER_SEED est obligatoire');
   CONTRACT_HEX = toHex(CFG.contract);
+  if (CFG.game === 'treasure') {
+    if (!CFG.treasureSeed) throw new Error('TREASURE_SEED est obligatoire pour ASE Treasure');
+    board(CFG.treasureSeed, 1);   // vérifie le format de la graine
+    log(`démarré — ASE Treasure ${CFG.contract}`);
+    return { values: [], left: 9999 };
+  }
   const values = loadChain();
   const st = await view('getState');
   const tip = CFG.role === 'owner' ? st.tipO : st.tipC;
@@ -516,6 +558,7 @@ async function chainNew() {
 async function status() {
   CONTRACT_HEX = toHex(CFG.contract);
   const [info, st] = [await view('info'), await view('getState')];
+  if (CFG.game === 'treasure') { console.log({ treasure: CFG.contract, grille: info.grid, statut: info.status, fouilles: info.digs, tresor: ase(info.pot) + ' ASE', pause: info.paused }); return; }
   const values = existsSync(chainFile) || CFG.chainSeed ? loadChain() : [];
   const tip = CFG.role === 'owner' ? st.tipO : st.tipC;
   if (CFG.game === 'airdrop') {

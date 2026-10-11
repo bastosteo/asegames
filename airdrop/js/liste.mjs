@@ -23,7 +23,7 @@ async function purchases(view, contract, r) {
 export const CUTOFF_MS = 24 * 3600000;
 export const airdropShare = (sales) => ((BigInt(sales) * 1500n) / 10000n) / 2n;   // 7,5 % des ventes
 
-export async function buildWeek({ view, loto, raffle, fromTs, toTs, now, estimate = false }) {
+export async function buildWeek({ view, loto, raffle, treasure, fromTs, toTs, now, estimate = false }) {
   const from = Number(fromTs) > 0 ? Number(fromTs) - CUTOFF_MS : 0, to = Number(toTs) - CUTOFF_MS, t = Number(now);
   let pending = 0;
   const count = new Map();
@@ -57,6 +57,24 @@ export async function buildWeek({ view, loto, raffle, fromTs, toTs, now, estimat
       if (r.status !== 'done') pending += tickets;
       pot += share;
       games.push({ game, id, drawTs: d, tickets, airdrop: share.toString(), done: r.status === 'done' });
+    }
+  }
+  // ASE Treasure : 1 fouille = 1 chance, pour les grilles dont le trésor a été trouvé
+  // dans la semaine (fouilles jusqu'au trésor ; celles d'après sont remboursées).
+  if (treasure) {
+    const st = await view(treasure, 'getState', []);
+    for (let id = st.cur; id >= 1; id--) {
+      const g = await view(treasure, 'getGrid', [id]);
+      if (!g) continue;
+      const open = g.status === 'open';
+      if (!open && g.endTs <= from) break;
+      if (g.status === 'cancelled' || (!open && g.endTs > to) || (open && !estimate)) continue;
+      const n = open ? g.digs : g.t + 1;
+      for (let k = 0; k < n; k += 400) for (const d of await view(treasure, 'getDigs', [id, k, Math.min(400, n - k)])) add(String(d.b).toLowerCase(), 1);
+      const share = open ? airdropShare(g.sales) : BigInt(g.airdrop || '0');
+      if (open) pending += n;
+      pot += share;
+      games.push({ game: 'treasure', id, drawTs: open ? t : g.endTs, tickets: n, airdrop: share.toString(), done: !open });
     }
   }
   const entries = [...count.entries()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));

@@ -249,5 +249,29 @@ sec('Admin');
   t('info lisible', i.round === 1 && i.carry === '0' && i.fromTs === '0');
 }
 
+sec('ASE Treasure : 1 fouille = 1 chance (grille trouvée dans la semaine)');
+{
+  const { board } = await import('../functions/_lib/board.mjs');
+  const w = world({ games: false });
+  const T = w.chain.deploy(readFileSync(new URL('./tresor.js', import.meta.url), 'utf8'), ADMIN);
+  T.call(ADMIN, 'init', [ADMIN, ADMIN, ADMIN, w.a.address]);
+  const B = board('12'.repeat(32), 1);
+  T.call(ADMIN, 'openGrid', [1, B.root]);
+  const PR = 5n * 10n ** 17n;
+  const cold = B.cells.map((c, i) => [c.ans, i]).filter(([x]) => x !== 'T').map(([, i]) => i);
+  T.call(P[0], 'dig', [1, cold[0]], PR); T.call(P[1], 'dig', [1, cold[1]], PR); T.call(P[0], 'dig', [1, cold[2]], PR);
+  const view = async (a, m, args) => (a === T.address ? T : w.a).view(m, args);
+  let est = await buildWeek({ view, treasure: T.address, fromTs: 0, toTs: w.round(1).drawTs, now: Number(w.chain.timestampMs), estimate: true });
+  t('estimation : grille ouverte comptée (3 fouilles)', est.pending === 3 && JSON.stringify(est.entries) === JSON.stringify([[P[0], 2], [P[1], 1]]), JSON.stringify(est));
+  T.call(P[2], 'dig', [1, B.treasure], PR);
+  T.call(P[3], 'dig', [1, cold[3]], PR);   // après le trésor : remboursée, ne compte pas
+  const a = B.answer(B.treasure);
+  t('trésor réclamé', T.call(P[9], 'claim', [1, a.cell, a.salt, a.proof]).success);
+  w.closeAirdrop(1);
+  const wk = await buildWeek({ view, treasure: T.address, fromTs: 0, toTs: w.round(1).drawTs, now: Number(w.chain.timestampMs) });
+  t('liste : fouilles jusqu\'au trésor', wk.ready && JSON.stringify(wk.entries) === JSON.stringify([[P[0], 2], [P[1], 1], [P[2], 1]]), JSON.stringify(wk.entries));
+  t('cagnotte = part Airdrop reçue (3,75 % de 4 fouilles × 2)', wk.pot === T.view('getGrid', [1]).airdrop && BigInt(wk.pot) === w.chain.balanceOf(w.a.address));
+}
+
 console.log(`\n${ok} réussis, ${ko} échoués`);
 process.exit(ko ? 1 : 0);

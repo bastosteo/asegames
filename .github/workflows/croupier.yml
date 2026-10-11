@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      CONTRACT: ${{ vars.CONTRACT || 'ase1j6ayfwyqdqjuc57mcjcnznshhl036eny5nktjg' }}
+      CONTRACT: ${{ vars.CONTRACT || 'ase1hcfm75h4wnwrxma6juwjw4tm8wzcwqs9saaqfr' }}
       RPC_URL: ${{ vars.RPC_URL || 'https://testnet.asentum.com' }}
       TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -76,6 +76,18 @@ jobs:
           SIGNER_SEED: ${{ secrets.COLLAB_SIGNER_SEED }}
           CHAIN_SEED: ${{ secrets.RAFFLE_COLLAB_CHAIN_SEED }}
         run: node croupier/croupier.mjs once
+      # ---- ASE Treasure : ouvre les grilles, envoie la preuve du trésor, rembourse ----
+      # (les réponses aux fouilles, elles, sont données tout de suite par le site : /api/treasure)
+      - name: Treasure
+        if: ${{ !cancelled() && vars.TREASURE_CONTRACT != '' }}
+        env:
+          ROLE: owner
+          GAME: treasure
+          CROUPIER_NAME: treasure-github
+          CONTRACT: ${{ vars.TREASURE_CONTRACT }}
+          SIGNER_SEED: ${{ secrets.OWNER_SIGNER_SEED }}
+          TREASURE_SEED: ${{ secrets.TREASURE_SEED }}
+        run: node croupier/croupier.mjs once
       # ---- ASE Airdrop (tirage hebdomadaire des frais), une fois installé (variable AIRDROP_CONTRACT) ----
       - name: Airdrop owner (liste + secret owner)
         if: ${{ !cancelled() && vars.AIRDROP_CONTRACT != '' }}
@@ -86,6 +98,7 @@ jobs:
           CONTRACT: ${{ vars.AIRDROP_CONTRACT }}
           LOTO_CONTRACT: ${{ vars.CONTRACT }}
           RAFFLE_CONTRACT: ${{ vars.RAFFLE_CONTRACT }}
+          TREASURE_CONTRACT: ${{ vars.TREASURE_CONTRACT }}
           SIGNER_SEED: ${{ secrets.OWNER_SIGNER_SEED }}
           CHAIN_SEED: ${{ secrets.AIRDROP_OWNER_CHAIN_SEED }}
         run: node croupier/croupier.mjs once
@@ -98,6 +111,7 @@ jobs:
           CONTRACT: ${{ vars.AIRDROP_CONTRACT }}
           LOTO_CONTRACT: ${{ vars.CONTRACT }}
           RAFFLE_CONTRACT: ${{ vars.RAFFLE_CONTRACT }}
+          TREASURE_CONTRACT: ${{ vars.TREASURE_CONTRACT }}
           SIGNER_SEED: ${{ secrets.COLLAB_SIGNER_SEED }}
           CHAIN_SEED: ${{ secrets.AIRDROP_COLLAB_CHAIN_SEED }}
         run: node croupier/croupier.mjs once

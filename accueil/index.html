@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ASE Vegas</title>
-<meta name="description" content="ASE Vegas: a collection of on-chain games on the Asentum testnet. Lottery and raffle live now, a weekly ASE airdrop, slot machine coming soon.">
+<meta name="description" content="ASE Vegas: a collection of on-chain games on the Asentum testnet. Lottery and raffle live now, a weekly ASE airdrop, treasure hunt.">
 <meta name="theme-color" content="#000000">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%234949DF'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23F4C542'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 L29 11 L16 30 L3 11 Z' fill='%23F6B57A'/%3E%3Cpath d='M3 11 H29 M10 11 L16 30 L22 11 M10 11 L16 2 L22 11' fill='none' stroke='%237A3C14' stroke-width='1.2'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
 </head>
 <body>
 <header class="top">
-  <span class="brand"><span class="brand-balls" aria-hidden="true"><i></i><i></i><i></i></span><span class="brand-name">ASE Vegas</span></span>
+  <span class="brand"><svg class="brand-logo" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="vg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FBE3C2"/><stop offset=".5" stop-color="#F6B57A"/><stop offset="1" stop-color="#E9803E"/></linearGradient></defs><path d="M16 2 L29 11 L16 30 L3 11 Z" fill="url(#vg)"/><path d="M3 11 H29 M10 11 L16 30 L22 11 M10 11 L16 2 L22 11" fill="none" stroke="#7A3C14" stroke-opacity=".45" stroke-width="1.2" stroke-linejoin="round"/></svg><span class="brand-name">ASE Vegas</span></span>
   <span class="net" title="Asentum testnet: ASE has no real value">Testnet</span>
 </header>
 
@@ -98,7 +98,7 @@
       <div class="game-body">
         <p class="state"><span class="dot"></span> Every Monday</p>
         <h2>ASE Airdrop</h2>
-        <p class="desc">A weekly ASE pot, airdropped to 3 Loto and Raffle players every <span id="dropTime">Monday at 19:00 UTC</span>. 1 ticket = 1 chance.</p>
+        <p class="desc">A weekly ASE pot, airdropped to 3 ASE Vegas players every <span id="dropTime">Monday at 19:00 UTC</span>. 1 ticket = 1 chance.</p>
         <dl class="live-stats">
           <div><dt title="* Estimate, assuming every draw of the week takes place">This week*</dt><dd id="dropPot">…</dd></div>
           <div><dt>Draw in</dt><dd id="dropCountdown">…</dd></div>
@@ -107,31 +107,30 @@
       </div>
     </a>
 
-    <a class="game soon" href="slot/">
+    <a class="game live treasure" href="treasure/">
       <div class="game-art" aria-hidden="true">
-        <svg class="slot-svg" viewBox="0 0 140 110" role="img" aria-label="Slot machine">
-          <defs>
-            <linearGradient id="cab" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F29A5B"/><stop offset="1" stop-color="#7A3C14"/></linearGradient>
-            <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE68A"/><stop offset="1" stop-color="#C99A1A"/></linearGradient>
-          </defs>
-          <path d="M112 44 h8 v-24" fill="none" stroke="#9A9AD8" stroke-width="5" stroke-linecap="round"/>
-          <circle cx="120" cy="16" r="7" fill="#FF6B6B"/>
-          <rect x="14" y="20" width="98" height="84" rx="12" fill="url(#cab)"/>
-          <rect x="30" y="6" width="66" height="20" rx="7" fill="url(#gold)"/>
-          <text x="63" y="20" text-anchor="middle" font-size="11" font-weight="800" fill="#3A2A00" font-family="Bricolage Grotesque, sans-serif" letter-spacing="1.5">JACKPOT</text>
-          <rect x="22" y="34" width="82" height="40" rx="8" fill="#F1F1FF"/>
-          <path d="M49.3 36 v36 M76.6 36 v36" stroke="#C9CAEA" stroke-width="2"/>
-          <g font-family="Bricolage Grotesque, sans-serif" font-weight="800" font-size="25" text-anchor="middle" fill="#E5484D">
-            <text x="35.7" y="63">7</text><text x="63" y="63">7</text><text x="90.3" y="63">7</text>
+        <svg class="treasure-svg" viewBox="0 0 150 110" role="img" aria-label="Treasure map and coin">
+          <defs><radialGradient id="tgold" cx=".35" cy=".3" r=".85"><stop offset="0" stop-color="#FFF3C4"/><stop offset=".45" stop-color="#F6C25C"/><stop offset="1" stop-color="#C9822A"/></radialGradient></defs>
+          <g transform="translate(8 14) rotate(-6 55 40)">
+            <rect width="110" height="80" fill="#1A1A1A" stroke="#3A2A18" stroke-width="2"/>
+            <g fill="#2A2A2A"><rect x="6" y="6" width="11" height="11"/><rect x="19" y="6" width="11" height="11"/><rect x="32" y="6" width="11" height="11"/><rect x="45" y="6" width="11" height="11"/><rect x="58" y="6" width="11" height="11"/><rect x="71" y="6" width="11" height="11"/><rect x="84" y="6" width="11" height="11"/><rect x="97" y="6" width="11" height="11"/><rect x="6" y="19" width="11" height="11"/><rect x="19" y="19" width="11" height="11"/><rect x="32" y="19" width="11" height="11"/><rect x="45" y="19" width="11" height="11"/><rect x="58" y="19" width="11" height="11"/><rect x="71" y="19" width="11" height="11"/><rect x="84" y="19" width="11" height="11"/><rect x="97" y="19" width="11" height="11"/><rect x="6" y="32" width="11" height="11"/><rect x="19" y="32" width="11" height="11"/><rect x="32" y="32" width="11" height="11"/><rect x="45" y="32" width="11" height="11"/><rect x="58" y="32" width="11" height="11"/><rect x="71" y="32" width="11" height="11"/><rect x="84" y="32" width="11" height="11"/><rect x="97" y="32" width="11" height="11"/><rect x="6" y="45" width="11" height="11"/><rect x="19" y="45" width="11" height="11"/><rect x="32" y="45" width="11" height="11"/><rect x="45" y="45" width="11" height="11"/><rect x="58" y="45" width="11" height="11"/><rect x="71" y="45" width="11" height="11"/><rect x="84" y="45" width="11" height="11"/><rect x="97" y="45" width="11" height="11"/><rect x="6" y="58" width="11" height="11"/><rect x="19" y="58" width="11" height="11"/><rect x="32" y="58" width="11" height="11"/><rect x="45" y="58" width="11" height="11"/><rect x="58" y="58" width="11" height="11"/><rect x="71" y="58" width="11" height="11"/><rect x="84" y="58" width="11" height="11"/><rect x="97" y="58" width="11" height="11"/></g>
+            <rect x="45" y="32" width="11" height="11" fill="#6B3A16"/><rect x="58" y="19" width="11" height="11" fill="#6B3A16"/><rect x="19" y="58" width="11" height="11" fill="#22384E"/><rect x="84" y="45" width="11" height="11" fill="#22384E"/>
+            <path d="M60 36 l9 9 m0 -9 l-9 9" stroke="#F09A58" stroke-width="3" stroke-linecap="round" transform="translate(-2 -2)"/>
+            <path d="M12 74 Q40 48 56 40" fill="none" stroke="#F8D4A4" stroke-width="1.6" stroke-dasharray="3 3"/>
           </g>
-          <rect x="30" y="84" width="66" height="12" rx="5" fill="#17183F" opacity=".55"/>
+          <g class="t-coin"><circle cx="118" cy="78" r="22" fill="url(#tgold)" stroke="#8A5212" stroke-width="2"/><circle cx="118" cy="78" r="16.5" fill="none" stroke="#8A5212" stroke-opacity=".55" stroke-width="1.2" stroke-dasharray="2 3"/>
+          <text x="118" y="82.5" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-weight="800" font-size="11" fill="#5A3208">ASE</text></g>
         </svg>
       </div>
       <div class="game-body">
-        <p class="state">Coming soon</p>
-        <h2>ASE Slot</h2>
-        <p class="desc">Slot machine in ASE, from 1 to 10 ASE per spin.</p>
-        <span class="btn btn-ghost">Coming soon</span>
+        <p class="state"><span class="dot"></span> Live</p>
+        <h2>ASE Treasure</h2>
+        <p class="desc">A treasure hidden on a 20 × 20 map. 0.5 ASE per dig, hot or cold answers in seconds, the finder takes it all.</p>
+        <dl class="live-stats">
+          <div><dt>Treasure</dt><dd id="treasurePot">…</dd></div>
+          <div><dt>Digs</dt><dd id="treasureDigs">…</dd></div>
+        </dl>
+        <span class="btn btn-primary">Hunt the treasure</span>
       </div>
     </a>
   </section>

@@ -2,6 +2,7 @@
 import CONFIG from './loto/js/config.js';
 import RAFFLE from './raffle/js/config.js';
 import DROP from './airdrop/js/config.js';
+import TREASURE from './treasure/js/config.js';
 import { Rpc } from './loto/js/chain.js';
 import { fmtAse } from './loto/js/lotomath.js';
 
@@ -77,6 +78,19 @@ async function weekFees(rpc, contract, from, to) {
   }
   return sum;
 }
+async function treasureFees(rpc, contract, from, to) {
+  if (!contract) return 0n;
+  const st = await rpc.view(contract, 'getState', []);
+  let sum = 0n;
+  for (let id = st.cur; id >= 1; id--) {
+    const g = await rpc.view(contract, 'getGrid', [id]);
+    if (!g) continue;
+    if (g.status === 'open') { sum += (BigInt(g.sales) * 1500n / 10000n) / 2n; continue; }
+    if (g.endTs <= from) break;
+    if (g.status === 'found' && g.endTs <= to) sum += BigInt(g.airdrop || '0');
+  }
+  return sum;
+}
 async function loadDrop() {
   if (!DROP.CONTRACT) { $('#dropPot').textContent = 'soon'; $('#dropCountdown').textContent = '–'; return; }
   try {
@@ -89,8 +103,8 @@ async function loadDrop() {
     // Semaine des tickets : de la tombola du dimanche à la suivante (24 h avant chaque Airdrop du lundi)
     const DAY = 86400000, f0 = prev && prev.status !== 'cancelled' ? Number(prev.drawTs) : Number(dinfo.fromTs);
     const from = f0 > 0 ? f0 - DAY : 0, to = Number(dinfo.drawTs) - DAY;
-    const [a, b] = await Promise.all([weekFees(rpc, CONFIG.CONTRACT, from, to), weekFees(rpc, RAFFLE.CONTRACT, from, to)]);
-    $('#dropPot').textContent = fmtAse(a + b + BigInt(dinfo.carry), 2) + ' ASE*';
+    const [a, b, c] = await Promise.all([weekFees(rpc, CONFIG.CONTRACT, from, to), weekFees(rpc, RAFFLE.CONTRACT, from, to), treasureFees(rpc, TREASURE.CONTRACT, from, to)]);
+    $('#dropPot').textContent = fmtAse(a + b + c + BigInt(dinfo.carry), 2) + ' ASE*';
   } catch { $('#dropPot').textContent = '–'; }
 }
 function tickDrop() {
@@ -103,3 +117,15 @@ function tickDrop() {
 loadDrop();
 setInterval(tickDrop, 1000);
 setInterval(loadDrop, 60000);
+
+// ASE Treasure : trésor en cours
+async function loadTreasure() {
+  if (!TREASURE.CONTRACT) { $('#treasurePot').textContent = 'soon'; $('#treasureDigs').textContent = '–'; return; }
+  try {
+    const i = await new Rpc(TREASURE.RPC).view(TREASURE.CONTRACT, 'info', []);
+    $('#treasurePot').textContent = fmtAse(i.pot, 2) + ' ASE';
+    $('#treasureDigs').textContent = String(i.digs);
+  } catch { $('#treasurePot').textContent = '–'; }
+}
+loadTreasure();
+setInterval(loadTreasure, 30000);
