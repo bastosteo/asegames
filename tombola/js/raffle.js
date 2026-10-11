@@ -155,7 +155,7 @@ const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function confetti(n = 90) {
   if (reduceMotion) return;
-  const box = $('#confetti'), colors = ['#F4C542', '#F29A5B', '#43D39A', '#FF6B6B', '#FFFFFF', '#FF9467'];
+  const box = $('#confetti'), colors = ['#D9C6FF', '#A98BFF', '#F4C542', '#FFFFFF', '#7B5CFF'];
   for (let i = 0; i < n; i++) {
     const c = document.createElement('i');
     c.style.left = Math.random() * 100 + 'vw';

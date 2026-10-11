@@ -42,7 +42,7 @@ function toast(text, kind = '', ms = 6000) {
 function cleanError(e) { const m = String(e && e.message ? e.message : e); const i = m.lastIndexOf('failed: '); return i >= 0 ? m.slice(i + 8) : m; }
 function confetti(n = 110) {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const box = $('#confetti'), colors = ['#F6C25C', '#F8D4A4', '#F09A58', '#FFFFFF', '#FFE68A'];
+  const box = $('#confetti'), colors = ['#F6C25C', '#A6F0BE', '#3DDC6B', '#FFFFFF', '#FFE68A'];
   for (let i = 0; i < n; i++) {
     const c = document.createElement('i');
     c.style.left = Math.random() * 100 + 'vw';

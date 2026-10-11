@@ -42,7 +42,7 @@ function toast(text, kind = '', ms = 6000) {
 function cleanError(e) { const m = String(e && e.message ? e.message : e); const i = m.lastIndexOf('failed: '); return i >= 0 ? m.slice(i + 8) : m; }
 function confetti(n = 90) {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const box = $('#confetti'), colors = ['#F4C542', '#F29A5B', '#43D39A', '#FF6B6B', '#FFFFFF', '#FF9467'];
+  const box = $('#confetti'), colors = ['#B0D6FF', '#3C9EFF', '#F4C542', '#FFFFFF', '#1F6FD1'];
   for (let i = 0; i < n; i++) {
     const c = document.createElement('i');
     c.style.left = Math.random() * 100 + 'vw';
@@ -94,7 +94,7 @@ function renderHero() {
   $('#pot').textContent = ase(total, 2);
   split(total).forEach((x, k) => ($('#prize' + (k + 1)).textContent = ase(x) + ' ASE'));
   const cut = Number(i.drawTs) - CUTOFF_MS;
-  $('#estNote').textContent = `Exact amount: 7.5% of every ticket and dig is already in the airdrop contract. Tickets count until the Raffle draw on ${utcWeekday(cut)} at ${utcTime(cut)}.`;
+  $('#estNote').textContent = `Exact amount: it is already in the airdrop contract. Tickets count until the Raffle draw on ${utcWeekday(cut)} at ${utcTime(cut)}.`;
   const pending = [...S.rounds.values()].find((r) => r.id < i.round && (r.status === 'closed' || r.status === 'listed'));
   $('#drawWhen').textContent = `Airdrop #${i.round}, ${utcDay(i.drawTs)} at ${utcTime(i.drawTs)}` +
     (BigInt(i.carry) > 0n ? ` · includes ${ase(i.carry)} ASE rolled over` : '') + (pending ? ` · airdrop #${pending.id} is being drawn now` : '');

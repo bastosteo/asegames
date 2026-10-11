@@ -310,18 +310,18 @@ input:focus-visible { outline: 2px solid var(--indigo-hi); outline-offset: 0; }
 .steps3 { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
 .steps3 li { display: flex; gap: 12px; align-items: center; padding: 13px 16px; background: #0A0A0A; border: 1px solid #1F1F1F; color: #CFCFCF; }
 .steps3 b { width: 28px; height: 28px; flex: none; display: grid; place-items: center; border: 1px solid #2E2E2E; font-weight: 500; }
-.steps3 li.active { background: #1C130A; border-color: #F09A58; color: #fff; }
-.steps3 li.active b { background: #F09A58; border-color: #F09A58; color: #1C1206; }
+.steps3 li.active { background: var(--accent-bg); border-color: var(--accent-2); color: #fff; }
+.steps3 li.active b { background: var(--accent-2); border-color: var(--accent-2); color: var(--accent-ink); }
 .steps3 li.done { color: #8C8C8C; }
-.steps3 li.done b { border-color: #5A3A20; color: #F8D4A4; }
+.steps3 li.done b { border-color: var(--accent-hover); color: var(--accent); }
 .btn-roll { padding: 1.15em !important; font-size: .9rem !important; margin-top: 16px; }
-.btn-confirm:not(:disabled) { background: #F09A58 !important; border-color: #F09A58 !important; }
+.btn-confirm:not(:disabled) { background: var(--accent-2) !important; border-color: var(--accent-2) !important; }
 .cart-total span { color: var(--muted); }
 .wincards { margin-top: 20px; display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .wc { display: grid; gap: 4px; padding: 18px 20px; background: #0A0A0A; border: 1px solid #1F1F1F; }
-.wc.top { background: #1C130A; border-color: #3A2A18; }
+.wc.top { background: var(--accent-bg); border-color: var(--accent-line); }
 .wc-l { font-family: var(--body); text-transform: uppercase; letter-spacing: .14em; font-size: .72rem; color: var(--muted); }
-.wc.top .wc-l { color: #F8D4A4; }
+.wc.top .wc-l { color: var(--accent); }
 .wc strong { font-family: var(--display); font-size: 1.6rem; font-weight: 500; }
 section.last-draw { margin-top: 20px; padding: 16px 20px; background: #0A0A0A; border: 1px solid #1F1F1F; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
 section.last-draw .last-title { font-family: var(--body); text-transform: uppercase; letter-spacing: .14em; font-size: .72rem; color: var(--muted); }

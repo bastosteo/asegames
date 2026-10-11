@@ -469,7 +469,7 @@ async function verifyRound(id) {
     step(JSON.stringify(cnt) === JSON.stringify(r.cnt), 'Number of winners', `5 matches: ${cnt[2]}, 4 matches: ${cnt[1]}, 3 matches: ${cnt[0]}`);
     // 5) Répartition
     const { per, commission: C } = L.payouts(r.sales, r.price, r.jackpotIn, cnt);
-    step(per.every((x, k) => x.toString() === r.per[k]) && C.toString() === r.commission, 'Prize distribution', `Commission ${L.fmtAse(C)} ASE (15%, half of it to the ASE Airdrop). Prize per ticket: 5 matches ${L.fmtAse(per[2])}, 4 matches ${L.fmtAse(per[1])}, 3 matches ${L.fmtAse(per[0])} ASE.`);
+    step(per.every((x, k) => x.toString() === r.per[k]) && C.toString() === r.commission, 'Prize distribution', `Prize per ticket: 5 matches ${L.fmtAse(per[2])}, 4 matches ${L.fmtAse(per[1])}, 3 matches ${L.fmtAse(per[0])} ASE.`);
     body.innerHTML = steps.join('') + `<p class="small muted" style="margin-top:12px">Everything is recomputed here, in your browser, from the contract's public data. <a href="${CONFIG.EXPLORER}/address/${L.toAse1(S.contract)}" target="_blank" rel="noopener">Contract source code</a>.</p>`;
   } catch (e) { body.innerHTML = `<p class="error">Verification failed: ${esc(cleanError(e))}</p>`; }
 }

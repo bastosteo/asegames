@@ -1,5 +1,5 @@
 /* ================= ASE Airdrop — compléments au style du loto ================= */
-.brand-chute { width: 30px; height: 30px; display: inline-block; background: no-repeat center / contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M2 14 C2 6 8 2 16 2 C24 2 30 6 30 14 Z' fill='%23F29A5B'/%3E%3Cpath d='M2 14 L11 22 M30 14 L21 22' stroke='%23B9BAE8'/%3E%3Crect x='10' y='20' width='12' height='10' rx='1' fill='%23C98A4B'/%3E%3Ccircle cx='16' cy='25' r='3.2' fill='%23F4C542'/%3E%3C/svg%3E"); }
+.brand-chute { width: 30px; height: 30px; display: inline-block; background: no-repeat center / contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M2 14 C2 6 8 2 16 2 C24 2 30 6 30 14 Z' fill='%233C9EFF'/%3E%3Cpath d='M2 14 L11 22 M30 14 L21 22' stroke='%23B9BAE8'/%3E%3Crect x='10' y='20' width='12' height='10' rx='1' fill='%23C98A4B'/%3E%3Ccircle cx='16' cy='25' r='3.2' fill='%23F4C542'/%3E%3C/svg%3E"); }
 
 /* Parachute qui descend doucement */
 .drop-art { position: relative; display: grid; place-items: center; min-height: 190px; overflow: hidden; }
@@ -76,12 +76,12 @@ a.how-card:hover { border-color: var(--gold); }
 /* ===================== Airdrop « intuitif » : vos chances à côté de la cagnotte ===================== */
 .agrid { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 8px; align-items: stretch; }
 .agrid .hero { flex: 999 1 600px; min-width: 0; margin-top: 0 !important; }
-.chance-card { flex: 1 1 300px; display: flex; flex-direction: column; gap: 14px; padding: 24px 22px; background: #1C130A; border: 1px solid #3A2A18; }
-.cc-eyebrow { margin: 0; color: #F8D4A4; font-family: var(--body); text-transform: uppercase; letter-spacing: .14em; font-size: .72rem; }
+.chance-card { flex: 1 1 300px; display: flex; flex-direction: column; gap: 14px; padding: 24px 22px; background: var(--accent-bg); border: 1px solid var(--accent-line); }
+.cc-eyebrow { margin: 0; color: var(--accent); font-family: var(--body); text-transform: uppercase; letter-spacing: .14em; font-size: .72rem; }
 .cc-eyebrow::before { content: "•"; margin-right: .9em; color: #8A6A48; }
 .cc-big { margin: 0; font-family: var(--display); font-size: 3.4rem; line-height: 1; }
 .cc-big small { font-family: var(--body); font-size: .95rem; color: #CFCFCF; }
-.chance-card .bar { background: #2A1E12 !important; margin: 0; }
+.chance-card .bar { background: var(--accent-line) !important; margin: 0; }
 .cc-text { margin: 0; color: #CFCFCF; line-height: 1.6; }
 .chance-card .btn { margin-top: auto; text-align: center; text-decoration: none; }
 @media (min-width: 760px) { .agrid .hero { grid-template-columns: minmax(0, 1fr) 180px; } .agrid .hero .chute-svg { width: 140px; } .agrid .hero .drop-art { min-height: 200px; } }

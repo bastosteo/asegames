@@ -9,6 +9,7 @@
   --ink: #FFFFFF; --muted: #8C8C8C; --dim: #A6A6A6;
   --indigo: #F29A5B; --indigo-hi: #F7C995; --violet: #F7C995;
   --accent: #F8D4A4; --accent-2: #F09A58; --accent-ink: #1C1206; --accent-bg: #1C130A;
+  --accent-line: #3A2A18; --accent-hover: #5A3A20; --accent-deep: #0E0905; --accent-glow: rgba(240,154,88,.4);
   --grad: linear-gradient(90deg, #F8D4A4, #F09A58);
   --dash: repeating-linear-gradient(90deg, #2A2A2A 0 18px, transparent 18px 30px);
   --gold: #F4C542; --gold-ink: #2A1E00; --ok: #26CC6B; --warn: #F29751;
@@ -22,6 +23,33 @@
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) { --night: #000000; --deep: #0A0A0A; --deeper: #050505; --line: #1F1F1F; --ink: #FFFFFF; --muted: #8C8C8C;
     --indigo-hi: #F7C995; --violet: #F7C995; --ball-face: #F2F2F2; --ball-ink: #0A0A0A; color-scheme: dark; }
+}
+
+/* Une couleur par jeu : Loto orange, Raffle violet, Treasure vert, Airdrop bleu.
+   Sur <html data-game=…> (toute la page) ou sur un élément (cartes de l'accueil). */
+:root[data-game="loto"], [data-game="loto"] {
+  --accent: #F8D4A4; --accent-2: #F09A58; --accent-ink: #1C1206; --accent-bg: #1C130A;
+  --accent-line: #3A2A18; --accent-hover: #5A3A20; --accent-deep: #0E0905; --accent-glow: rgba(240,154,88,.4);
+  --indigo: #F09A58; --indigo-hi: #F8D4A4; --violet: #F8D4A4;
+  --grad: linear-gradient(90deg, #F8D4A4, #F09A58);
+}
+:root[data-game="raffle"], [data-game="raffle"] {
+  --accent: #D9C6FF; --accent-2: #A98BFF; --accent-ink: #150C2E; --accent-bg: #16102A;
+  --accent-line: #2E2350; --accent-hover: #4A3A7A; --accent-deep: #0C0918; --accent-glow: rgba(169,139,255,.4);
+  --indigo: #A98BFF; --indigo-hi: #D9C6FF; --violet: #D9C6FF;
+  --grad: linear-gradient(90deg, #D9C6FF, #A98BFF);
+}
+:root[data-game="treasure"], [data-game="treasure"] {
+  --accent: #A6F0BE; --accent-2: #3DDC6B; --accent-ink: #06200F; --accent-bg: #0C1E13;
+  --accent-line: #1D3D27; --accent-hover: #2C5E3B; --accent-deep: #07120B; --accent-glow: rgba(61,220,107,.35);
+  --indigo: #3DDC6B; --indigo-hi: #A6F0BE; --violet: #A6F0BE;
+  --grad: linear-gradient(90deg, #A6F0BE, #3DDC6B);
+}
+:root[data-game="airdrop"], [data-game="airdrop"] {
+  --accent: #B0D6FF; --accent-2: #3C9EFF; --accent-ink: #061529; --accent-bg: #0B1828;
+  --accent-line: #1B3350; --accent-hover: #2A4F7A; --accent-deep: #070F1A; --accent-glow: rgba(60,158,255,.4);
+  --indigo: #3C9EFF; --indigo-hi: #B0D6FF; --violet: #B0D6FF;
+  --grad: linear-gradient(90deg, #B0D6FF, #3C9EFF);
 }
 
 /* Repères en pointillés, comme sur asentum.com */
@@ -180,7 +208,7 @@ input, select { border-radius: 0 !important; font-family: var(--body); backgroun
 .code-boxes span { width: 50px; height: 64px; display: grid; place-items: center; border-radius: 10px; background: #121214; border: 1px solid #2A2A2E;
   font-family: var(--display); font-weight: 800; font-size: 1.9rem; color: #fff; }
 .tg-expire { text-align: center; color: #8A8A93; font-family: var(--display); font-size: .88rem; margin: 0 0 18px; }
-.tg-open { display: block; text-align: center; padding: 14px; border-radius: 12px; background: var(--accent-bg); border: 1px solid #3A2A18; color: var(--violet) !important; font-family: var(--display); font-weight: 700; text-decoration: none; margin-bottom: 14px; }
+.tg-open { display: block; text-align: center; padding: 14px; border-radius: 12px; background: var(--accent-bg); border: 1px solid var(--accent-line); color: var(--violet) !important; font-family: var(--display); font-weight: 700; text-decoration: none; margin-bottom: 14px; }
 .tg-open:hover { border-color: var(--accent-2); }
 .wdlg .tg-back { border-radius: 12px !important; text-transform: none !important; letter-spacing: 0 !important; font-family: var(--display) !important; font-size: .95rem !important; background: #121214 !important; border-color: #2A2A2E !important; }
 .wdlg .error { margin: 6px 0 0; }
@@ -200,17 +228,17 @@ input, select { border-radius: 0 !important; font-family: var(--body); backgroun
 /* Médailles et petits marqueurs */
 .medal.m1 { background: var(--grad) !important; color: var(--accent-ink) !important; }
 .stub.win { background: var(--accent) !important; border-color: var(--accent) !important; color: var(--accent-ink) !important; }
-.claim-banner { background: var(--accent-bg) !important; border: 1px solid #3A2A18 !important; }
+.claim-banner { background: var(--accent-bg) !important; border: 1px solid var(--accent-line) !important; }
 .claim-banner strong { color: var(--accent) !important; }
 .win-banner { background: var(--accent-bg) !important; color: var(--accent) !important; }
 /* Points / statut « live » orangés */
 .live .state, .game.live .state { background: var(--accent-bg) !important; color: var(--accent) !important; }
 .dot { background: var(--accent-2) !important; }
 /* Cartes : survol bordé d'orange */
-.game:hover, a.how-card:hover { border-color: #5A3A20 !important; }
+.game:hover, a.how-card:hover { border-color: var(--accent-hover) !important; }
 .game:hover .btn-primary { background: var(--accent-2); border-color: var(--accent-2); }
 /* Titre d'accueil : 2e ligne avec un reflet pêche */
-.intro h1 { background: linear-gradient(180deg, #fff 55%, #F8D4A4 140%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.intro h1 { background: linear-gradient(180deg, #fff 55%, var(--accent) 140%); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .intro h1 .dim { -webkit-text-fill-color: var(--dim); }
 :focus-visible { outline-color: var(--accent) !important; }
 input:focus-visible { outline: 1px solid var(--accent) !important; }
@@ -241,16 +269,25 @@ input:focus-visible { outline: 1px solid var(--accent) !important; }
 .gamenav a { padding: 10px 13px; text-decoration: none; color: #CFCFCF; font-family: var(--body); text-transform: uppercase; letter-spacing: .12em; font-size: .72rem; }
 .gamenav a:hover { color: var(--accent); }
 .gamenav a[aria-current="page"] { background: var(--accent); color: var(--accent-ink); }
+/* Chaque jeu garde sa couleur dans le menu : petit carré devant le nom */
+.gamenav a { --g: #F09A58; }
+.gamenav a[href$="raffle/"] { --g: #A98BFF; } .gamenav a[href$="treasure/"] { --g: #3DDC6B; } .gamenav a[href$="airdrop/"] { --g: #3C9EFF; }
+.gamenav a[href$="loto/"]::before, .gamenav a[href$="raffle/"]::before, .gamenav a[href$="treasure/"]::before, .gamenav a[href$="airdrop/"]::before {
+  content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 8px; vertical-align: 1px; background: var(--g); }
+.gamenav a:not([aria-current="page"]):hover { color: var(--g); }
+.gamenav a[aria-current="page"]::before { background: var(--accent-ink); }
 .top-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
-.btn-wins { border-color: #3A2A18 !important; color: var(--accent) !important; background: var(--accent-bg) !important; white-space: nowrap; }
+.btn-wins { border-color: var(--accent-line) !important; color: var(--accent) !important; background: var(--accent-bg) !important; white-space: nowrap; }
 .btn-wins.has { border-color: var(--accent-2) !important; animation: winsglow 2.4s ease-in-out infinite; }
-@keyframes winsglow { 50% { box-shadow: 0 0 14px rgba(240,154,88,.45); } }
+@keyframes winsglow { 50% { box-shadow: 0 0 14px var(--accent-glow); } }
 .all-games { display: none !important; }
 /* Téléphone : le menu des jeux devient une barre fixe en bas de l'écran */
 @media (max-width: 720px) {
   .gamenav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; background: #050505; border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
   .gamenav a { text-align: center; padding: 15px 0 16px; font-size: .62rem; letter-spacing: .06em; border-top: 2px solid transparent; }
   .gamenav a[aria-current="page"] { background: transparent; color: var(--accent); border-top-color: var(--accent); }
+  .gamenav a::before { display: block !important; margin: 0 auto 7px !important; }
+  .gamenav a[aria-current="page"]::before { background: var(--g); }
   body { padding-bottom: 64px; }
   .toasts { bottom: 76px !important; }
   .btn-wins { padding: .8em .7em !important; letter-spacing: .06em !important; }
