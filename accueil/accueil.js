@@ -13,6 +13,8 @@ const store = {
 const applyTheme = (t) => { if (t) document.documentElement.dataset.theme = t; };
 applyTheme('dark');   // ASE Vegas est uniquement en mode sombre, comme Asentum
 
+const utcTime = (ms) => new Date(Number(ms)).toISOString().slice(11, 16) + ' UTC';
+const utcWeekday = (ms) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date(Number(ms)).getUTCDay()];
 let info = null, offset = 0;
 async function load() {
   if (!CONFIG.CONTRACT) { $('#lotoJackpot').textContent = 'demo'; $('#lotoCountdown').textContent = '–'; return; }
@@ -20,6 +22,7 @@ async function load() {
     info = await new Rpc(CONFIG.RPC).view(CONFIG.CONTRACT, 'info', []);
     offset = Number(info.now) - Date.now();
     $('#lotoJackpot').textContent = fmtAse(info.jackpotEstimate, 0) + ' ASE';
+    $('#lotoTime').textContent = utcTime(info.drawTs);
     tick();
   } catch { $('#lotoJackpot').textContent = '–'; }
 }
@@ -43,6 +46,7 @@ async function loadRaffle() {
     rinfo = await new Rpc(RAFFLE.RPC).view(RAFFLE.CONTRACT, 'info', []);
     roff = Number(rinfo.now) - Date.now();
     $('#rafflePot').textContent = fmtAse(rinfo.pot, 0) + ' ASE';
+    $('#raffleTime').textContent = `${utcWeekday(rinfo.drawTs)} at ${utcTime(rinfo.drawTs)}`;
     tickRaffle();
   } catch { $('#rafflePot').textContent = '–'; }
 }
@@ -78,6 +82,7 @@ async function loadDrop() {
     dinfo = await rpc.view(DROP.CONTRACT, 'info', []);
     doff = Number(dinfo.now) - Date.now();
     tickDrop();
+    $('#dropTime').textContent = `${utcWeekday(dinfo.drawTs)} at ${utcTime(dinfo.drawTs)}`;
     const prev = dinfo.round > 1 ? await rpc.view(DROP.CONTRACT, 'getRound', [dinfo.round - 1]) : null;
     const from = prev && prev.status !== 'cancelled' ? Number(prev.drawTs) : Number(dinfo.fromTs);
     const to = Number(dinfo.drawTs);

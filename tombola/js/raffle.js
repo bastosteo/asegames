@@ -20,8 +20,10 @@ const S = {
 };
 const chainNow = () => Date.now() + S.clockOffset;
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const parisTime = (ms) => new Date(Number(ms)).toLocaleTimeString('en-GB', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-const parisDay = (ms) => new Date(Number(ms)).toLocaleDateString('en-GB', { timeZone: 'Europe/Paris', weekday: 'long', day: 'numeric', month: 'long' });
+// Toutes les heures affichées aux joueurs sont en UTC (le panneau admin reste en heure de Paris).
+const utcTime = (ms) => new Date(Number(ms)).toISOString().slice(11, 16) + ' UTC';
+const utcDay = (ms) => new Date(Number(ms)).toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' });
+const utcWeekday = (ms) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date(Number(ms)).getUTCDay()];
 const plural = (n, one, many) => `${Number(n).toLocaleString('en-GB')} ${n === 1 ? one : many}`;
 const ase = (w, d) => L.fmtAse(BigInt(w), d ?? (BigInt(w) % L.WEI === 0n ? 0 : 2));
 const tno = (t) => '#' + String(t + 1).padStart(4, '0');
@@ -80,7 +82,7 @@ function renderHero() {
   const pr = prizesOf(i.sales);
   $('#pot').textContent = ase(BigInt(i.pot), 0);
   [0, 1, 2].forEach((k) => ($('#prize' + (k + 1)).textContent = ase(pr[k]) + ' ASE'));
-  $('#drawWhen').textContent = `Raffle #${i.round}, draw ${parisDay(i.drawTs)} at ${parisTime(i.drawTs)} (Paris time)`;
+  $('#drawWhen').textContent = `Raffle #${i.round}, draw ${utcDay(i.drawTs)} at ${utcTime(i.drawTs)}`;
   $('#rolled').hidden = i.weeks <= 1;
   $('#rolled').textContent = `Extended ${plural(i.weeks - 1, 'week', 'weeks')}: fewer than 3 players`;
   $('#ticketsSold').textContent = i.tickets.toLocaleString('en-GB');
@@ -233,8 +235,8 @@ function renderMine() {
       const unpaid = mine.filter((p) => !p.paid);
       right = unpaid.length ? `<button class="btn btn-small" data-refund="${id}:${unpaid[0].idx}">Refund me</button>` : '<span class="tag ok">Refunded</span>';
       for (const p of unpaid) todo.push(['refund', id, p.idx, BigInt(r.price) * BigInt(p.n)]);
-    } else if (r.weeks > 1) status = `<span class="tag">Extended to ${parisDay(r.drawTs)}</span>`;
-    html += `<div class="round-block"><div class="round-head"><h3>Raffle #${id}</h3><span class="muted small">${parisDay(r.drawTs)}</span>${status}</div>
+    } else if (r.weeks > 1) status = `<span class="tag">Extended to ${utcDay(r.drawTs)}</span>`;
+    html += `<div class="round-block"><div class="round-head"><h3>Raffle #${id}</h3><span class="muted small">${utcDay(r.drawTs)}</span>${status}</div>
       <div class="ticket"><div class="stubs">${nums.map((t) => `<span class="stub${winT.includes(t) ? ' win' : ''}">${tno(t)}</span>`).join('')}</div><div class="right">${right}</div></div></div>`;
   }
   const total = todo.reduce((a, x) => a + x[3], 0n);
@@ -267,8 +269,8 @@ function renderResults() {
   const rows = [...S.rounds.values()].filter((r) => ['done', 'cancelled'].includes(r.status)).sort((a, b) => b.id - a.id);
   if (!rows.length) { $('#resultsBody').innerHTML = '<p class="muted">No raffle drawn yet. The first draw takes place at the time shown at the top of the page.</p>'; return; }
   $('#resultsBody').innerHTML = rows.map((r) => {
-    if (r.status === 'cancelled') return `<div class="round-block"><div class="round-head"><h3>Raffle #${r.id}</h3><span class="muted small">${parisDay(r.drawTs)}</span><span class="tag warn">Cancelled, players refunded</span></div></div>`;
-    return `<div class="round-block"><div class="round-head"><h3>Raffle #${r.id}</h3><span class="muted small">${parisDay(r.drawTs)} · ${plural(r.tickets, 'ticket', 'tickets')} · ${plural(r.wallets, 'player', 'players')}</span><button class="link-btn" data-verify="${r.id}">Verify</button></div>
+    if (r.status === 'cancelled') return `<div class="round-block"><div class="round-head"><h3>Raffle #${r.id}</h3><span class="muted small">${utcDay(r.drawTs)}</span><span class="tag warn">Cancelled, players refunded</span></div></div>`;
+    return `<div class="round-block"><div class="round-head"><h3>Raffle #${r.id}</h3><span class="muted small">${utcDay(r.drawTs)} · ${plural(r.tickets, 'ticket', 'tickets')} · ${plural(r.wallets, 'player', 'players')}</span><button class="link-btn" data-verify="${r.id}">Verify</button></div>
       <ol class="winners">${r.win.map((w, k) => `<li><span class="medal m${k + 1}">${k + 1}</span><span class="stub win">${tno(w.t)}</span><span class="who">${L.shortAddr(w.b)}</span>${r.claimed[k] ? '<span class="tag ok">Claimed</span>' : '<span class="tag">Not claimed yet</span>'}<span class="amount">${ase(r.prizes[k])} ASE</span></li>`).join('')}</ol></div>`;
   }).join('');
   $$('[data-verify]').forEach((b) => (b.onclick = () => verify(Number(b.dataset.verify))));
@@ -409,7 +411,7 @@ function renderRulesValues() {
   if (!S.cfg) return;
   $$('.js-price').forEach((e) => (e.textContent = ase(S.cfg.price) + ' ASE'));
   $$('.js-max').forEach((e) => (e.textContent = S.cfg.maxPerWallet));
-  $$('.js-drawtime').forEach((e) => (e.textContent = `${DAYS[S.cfg.drawDay]} at ${String(S.cfg.drawH).padStart(2, '0')}:${String(S.cfg.drawM).padStart(2, '0')}`));
+  if (S.info) $$('.js-drawtime').forEach((e) => (e.textContent = `${utcWeekday(S.info.drawTs)} at ${utcTime(S.info.drawTs)}`));
   $$('.js-close').forEach((e) => (e.textContent = plural(S.cfg.closeMin, 'minute', 'minutes')));
   $$('.js-reveal').forEach((e) => (e.textContent = S.cfg.revealMin % 60 === 0 ? plural(S.cfg.revealMin / 60, 'hour', 'hours') : plural(S.cfg.revealMin, 'minute', 'minutes')));
 }

@@ -33,7 +33,7 @@
       <div class="game-body">
         <p class="state"><span class="dot"></span> Live</p>
         <h2>ASE Loto</h2>
-        <p class="desc">Throw five 20-sided dice for your 5 numbers. One draw every day at 21:00 Paris time, a jackpot that grows every night, prizes claimable any time.</p>
+        <p class="desc">Throw five 20-sided dice for your 5 numbers. One draw every day at <span id="lotoTime">19:00 UTC</span>, a jackpot that grows every night, prizes claimable any time.</p>
         <dl class="live-stats">
           <div><dt>Jackpot</dt><dd id="lotoJackpot">…</dd></div>
           <div><dt id="lotoCountLabel">Sales close in</dt><dd id="lotoCountdown">…</dd></div>
@@ -60,7 +60,7 @@
       <div class="game-body">
         <p class="state"><span class="dot"></span> Live</p>
         <h2>ASE Raffle</h2>
-        <p class="desc">One ticket, one chance. 5 ASE per ticket, 3 winners every Sunday at 21:00 Paris time.</p>
+        <p class="desc">One ticket, one chance. 5 ASE per ticket, 3 winners every <span id="raffleTime">Sunday at 19:00 UTC</span>.</p>
         <dl class="live-stats">
           <div><dt>Prize pot</dt><dd id="rafflePot">…</dd></div>
           <div><dt>Draw in</dt><dd id="raffleCountdown">…</dd></div>
@@ -96,9 +96,9 @@
         </svg>
       </div>
       <div class="game-body">
-        <p class="state"><span class="dot"></span> Every Sunday</p>
+        <p class="state"><span class="dot"></span> Every Monday</p>
         <h2>ASE Airdrop</h2>
-        <p class="desc">Half of the Loto and Raffle fees, airdropped to 3 players every Sunday at 21:00. 1 ticket = 1 chance.</p>
+        <p class="desc">A weekly ASE pot, airdropped to 3 Loto and Raffle players every <span id="dropTime">Monday at 19:00 UTC</span>. 1 ticket = 1 chance.</p>
         <dl class="live-stats">
           <div><dt>This week</dt><dd id="dropPot">…</dd></div>
           <div><dt>Draw in</dt><dd id="dropCountdown">…</dd></div>

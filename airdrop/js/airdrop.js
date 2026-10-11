@@ -18,8 +18,10 @@ const store = {
 const S = { rpc: null, contract: '', loto: '', raffle: '', info: null, cfg: null, st: null, week: null, clockOffset: 0, me: '', rounds: new Map() };
 const chainNow = () => Date.now() + S.clockOffset;
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const parisTime = (ms) => new Date(Number(ms)).toLocaleTimeString('en-GB', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-const parisDay = (ms) => new Date(Number(ms)).toLocaleDateString('en-GB', { timeZone: 'Europe/Paris', weekday: 'long', day: 'numeric', month: 'long' });
+// Toutes les heures affichées aux joueurs sont en UTC (le panneau admin reste en heure de Paris).
+const utcTime = (ms) => new Date(Number(ms)).toISOString().slice(11, 16) + ' UTC';
+const utcDay = (ms) => new Date(Number(ms)).toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' });
+const utcWeekday = (ms) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date(Number(ms)).getUTCDay()];
 const plural = (n, one, many) => `${Number(n).toLocaleString('en-GB')} ${n === 1 ? one : many}`;
 const ase = (w, d) => L.fmtAse(BigInt(w), d ?? (BigInt(w) % L.WEI === 0n ? 0 : 2));
 const rankName = ['1st', '2nd', '3rd'];
@@ -89,7 +91,7 @@ function renderHero() {
   $('#pot').textContent = ase(total, 2);
   split(total).forEach((x, k) => ($('#prize' + (k + 1)).textContent = ase(x) + ' ASE'));
   const pending = [...S.rounds.values()].find((r) => r.id < i.round && (r.status === 'closed' || r.status === 'listed'));
-  $('#drawWhen').textContent = `Airdrop #${i.round}, ${parisDay(i.drawTs)} at ${parisTime(i.drawTs)} (Paris time)` +
+  $('#drawWhen').textContent = `Airdrop #${i.round}, ${utcDay(i.drawTs)} at ${utcTime(i.drawTs)}` +
     (BigInt(i.carry) > 0n ? ` · includes ${ase(i.carry)} ASE rolled over` : '') + (pending ? ` · airdrop #${pending.id} is being drawn now` : '');
   $('#chances').textContent = w.entries.reduce((a, e) => a + e[1], 0).toLocaleString('en-GB');
   $('#players').textContent = w.entries.length.toLocaleString('en-GB');
@@ -120,11 +122,11 @@ function renderMine() {
   let html = `<dl class="share"><div><dt>Your chances</dt><dd>${n.toLocaleString('en-GB')}</dd></div><div><dt>Out of</dt><dd>${total.toLocaleString('en-GB')}</dd></div><div><dt>Share</dt><dd>${pct(n, total)}</dd></div></dl>
     <div class="bar" aria-hidden="true"><i style="width:${total ? Math.max(n ? 1 : 0, (n * 100) / total) : 0}%"></i></div>`;
   html += n
-    ? `<p>Each of your tickets is one chance at the 1st prize (${ase(split(pot)[0])} ASE so far). The more you play before ${DAYS[S.cfg.drawDay]} ${String(S.cfg.drawH).padStart(2, '0')}:${String(S.cfg.drawM).padStart(2, '0')}, the more chances you get.</p>`
+    ? `<p>Each of your tickets is one chance at the 1st prize (${ase(split(pot)[0])} ASE so far). The more you play before ${utcWeekday(S.info.drawTs)} ${utcTime(S.info.drawTs)}, the more chances you get.</p>`
     : `<p class="muted">No chance yet this week for ${esc(L.shortAddr(S.me))}. Play <a href="../loto/">ASE Loto</a> or <a href="../raffle/">ASE Raffle</a>: every ticket is one chance once its draw is completed.</p>`;
   if (S.week.waiting.length) html += `<p class="muted small">Draws still to come this week (their tickets count once drawn): ${S.week.waiting.map((x) => esc(x.replace(/^loto/, 'Loto').replace(/^raffle/, 'Raffle').replace(/ \(.*\)$/, ''))).join(', ')}.</p>`;
   const won = [...S.rounds.values()].filter((r) => r.status === 'done' && r.win.some((w) => w.b === S.me)).sort((a, b) => b.id - a.id);
-  if (won.length) html += '<h3>Your airdrop wins</h3><ol class="winners">' + won.map((r) => { const k = r.win.findIndex((w) => w.b === S.me); return `<li><span class="medal m${k + 1}">${k + 1}</span>Airdrop #${r.id}<span class="muted small">${parisDay(r.drawTs)}</span><span class="tag ok">Sent to your wallet</span><span class="amount">${ase(r.prizes[k])} ASE</span></li>`; }).join('') + '</ol>';
+  if (won.length) html += '<h3>Your airdrop wins</h3><ol class="winners">' + won.map((r) => { const k = r.win.findIndex((w) => w.b === S.me); return `<li><span class="medal m${k + 1}">${k + 1}</span>Airdrop #${r.id}<span class="muted small">${utcDay(r.drawTs)}</span><span class="tag ok">Sent to your wallet</span><span class="amount">${ase(r.prizes[k])} ASE</span></li>`; }).join('') + '</ol>';
   box.innerHTML = html;
 }
 function renderWinBanner() {
@@ -164,7 +166,7 @@ function renderResults() {
   const rows = [...S.rounds.values()].filter((r) => r.id < S.info.round || r.status !== 'open').sort((a, b) => b.id - a.id);
   if (!rows.length) { $('#resultsBody').innerHTML = '<p class="muted">No airdrop yet. The first one takes place at the time shown at the top of the page.</p>'; return; }
   $('#resultsBody').innerHTML = rows.map((r) => {
-    const head = `<div class="round-head"><h3>Airdrop #${r.id}</h3><span class="muted small">${parisDay(r.drawTs)}${r.wallets ? ' · ' + plural(r.wallets, 'player', 'players') + ' · ' + plural(r.tickets, 'chance', 'chances') : ''}</span>`;
+    const head = `<div class="round-head"><h3>Airdrop #${r.id}</h3><span class="muted small">${utcDay(r.drawTs)}${r.wallets ? ' · ' + plural(r.wallets, 'player', 'players') + ' · ' + plural(r.tickets, 'chance', 'chances') : ''}</span>`;
     if (r.status === 'cancelled') return `<div class="round-block">${head}<span class="tag warn">Not drawn in time: the week is carried into the next airdrop</span></div></div>`;
     if (r.status !== 'done') return `<div class="round-block">${head}<span class="tag">Drawing in progress</span></div></div>`;
     const total = BigInt(r.pot) + BigInt(r.carryIn);
@@ -202,7 +204,7 @@ async function verify(id) {
     const step = (ok, title, detail) => steps.push(`<div class="verify-step"><span class="mark ${ok ? 'ok' : 'ko'}">${ok ? '✓' : '✗'}</span><div><strong>${title}</strong><br><span class="small">${detail}</span></div></div>`);
     step(JSON.stringify(wk.entries) === JSON.stringify(stored), 'List of players',
       `Rebuilt from ${plural(wk.games.length, 'completed draw', 'completed draws')} (${wk.games.map((g) => (g.game === 'loto' ? 'Loto' : 'Raffle') + ' #' + g.id).join(', ') || 'none'}): ${plural(wk.entries.length, 'player', 'players')}, ${plural(wk.entries.reduce((a, e) => a + e[1], 0), 'chance', 'chances')}`);
-    step(wk.pot === r.pot, 'Fees of the week', `${ase(wk.pot)} ASE (7.5% of those draws' sales)`);
+    step(wk.pot === r.pot, 'Pot of the week', `${ase(wk.pot)} ASE, from those draws`);
     let d = L.sha256Text('ASEDROP-ROUND|' + id);
     for (const c of chunks(stored)) d = L.sha256Text(d + '|' + JSON.stringify(c));
     step(d === r.digest, 'List fingerprint', `<code>${d.slice(0, 24)}…</code>`);
@@ -227,7 +229,7 @@ function selectTab(name) {
 $$('.tabs [role=tab]').forEach((b) => (b.onclick = () => selectTab(b.dataset.tab)));
 function renderRulesValues() {
   if (!S.cfg) return;
-  $$('.js-drawtime').forEach((e) => (e.textContent = `${DAYS[S.cfg.drawDay]} at ${String(S.cfg.drawH).padStart(2, '0')}:${String(S.cfg.drawM).padStart(2, '0')}`));
+  if (S.info) $$('.js-drawtime').forEach((e) => (e.textContent = `${utcWeekday(S.info.drawTs)} at ${utcTime(S.info.drawTs)}`));
   $$('.js-reveal').forEach((e) => (e.textContent = S.cfg.revealMin % 60 === 0 ? plural(S.cfg.revealMin / 60, 'hour', 'hours') : plural(S.cfg.revealMin, 'minute', 'minutes')));
 }
 function renderAll() { renderHero(); tickCountdown(); renderMine(); renderPlayers(); renderResults(); renderWinBanner(); renderRulesValues(); }
@@ -250,7 +252,7 @@ async function restoreWallet() {
   if (typed) { $('#addr').value = typed; try { S.me = L.toHex(typed); } catch {} }
   if (!CONFIG.CONTRACT) {
     $('#soonBanner').hidden = false;
-    $('#pot').textContent = '0'; $('#drawWhen').textContent = 'Every Sunday at 21:00 (Paris time)';
+    $('#pot').textContent = '0'; $('#drawWhen').textContent = 'Every Monday at 19:00 UTC';
     $('#countdown').textContent = 'soon'; $('#resultsBody').innerHTML = $('#playersBody').innerHTML = '<p class="muted">The ASE Airdrop is launching soon.</p>';
     $('#contractLink').textContent = 'coming soon';
     return;

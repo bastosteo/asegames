@@ -23,8 +23,10 @@ const S = {
 };
 const chainNow = () => Date.now() + S.clockOffset;
 const ballHtml = (n, cls = '') => `<span class="ball ${cls}">${n}</span>`;
-const parisTime = (ms) => new Date(Number(ms)).toLocaleTimeString('en-GB', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-const parisDay = (ms) => new Date(Number(ms)).toLocaleDateString('en-GB', { timeZone: 'Europe/Paris', weekday: 'long', day: 'numeric', month: 'long' });
+// Toutes les heures affichées aux joueurs sont en UTC (le panneau admin reste en heure de Paris).
+const utcTime = (ms) => new Date(Number(ms)).toISOString().slice(11, 16) + ' UTC';
+const utcDay = (ms) => new Date(Number(ms)).toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' });
+const utcWeekday = (ms) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date(Number(ms)).getUTCDay()];
 const plural = (n, one, many) => `${n.toLocaleString('en-GB')} ${n === 1 ? one : many}`;
 
 // ------------------------------------------------------------- thème
@@ -97,12 +99,12 @@ function renderHero() {
   const price = BigInt(closing ? S.cfg.price : i.price);
   $('#priceLabel').textContent = L.fmtAse(price, price % L.WEI === 0n ? 0 : 2) + ' ASE';
   $('#gridsPlayed').textContent = i.grids.toLocaleString('en-GB');
-  $('#drawWhen').textContent = `Draw #${i.round}, ${parisDay(i.drawTs)} at ${parisTime(i.drawTs)} (Paris time)`;
+  $('#drawWhen').textContent = `Draw #${i.round}, ${utcDay(i.drawTs)} at ${utcTime(i.drawTs)}`;
   $('#pausedBanner').hidden = !i.paused;
   const last = [...S.rounds.values()].filter((r) => r.status === 'done').sort((a, b) => b.id - a.id)[0];
   if (last) {
     $('#lastDraw').hidden = false;
-    $('#lastDrawId').textContent = `#${last.id}, ${parisDay(last.drawTs)}`;
+    $('#lastDrawId').textContent = `#${last.id}, ${utcDay(last.drawTs)}`;
     const box = $('#lastBalls');
     const html = last.nums.map((n) => ballHtml(n, 'gold')).join('');
     if (box.dataset.id !== String(last.id)) { box.innerHTML = html; box.dataset.id = last.id; box.classList.remove('reveal'); void box.offsetWidth; box.classList.add('reveal'); }
@@ -328,7 +330,7 @@ function renderMine() {
     let tag = '<span class="tag">Waiting for the draw</span>';
     if (r.status === 'done') tag = `<span class="tag">Drawn: </span><span class="balls tiny">${r.nums.map((n) => ballHtml(n, 'gold')).join('')}</span>`;
     if (r.status === 'cancelled') tag = '<span class="tag warn">Draw cancelled: 100% refunded</span>';
-    html += `<div class="round-block"><div class="round-head"><h3>Draw #${id}</h3><span class="muted small">${parisDay(r.drawTs)}</span>${tag}</div>`;
+    html += `<div class="round-block"><div class="round-head"><h3>Draw #${id}</h3><span class="muted small">${utcDay(r.drawTs)}</span>${tag}</div>`;
     for (const p of mine) {
       const grids = p.g.map((g) => {
         const k = drawn ? L.matches(g, drawn) : 0;
@@ -406,8 +408,8 @@ function renderResults() {
   $('#resultsBody').innerHTML = `<div style="overflow-x:auto"><table class="res-table">
     <thead><tr><th scope="col">Draw</th><th scope="col">Numbers</th><th scope="col" class="num">Tickets</th><th scope="col" class="num">5 matches</th><th scope="col" class="num">4 matches</th><th scope="col" class="num">3 matches</th><th scope="col" class="num">Rollover</th><th scope="col"></th></tr></thead>
     <tbody>${rows.map((r) => r.status === 'cancelled'
-      ? `<tr><td>#${r.id}<br><span class="muted small">${parisDay(r.drawTs)}</span></td><td colspan="6"><span class="tag warn">Cancelled, players refunded</span></td><td></td></tr>`
-      : `<tr><td>#${r.id}<br><span class="muted small">${parisDay(r.drawTs)}</span></td><td><span class="balls tiny">${r.nums.map((n) => ballHtml(n, 'gold')).join('')}</span></td><td class="num">${r.grids}</td><td class="num">${winCell(r, 2)}</td><td class="num">${winCell(r, 1)}</td><td class="num">${winCell(r, 0)}</td><td class="num">${L.fmtAse(r.carryOut, 0)}</td><td><button class="link-btn" data-verify="${r.id}">Verify</button></td></tr>`).join('')}
+      ? `<tr><td>#${r.id}<br><span class="muted small">${utcDay(r.drawTs)}</span></td><td colspan="6"><span class="tag warn">Cancelled, players refunded</span></td><td></td></tr>`
+      : `<tr><td>#${r.id}<br><span class="muted small">${utcDay(r.drawTs)}</span></td><td><span class="balls tiny">${r.nums.map((n) => ballHtml(n, 'gold')).join('')}</span></td><td class="num">${r.grids}</td><td class="num">${winCell(r, 2)}</td><td class="num">${winCell(r, 1)}</td><td class="num">${winCell(r, 0)}</td><td class="num">${L.fmtAse(r.carryOut, 0)}</td><td><button class="link-btn" data-verify="${r.id}">Verify</button></td></tr>`).join('')}
     </tbody></table></div><p class="muted small">Amounts in ASE, per winning ticket. “Rollover” = amount carried into the next jackpot.</p>`;
   $$('#resultsBody [data-verify]').forEach((b) => (b.onclick = () => verifyRound(Number(b.dataset.verify))));
 }
@@ -616,7 +618,7 @@ function renderRulesValues() {
   if (!S.cfg) return;
   const p = BigInt(S.cfg.price);
   $$('.js-price').forEach((e) => (e.textContent = L.fmtAse(p, p % L.WEI === 0n ? 0 : 2) + ' ASE'));
-  $$('.js-drawtime').forEach((e) => (e.textContent = `${String(S.cfg.drawH).padStart(2, '0')}:${String(S.cfg.drawM).padStart(2, '0')}`));
+  if (S.info) $$('.js-drawtime').forEach((e) => (e.textContent = utcTime(S.info.drawTs)));
   $$('.js-close').forEach((e) => (e.textContent = plural(S.cfg.closeMin, 'minute', 'minutes')));
   $$('.js-reveal').forEach((e) => (e.textContent = S.cfg.revealMin % 60 === 0 ? plural(S.cfg.revealMin / 60, 'hour', 'hours') : plural(S.cfg.revealMin, 'minute', 'minutes')));
   const amount = (x) => L.fmtAse(x, x % L.WEI === 0n ? 0 : 2) + ' ASE';

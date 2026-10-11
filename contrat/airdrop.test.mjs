@@ -68,7 +68,7 @@ sec('Initialisation');
 {
   const w = world({ games: false });
   const r = w.round(1);
-  t('tirage dimanche 11/10/2026 21:00 Paris', new Date(r.drawTs).toISOString() === '2026-10-11T19:00:00.000Z', new Date(r.drawTs).toISOString());
+  t('tirage lundi 12/10/2026 21:00 Paris (19:00 UTC)', new Date(r.drawTs).toISOString() === '2026-10-12T19:00:00.000Z', new Date(r.drawTs).toISOString());
   t('opérateur et délai 6 h', w.a.view('getConfig').operator === OPER && w.a.view('getConfig').revealMin === 360);
   t('double init refusé', !w.a.call(ADMIN, 'init', [OPER, COLLAB, w.chO[60], w.chC[60]]).success);
   t('ASE refusés par poke', !w.a.call(P[0], 'poke', [], ASE).success);
@@ -83,17 +83,21 @@ sec('Semaine complète : loto + tombola → airdrop');
   t('loto n°1 tiré', w.drawLoto(1));
   t('achats dimanche', w.buyLoto(P[0], 2).success && w.buyLoto(P[2], 3).success && w.buyRaffle(P[0], 2).success && w.buyRaffle(P[3], 5).success && w.buyRaffle(P[4], 1).success);
   const bal0 = w.chain.balanceOf(w.a.address);
+  w.chain.mineUntil(w.raffle.view('getRound', [1]).closeTs); w.chain.mine(1);
+  t('dimanche : loto n°2 et grosse tombola n°1 tirés', w.drawLoto(2) && w.drawRaffle(1));
+  t('achat loto lundi', w.buyLoto(P[1], 1).success);
+  t('airdrop prévu lundi 12/10 à 21:00 Paris', new Date(w.round(1).drawTs).toISOString() === '2026-10-12T19:00:00.000Z');
   w.closeAirdrop(1);
-  t('airdrop fermé à 21h00', w.round(1).status === 'closed' && w.st().cur === 2);
+  t('airdrop fermé lundi à 21h00', w.round(1).status === 'closed' && w.st().cur === 2);
   let wk = await w.week(1);
-  t('liste pas prête tant que les jeux du dimanche ne sont pas tirés', !wk.ready && wk.waiting.length === 2, JSON.stringify(wk.waiting));
-  t('loto n°2 et tombola n°1 tirés', w.drawLoto(2) && w.drawRaffle(1));
+  t('liste pas prête tant que le loto du lundi n\'est pas tiré', !wk.ready && wk.waiting.length === 1, JSON.stringify(wk.waiting));
+  t('loto n°3 (lundi) tiré', w.drawLoto(3));
   wk = await w.week(1);
   const received = w.chain.balanceOf(w.a.address) - bal0 + bal0;
   t('liste prête', wk.ready, JSON.stringify(wk.waiting));
-  t('1 grille / 1 ticket = 1 chance', JSON.stringify(wk.entries) === JSON.stringify([[P[0], 8], [P[1], 1], [P[2], 3], [P[3], 5], [P[4], 1]]), JSON.stringify(wk.entries));
-  t('cagnotte = frais reçus par le contrat Airdrop (7,5 %)', BigInt(wk.pot) === received && received === (10n * 2n * ASE + 8n * 5n * ASE) * 75n / 1000n, wk.pot + ' / ' + received);
-  t('3 tirages comptés', wk.games.length === 3);
+  t('1 grille / 1 ticket = 1 chance', JSON.stringify(wk.entries) === JSON.stringify([[P[0], 8], [P[1], 2], [P[2], 3], [P[3], 5], [P[4], 1]]), JSON.stringify(wk.entries));
+  t('cagnotte = frais reçus par le contrat Airdrop (7,5 %)', BigInt(wk.pot) === received && received === (11n * 2n * ASE + 8n * 5n * ASE) * 75n / 1000n, wk.pot + ' / ' + received);
+  t('4 tirages comptés (loto sam/dim/lun + tombola)', wk.games.length === 4);
   t('révélation avant la liste refusée', !w.revealO(1).success);
   t('un joueur ne peut pas envoyer la liste', !w.submit(1, wk.entries, wk.pot, P[0]).success);
   const unsorted = [wk.entries[1], wk.entries[0]];
@@ -128,10 +132,13 @@ sec('Semaine complète : loto + tombola → airdrop');
 
   sec('Semaine 2 : 2 wallets seulement → 20 % reportés');
   w.buyLoto(P[5], 2); w.buyRaffle(P[5], 1); w.buyRaffle(P[6], 1); w.buyRaffle(P[7], 1);
-  for (let id = 3; id <= 9; id++) { const lr = w.loto.view('getRound', [id]); if (!lr) break; w.chain.mineUntil(lr.closeTs); w.chain.mine(1); w.drawLoto(id); }
+  for (let id = 4; id <= 12; id++) {
+    const lr = w.loto.view('getRound', [id]); if (!lr || lr.drawTs > w.round(2).drawTs) break;
+    const rr = w.raffle.view('getRound', [2]);
+    if (rr.status === 'open' && rr.closeTs <= lr.closeTs) { w.chain.mineUntil(rr.closeTs); w.chain.mine(1); w.drawRaffle(2); }
+    w.chain.mineUntil(lr.closeTs); w.chain.mine(1); w.drawLoto(id);
+  }
   w.closeAirdrop(2);
-  const rr = w.raffle.view('getRound', [2]);
-  w.chain.mineUntil(rr.closeTs); w.chain.mine(1); w.drawRaffle(2);
   const wk2 = await w.week(2);
   t('semaine 2 prête : 3 wallets (loto + tombola cumulés)', wk2.ready && JSON.stringify(wk2.entries) === JSON.stringify([[P[5], 3], [P[6], 1], [P[7], 1]]), JSON.stringify(wk2));
   const two = wk2.entries.slice(0, 2);

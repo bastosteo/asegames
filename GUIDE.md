@@ -168,7 +168,7 @@ l'équipe (75 % owner, 25 % collaborateur), l'autre moitié est envoyée au cont
 après chaque tirage réussi. Loto : jackpot 35 % des ventes, caisse des gains fixes 50 % (4 bons =
 25 mises = 50 ASE, 3 bons = 2,5 mises = 5 ASE, + bonus). Tombola : cagnotte 85 %.
 
-ASE Airdrop (`/airdrop`) : chaque dimanche à 21h (Paris), la cagnotte de la semaine est tirée au sort
+ASE Airdrop (`/airdrop`) : chaque lundi à 21h (Paris), lendemain de la grosse tombola, la cagnotte de la semaine est tirée au sort
 entre les joueurs : 1 grille de loto ou 1 ticket de tombola (tirages réussis de la semaine) = 1 chance ;
 3 wallets différents gagnent 50 / 30 / 20 % ; prix envoyés directement ; moins de 3 joueurs → la part
 non attribuée est reportée. Le croupier owner GitHub (« opérateur ») calcule la liste des joueurs à

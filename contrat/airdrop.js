@@ -4,7 +4,7 @@
 //  Règles :
 //   - Les contrats ASE Loto et ASE Raffle envoient ici la moitié de leur
 //     commission (7,5 % des ventes) à chaque tirage réussi.
-//   - Chaque dimanche à 21h00 (heure de Paris), tirage au sort de la
+//   - Chaque lundi à 21h00 (heure de Paris, 19h/20h UTC), lendemain de la tombola, tirage au sort de la
 //     cagnotte de la semaine : 1er 50 %, 2e 30 %, 3e 20 %, 3 wallets
 //     DIFFÉRENTS. Chances : 1 grille de loto ou 1 ticket de tombola de la
 //     semaine = 1 chance.
@@ -284,7 +284,7 @@ function finalize(r, s) {
     assert(isSecret(tipOwner) && isSecret(tipCollab) && tipOwner !== tipCollab, 'invalid tips');
     const c = {
       admin: sender(), operator: addr(operator), collabAdmin: addr(collabAdmin),
-      drawDay: 0, drawH: 21, drawM: 0,         // dimanche 21h00 Paris
+      drawDay: 1, drawH: 21, drawM: 0,         // lundi 21h00 Paris (lendemain de la tombola)
       revealMin: 360,
     };
     jset('cfg', c);
@@ -393,7 +393,7 @@ function finalize(r, s) {
   },
 
   // ADMIN
-  // jour (0 = dimanche … 6), heure, minute (Paris), délai du tirage (min).
+  // jour (0 = dimanche, 1 = lundi … 6), heure, minute (Paris), délai du tirage (min).
   setConfig(drawDay, drawH, drawM, revealMin) {
     noValue();
     const c = cfg(); onlyAdmin(c);

@@ -26,7 +26,7 @@ owner + collaborateur. ASE Airdrop : tirage hebdomadaire des frais, 1 ticket = 1
 | `site/` | ASE Loto, le site du loto (statique ; `?demo` pour la démo) |
 | `accueil/` | ASE Vegas : page d'accueil avec la liste des jeux, et `slot/` (bientôt) |
 | `outils/assembler-asegame.sh` | Assemble `asegame/` (accueil + `loto/` + `raffle/` + `airdrop/` + `slot/`) à mettre sur Cloudflare Pages |
-| `contrat/airdrop.js` (+ `.deploy.js`, `airdrop.test.mjs`) | ASE Airdrop : tirage hebdomadaire des frais (69 tests) |
+| `contrat/airdrop.js` (+ `.deploy.js`, `airdrop.test.mjs`) | ASE Airdrop : tirage hebdomadaire (lundi) des frais (72 tests) |
 | `airdrop/` | Page du site ASE Airdrop (`/airdrop/`) ; `airdrop/js/liste.mjs` calcule la liste des joueurs (site et croupier) |
 | `croupier/e2e-airdrop.test.mjs` | Croupier + Airdrop + loto + tombola sur une fausse chaîne |
 | `outils/deployer-airdrop.sh` + `Deployer-ASE-Airdrop.bat` | Airdrop + loto v3 + tombola v2 (fin propre des anciens contrats) |
