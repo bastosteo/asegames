@@ -458,11 +458,11 @@ async function verifyRound(id) {
       return [false, 'does not extend the chain of draw #' + prev.id];
     };
     const [o1, o2] = chainCheck(r.sO, 'sO'), [c1, c2] = chainCheck(r.sC, 'sC');
-    step(o1, 'Operator secret', `<code>${r.sO}</code><br>${o2}`);
-    step(c1, 'Collaborator secret', `<code>${r.sC}</code><br>${c2}`);
+    // Les secrets ne sont plus affichés : on ne signale qu'une anomalie éventuelle.
+    if (!o1 || !c1) step(false, 'Draw secrets', !o1 ? o2 : c2);
     // 3) Numéros
     const nums = L.drawNumbers(id, r.sO, r.sC, d);
-    step(JSON.stringify(nums) === JSON.stringify(r.nums), 'Numbers drawn', `SHA-256("LOTOASE|${id}|operator secret|collaborator secret|fingerprint") gives <span class="balls tiny" style="display:inline-flex;vertical-align:middle">${nums.map((n) => ballHtml(n, 'gold')).join('')}</span>`);
+    step(JSON.stringify(nums) === JSON.stringify(r.nums), 'Numbers drawn', `<span class="balls tiny" style="display:inline-flex;vertical-align:middle">${nums.map((n) => ballHtml(n, 'gold')).join('')}</span>`);
     // 4) Gagnants
     const cnt = [0, 0, 0];
     for (const p of list) for (const g of p.g) { const k = L.matches(g, nums); if (k >= 3) cnt[k - 3]++; }
