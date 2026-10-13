@@ -315,3 +315,6 @@ input:focus-visible { outline: 1px solid var(--accent) !important; }
 .choice .c-cta { color: var(--accent); text-transform: uppercase; letter-spacing: .14em; font-size: .72rem; }
 .choice:disabled { opacity: .5; cursor: not-allowed; }
 .muted { color: var(--muted); }
+
+/* Un élément masqué reste masqué, même si son style lui donne un affichage (ex. bandeau des gains) */
+[hidden] { display: none !important; }
