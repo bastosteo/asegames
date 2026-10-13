@@ -48,10 +48,16 @@ function cleanError(e) { const m = String(e && e.message ? e.message : e); const
 
 // ------------------------------------------------------------- lectures
 const view = (m, a = []) => S.rpc.view(S.contract, m, a);
+// Résultats dévoilés à l'heure du tirage (19:00 UTC) : un tirage déjà fait plus tôt sur la chaîne
+// (ventes fermées 1 h avant) reste affiché « en cours » jusqu'à son heure, gains compris.
+function hideUntilDraw(r) {
+  if (!r || r.status !== 'done' || chainNow() >= Number(r.drawTs)) return r;
+  return { ...r, status: 'closed', win: null, prizes: null, revealAt: Number(r.drawTs) };
+}
 async function loadRound(id, force = false) {
   const old = S.rounds.get(id);
   if (old && !force && ['done', 'cancelled'].includes(old.status) && old.claimed.every(Boolean)) return old;
-  const r = await view('getRound', [id]);
+  const r = hideUntilDraw(await view('getRound', [id]));
   if (r) S.rounds.set(id, r);
   return r;
 }
@@ -95,7 +101,18 @@ function renderHero() {
 }
 function tickCountdown() {
   const i = S.info; if (!i) return;
-  const left = Math.floor((Number(i.closeTs) - chainNow()) / 1000);
+  const now = chainNow();
+  // Tirage fait mais dévoilé à 19:00 : compte à rebours des résultats
+  const pend = [...S.rounds.values()].filter((r) => r.status === 'closed' && Number(r.drawTs) > now && now >= Number(r.closeTs)).sort((a, b) => a.id - b.id)[0];
+  if (S.revealAt && now >= S.revealAt) { S.revealAt = 0; refresh(); }
+  if (pend) {
+    S.revealAt = Number(pend.drawTs) + 3000;
+    const s = Math.max(0, Math.floor((Number(pend.drawTs) - now) / 1000));
+    $('#countdownLabel').textContent = 'Results in';
+    $('#countdown').textContent = [Math.floor(s / 3600), Math.floor((s % 3600) / 60), s % 60].map((v) => String(v).padStart(2, '0')).join(':');
+    return;
+  }
+  const left = Math.floor((Number(i.closeTs) - now) / 1000);
   if (left > 0) {
     const d = Math.floor(left / 86400), h = Math.floor((left % 86400) / 3600), m = Math.floor((left % 3600) / 60), x = left % 60;
     $('#countdownLabel').textContent = 'Sales close in';

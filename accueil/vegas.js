@@ -8,6 +8,7 @@
 // =====================================================================
 import LOTO from './loto/js/config.js';
 import RAFFLE from './raffle/js/config.js';
+import TREASURE from './treasure/js/config.js';
 import { Rpc, ExtensionWallet, TelegramWallet } from './loto/js/chain.js';
 import * as L from './loto/js/lotomath.js';
 
@@ -64,6 +65,7 @@ async function loadWins() {
         for (let id = st.cur; id >= Math.max(1, st.cur - 14); id--) {
           const r = await view(LOTO.CONTRACT, 'getRound', [id]);
           if (!r || !r.buys || (r.status !== 'done' && r.status !== 'cancelled')) continue;
+          if (r.status === 'done' && Date.now() < Number(r.drawTs)) continue;   // dévoilé à l'heure du tirage
           for (let k = 0; k < r.buys; k += 400) {
             for (const p of await view(LOTO.CONTRACT, 'getPurchases', [id, k, Math.min(400, r.buys - k)])) {
               if (p.b !== me || p.paid) continue;
@@ -81,6 +83,7 @@ async function loadWins() {
         for (let id = st.cur; id >= Math.max(1, st.cur - 8); id--) {
           const r = await view(RAFFLE.CONTRACT, 'getRound', [id]);
           if (!r) continue;
+          if (r.status === 'done' && Date.now() < Number(r.drawTs)) continue;   // dévoilé à l'heure du tirage
           if (r.status === 'done') r.win.forEach((w, k) => { if (w.b === me && !r.claimed[k]) wins.push({ game: 'Raffle', label: `Raffle #${id}, ${['1st', '2nd', '3rd'][k]} prize`, amount: r.prizes[k], c: RAFFLE.CONTRACT, m: 'claim', a: [id, k] }); });
           if (r.status === 'cancelled' && r.buys) for (const p of await view(RAFFLE.CONTRACT, 'getPurchases', [id, 0, Math.min(400, r.buys)])) {
             if (p.b === me && !p.paid) wins.push({ game: 'Raffle', label: `Refund, raffle #${id}`, amount: (BigInt(r.price) * BigInt(p.n)).toString(), c: RAFFLE.CONTRACT, m: 'settle', a: [id, p.idx, 1] });
@@ -88,6 +91,28 @@ async function loadWins() {
         }
       } catch (e) { console.warn('raffle', e); }
     }
+  }
+  // ASE Treasure : trésor trouvé par ce wallet et pas encore envoyé → à réclamer (« Claim »)
+  if (me && TREASURE.CONTRACT) {
+    try {
+      const view = (c, m, a) => rpc.view(c, m, a);
+      const st = await view(TREASURE.CONTRACT, 'getState', []);
+      const g = st.cur ? await view(TREASURE.CONTRACT, 'getGrid', [st.cur]) : null;
+      if (g && g.status === 'open' && g.digs > 0) {
+        const digs = [];
+        for (let k = 0; k < g.digs; k += 400) digs.push(...(await view(TREASURE.CONTRACT, 'getDigs', [g.id, k, Math.min(400, g.digs - k)])));
+        const mine = digs.filter((d) => d.b === me);
+        if (mine.length) {
+          const res = await fetch(`/api/treasure?grid=${g.id}&cells=${mine.map((d) => d.c).join(',')}`, { cache: 'no-store' }).then((r) => r.json());
+          const t = (res.answers || []).find((x) => x.ans === 'T');
+          if (t) {
+            const k = digs.findIndex((d) => d.c === t.cell), price = BigInt(g.price);
+            const amount = BigInt(g.carryIn || '0') + (price - (price * 1500n) / 10000n) * BigInt(k + 1);
+            wins.push({ game: 'Treasure', label: `Map #${g.id}, treasure found`, amount: amount.toString(), c: TREASURE.CONTRACT, m: 'claim', a: [g.id, t.cell, t.salt, t.proof] });
+          }
+        }
+      }
+    } catch (e) { console.warn('treasure', e); }
   }
   V.wins = wins;
   renderWinsBtn();

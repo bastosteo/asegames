@@ -107,6 +107,7 @@ jobs:
         env:
           ROLE: collab
           GAME: airdrop
+          AIRDROP_HOLD_MIN: '60'
           CROUPIER_NAME: airdrop-collab-github
           CONTRACT: ${{ vars.AIRDROP_CONTRACT }}
           LOTO_CONTRACT: ${{ vars.CONTRACT }},${{ vars.OLD_LOTO }}

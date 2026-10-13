@@ -1,0 +1,37 @@
+{
+  "_lisezmoi": [
+    "MESSAGES TELEGRAM PRÊTS À ENVOYER — c'est toi qui les écris.",
+    "Quand la cagnotte d'un jeu dépasse un seuil (en ASE), le croupier t'envoie en privé sur Telegram",
+    "le message correspondant, prêt à transférer dans ton groupe ou ta chaîne.",
+    "Un seul message par seuil et par tirage (ou par carte pour le trésor).",
+    "Mots remplacés automatiquement : {montant} = cagnotte en ASE, {heure} = heure du tirage (UTC),",
+    "{jour} = jour du tirage, {joueurs} = nombre de joueurs, {lien} = lien de la page du jeu, {numero} = n° du tirage.",
+    "Pour modifier : change le texte entre guillemets. Pour un retour à la ligne, écris \\n.",
+    "Pour ajouter un seuil : copie une ligne { \"seuil\": …, \"message\": \"…\" } (virgule entre deux lignes).",
+    "Sur GitHub : ouvre ce fichier, clique sur le crayon (Edit), modifie, puis « Commit changes »."
+  ],
+  "loto": [
+    { "seuil": 50, "message": "🎱 The ASE Loto jackpot just passed {montant} ASE!\nNext draw: today at {heure} UTC. 2 ASE a ticket, 5 numbers out of 20.\n👉 {lien}" },
+    { "seuil": 100, "message": "🔥 {montant} ASE in the ASE Loto jackpot!\nMatch 5 numbers tonight at {heure} UTC and it's all yours.\n👉 {lien}" },
+    { "seuil": 250, "message": "🚨 BIG JACKPOT: {montant} ASE on ASE Loto!\nDraw at {heure} UTC. One ticket = 2 ASE. Who takes it?\n👉 {lien}" },
+    { "seuil": 500, "message": "💰💰 {montant} ASE JACKPOT on ASE Loto! Biggest one yet.\nDraw at {heure} UTC, don't miss it.\n👉 {lien}" }
+  ],
+  "raffle": [
+    { "seuil": 25, "message": "🎟️ The ASE Raffle pot is at {montant} ASE with {joueurs} players.\n3 winners on {jour} at {heure} UTC. 5 ASE a ticket.\n👉 {lien}" },
+    { "seuil": 50, "message": "🎟️ {montant} ASE in the ASE Raffle!\n1st prize takes half. Draw {jour} at {heure} UTC.\n👉 {lien}" },
+    { "seuil": 100, "message": "🔥 ASE Raffle: {montant} ASE to share between 3 winners!\nTickets close {jour} at {heure} UTC.\n👉 {lien}" },
+    { "seuil": 250, "message": "🚨 Huge ASE Raffle: {montant} ASE!\n{joueurs} players so far. Your turn?\n👉 {lien}" }
+  ],
+  "treasure": [
+    { "seuil": 5, "message": "🗺️ Treasure #{numero} is worth {montant} ASE and still hidden!\n0.5 ASE a dig, instant hot/cold answer.\n👉 {lien}" },
+    { "seuil": 10, "message": "💰 {montant} ASE buried on map #{numero}… nobody found it yet!\nGrab a shovel 👉 {lien}" },
+    { "seuil": 25, "message": "🔥 The treasure of map #{numero} is now {montant} ASE!\nSomeone is going to be lucky. Why not you?\n👉 {lien}" },
+    { "seuil": 50, "message": "🚨 {montant} ASE TREASURE on map #{numero}!\nDig before someone else does 👉 {lien}" }
+  ],
+  "airdrop": [
+    { "seuil": 5, "message": "🪂 This week's ASE Airdrop is already {montant} ASE!\nFree: every ticket or dig you play is one chance. Draw {jour} at {heure} UTC.\n👉 {lien}" },
+    { "seuil": 10, "message": "🪂 {montant} ASE in the free ASE Airdrop this week!\nPlay any game to get chances. 3 winners {jour} at {heure} UTC.\n👉 {lien}" },
+    { "seuil": 25, "message": "🔥 ASE Airdrop: {montant} ASE shared between 3 players this {jour}!\nEvery ticket = one free chance.\n👉 {lien}" },
+    { "seuil": 50, "message": "🚨 {montant} ASE AIRDROP this week, 100% free!\nPlay before Sunday's raffle to get your chances.\n👉 {lien}" }
+  ]
+}

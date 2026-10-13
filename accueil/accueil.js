@@ -74,7 +74,8 @@ async function loadDrop() {
     dinfo = await rpc.view(DROP.CONTRACT, 'info', []);
     doff = Number(dinfo.now) - Date.now();
     tickDrop();
-    $('#dropTime').textContent = `${utcWeekday(dinfo.drawTs)} at ${utcTime(dinfo.drawTs)}`;
+    const res = Number(dinfo.drawTs) + (DROP.RESULT_DELAY_MIN || 0) * 60000;
+    $('#dropTime').textContent = `${utcWeekday(res)} at ${utcTime(res)}`;
     const prev = dinfo.round > 1 ? await rpc.view(DROP.CONTRACT, 'getRound', [dinfo.round - 1]) : null;
     // Semaine des tickets : de la tombola du dimanche à la suivante (24 h avant chaque Airdrop du lundi)
     const f0 = prev && prev.status !== 'cancelled' ? Number(prev.drawTs) : Number(dinfo.fromTs);
@@ -86,7 +87,7 @@ async function loadDrop() {
 }
 function tickDrop() {
   if (!dinfo) return;
-  const s = Math.floor((Number(dinfo.drawTs) - (Date.now() + doff)) / 1000);
+  const s = Math.floor((Number(dinfo.drawTs) + (DROP.RESULT_DELAY_MIN || 0) * 60000 - (Date.now() + doff)) / 1000);
   if (s <= 0) { $('#dropCountdown').textContent = 'drawing'; return; }
   const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
   $('#dropCountdown').textContent = d ? `${d}d ${h}h` : `${h}h ${String(m).padStart(2, '0')}m`;

@@ -57,7 +57,8 @@ const CFG = {
   tgChat: process.env.TELEGRAM_CHAT_ID || '',
   tgApi: (process.env.TELEGRAM_API || 'https://api.telegram.org').replace(/\/$/, ''),
   healthPort: Number(process.env.HEALTH_PORT || 0),
-  lateAlertMin: Number(process.env.LATE_ALERT_MIN || 15),   // alerte si un secret manque X min après la fermeture
+  lateAlertMin: Number(process.env.LATE_ALERT_MIN || 15),
+  airdropHoldMin: Number(process.env.AIRDROP_HOLD_MIN || 0),   // Airdrop : dernier secret (= envoi des prix) X min après l'heure du tirage   // alerte si un secret manque X min après la fermeture
   backupAfterMin: Number(process.env.BACKUP_AFTER_MIN || 30), // le collab prend le relais du comptage/paiement
   tallyBatch: Number(process.env.TALLY_BATCH || 300),
   payBatch: Number(process.env.PAY_BATCH || 100),
@@ -365,6 +366,15 @@ async function airdropRound(id, now, values) {
   if (CFG.role === 'collab' && r.sO && !r.sC) {
     const sec = secretFor(st.tipC, values);
     if (!sec) { await alert(`❌ Airdrop ${id} : bout de chaîne collaborateur introuvable dans ma chaîne !`, 'nochain'); return; }
+    // Prix envoyés à l'heure annoncée (ex. 1 h après la fermeture) : on attend si besoin,
+    // jusqu'à 9 min dans ce passage ; sinon un passage suivant s'en chargera.
+    const releaseAt = Number(r.drawTs) + CFG.airdropHoldMin * 60000;
+    if (now < releaseAt) {
+      const wait = releaseAt - now;
+      if (wait > 9 * 60000) { log(`Airdrop ${id} : prêt, envoi des prix prévu dans ${Math.round(wait / 60000)} min`); return; }
+      log(`Airdrop ${id} : attente de l'heure d'envoi (${Math.round(wait / 1000)} s)`);
+      await sleep(wait + 2000);
+    }
     await send('reveal', ['collab', id, sec]);
     await announce(id);
     return;
@@ -391,6 +401,12 @@ async function treasureTick() {
       if (g.status === 'found' && STATE.lastDrawn < g.id) {
         STATE.lastDrawn = g.id; saveState();
         await alert(`💰 ASE Treasure, grille n°${g.id} : trésor trouvé en ${g.t + 1} fouilles par ${g.winner.slice(0, 8)}…${g.winner.slice(-4)} → ${ase(g.prize)} ASE`, 'found' + g.id, 1e12);
+      }
+      // Carte suivante tout de suite, sans attendre le passage suivant
+      if (g.status === 'found' && CFG.role === 'owner') {
+        const nb = board(CFG.treasureSeed, g.id + 1);
+        log(`Treasure : ouverture de la grille ${g.id + 1}`);
+        await send('openGrid', [g.id + 1, nb.root]).catch((e) => log(e.message));
       }
     }
   }

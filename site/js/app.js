@@ -52,10 +52,16 @@ function cleanError(e) {
 // ------------------------------------------------------------- lectures
 const view = (m, a = []) => S.rpc.view(S.contract, m, a);
 
+// Résultats dévoilés à l'heure du tirage (19:00 UTC) : un tirage déjà fait plus tôt sur la chaîne
+// (ventes fermées 1 h avant) reste affiché « en cours » jusqu'à son heure, gains compris.
+function hideUntilDraw(r) {
+  if (!r || r.status !== 'done' || chainNow() >= Number(r.drawTs)) return r;
+  return { ...r, status: 'closed', nums: null, cnt: null, per: null, revealAt: Number(r.drawTs) };
+}
 async function loadRound(id, force = false) {
   const old = S.rounds.get(id);
   if (old && !force && ['done', 'cancelled', 'empty'].includes(old.status)) return old;
-  const r = await view('getRound', [id]);
+  const r = hideUntilDraw(await view('getRound', [id]));
   if (r) S.rounds.set(id, r);
   return r;
 }
@@ -122,8 +128,13 @@ function tickCountdown() {
   const now = chainNow();
   const close = Number(i.closeTs);
   let label, target;
-  if (now < close) { label = 'Sales close in'; target = close; }
+  // Tirage fait mais dévoilé à 19:00 : compte à rebours des résultats
+  const pend = [...S.rounds.values()].filter((r) => r.status === 'closed' && Number(r.drawTs) > now && now >= Number(r.closeTs)).sort((a, b) => a.id - b.id)[0];
+  if (pend) { label = 'Results in'; target = Number(pend.drawTs); }
+  else if (now < close) { label = 'Sales close in'; target = close; }
   else { label = 'Draw in progress'; target = null; }
+  if (S.revealAt && now >= S.revealAt) { S.revealAt = 0; refresh(); }
+  if (pend) S.revealAt = Number(pend.drawTs) + 3000;
   $('#countdownLabel').textContent = label;
   if (target) {
     const s = Math.max(0, Math.floor((target - now) / 1000));
@@ -422,9 +433,10 @@ function renderResults() {
 function renderRanking() {
   const wins = [], grids = new Map();
   for (const [id, list] of S.purchases) {
+    const shown = (S.rounds.get(id) || {}).status === 'done';   // pas de gains avant 19:00
     for (const p of list) {
       grids.set(p.b, (grids.get(p.b) || 0) + p.g.length);
-      if (BigInt(p.prize) > 0n) wins.push({ b: p.b, prize: BigInt(p.prize), id });
+      if (shown && BigInt(p.prize) > 0n) wins.push({ b: p.b, prize: BigInt(p.prize), id });
     }
   }
   wins.sort((a, b) => (b.prize > a.prize ? 1 : b.prize < a.prize ? -1 : 0));

@@ -87,6 +87,9 @@ async function refresh() {
   } catch (e) { console.error(e); toast('Could not read the chain: ' + cleanError(e), 'err', 8000); }
 }
 
+// Heure annoncée des résultats : heure de tirage du contrat + délai d'envoi des prix
+const resultTs = () => Number(S.info.drawTs) + (CONFIG.RESULT_DELAY_MIN || 0) * 60000;
+
 // ------------------------------------------------------------- en-tête
 function renderHero() {
   const i = S.info, w = S.week; if (!i || !w) return;
@@ -94,9 +97,9 @@ function renderHero() {
   $('#pot').textContent = ase(total, 2);
   split(total).forEach((x, k) => ($('#prize' + (k + 1)).textContent = ase(x) + ' ASE'));
   const cut = Number(i.drawTs) - CUTOFF_MS;
-  $('#estNote').textContent = `Exact amount: it is already in the airdrop contract. Tickets count until the Raffle draw on ${utcWeekday(cut)} at ${utcTime(cut)}.`;
+  $('#estNote').textContent = `Exact amount: it is already in the airdrop contract. Tickets count until ${utcWeekday(cut)} at ${utcTime(cut)} (when Raffle sales close).`;
   const pending = [...S.rounds.values()].find((r) => r.id < i.round && (r.status === 'closed' || r.status === 'listed'));
-  $('#drawWhen').textContent = `Airdrop #${i.round}, ${utcDay(i.drawTs)} at ${utcTime(i.drawTs)}` +
+  $('#drawWhen').textContent = `Airdrop #${i.round}, ${utcDay(resultTs())} at ${utcTime(resultTs())}` +
     (BigInt(i.carry) > 0n ? ` · includes ${ase(i.carry)} ASE rolled over` : '') + (pending ? ` · airdrop #${pending.id} is being drawn now` : '');
   $('#chances').textContent = w.entries.reduce((a, e) => a + e[1], 0).toLocaleString('en-GB');
   $('#players').textContent = w.entries.length.toLocaleString('en-GB');
@@ -107,7 +110,7 @@ function tickCountdown() {
   const WEEK = 7 * 86400000, cut = Number(i.drawTs) - CUTOFF_MS, f = Math.min(1, Math.max(0, 1 - (cut - chainNow()) / WEEK));
   $('#weekBar').style.width = (f * 100).toFixed(1) + '%';
   $('#weekPct').textContent = f < 1 ? `Day ${Math.min(7, Math.floor(f * 7) + 1)} / 7` : 'Closed, new tickets count for next week';
-  const left = Math.floor((Number(i.drawTs) - chainNow()) / 1000);
+  const left = Math.floor((resultTs() - chainNow()) / 1000);
   if (left > 0) {
     const d = Math.floor(left / 86400), h = Math.floor((left % 86400) / 3600), m = Math.floor((left % 3600) / 60), x = left % 60;
     $('#countdownLabel').textContent = 'Airdrop in';
@@ -128,7 +131,7 @@ function renderMine() {
   let html = `<dl class="share"><div><dt>Your chances</dt><dd>${n.toLocaleString('en-GB')}</dd></div><div><dt>Out of</dt><dd>${total.toLocaleString('en-GB')}</dd></div><div><dt>Share</dt><dd>${pct(n, total)}</dd></div></dl>
     <div class="bar" aria-hidden="true"><i style="width:${total ? Math.max(n ? 1 : 0, (n * 100) / total) : 0}%"></i></div>`;
   html += n
-    ? `<p>Each of your tickets is one chance at the 1st prize (${ase(split(pot)[0])} ASE so far). The more you play before ${utcWeekday(Number(S.info.drawTs) - CUTOFF_MS)} ${utcTime(Number(S.info.drawTs) - CUTOFF_MS)} (Raffle draw), the more chances you get.</p>`
+    ? `<p>Each of your tickets is one chance at the 1st prize (${ase(split(pot)[0])} ASE so far). The more you play before ${utcWeekday(Number(S.info.drawTs) - CUTOFF_MS)} ${utcTime(Number(S.info.drawTs) - CUTOFF_MS)} (when Raffle sales close), the more chances you get.</p>`
     : `<p class="muted">No chance yet this week for ${esc(L.shortAddr(S.me))}. Play <a href="../loto/">ASE Loto</a>, <a href="../raffle/">ASE Raffle</a> or <a href="../treasure/">ASE Treasure</a>: every ticket or dig this week is one chance.</p>`;
   const won = [...S.rounds.values()].filter((r) => r.status === 'done' && r.win.some((w) => w.b === S.me)).sort((a, b) => b.id - a.id);
   if (won.length) html += '<h3>Your airdrop wins</h3><ol class="winners">' + won.map((r) => { const k = r.win.findIndex((w) => w.b === S.me); return `<li><span class="medal m${k + 1}">${k + 1}</span>Airdrop #${r.id}<span class="muted small">${utcDay(r.drawTs)}</span><span class="tag ok">Sent to your wallet</span><span class="amount">${ase(r.prizes[k])} ASE</span></li>`; }).join('') + '</ol>';
@@ -234,7 +237,7 @@ function selectTab(name) {
 $$('.tabs [role=tab]').forEach((b) => (b.onclick = () => selectTab(b.dataset.tab)));
 function renderRulesValues() {
   if (!S.cfg) return;
-  if (S.info) $$('.js-drawtime').forEach((e) => (e.textContent = `${utcWeekday(S.info.drawTs)} at ${utcTime(S.info.drawTs)}`));
+  if (S.info) $$('.js-drawtime').forEach((e) => (e.textContent = `${utcWeekday(resultTs())} at ${utcTime(resultTs())}`));
   $$('.js-reveal').forEach((e) => (e.textContent = S.cfg.revealMin % 60 === 0 ? plural(S.cfg.revealMin / 60, 'hour', 'hours') : plural(S.cfg.revealMin, 'minute', 'minutes')));
 }
 function renderChanceCard() {

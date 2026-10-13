@@ -25,3 +25,12 @@ printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content=
 (cd "$R" && $W pages deploy . --project-name asegame --branch main --commit-dirty=true > /dev/null 2>&1) \
   && echo "      asegame.pages.dev → asevegas.pages.dev" || echo "      (redirection non faite : pas grave, l'ancien site reste tel quel)"
 rm -rf "$R"
+# Croupiers GitHub : envoie aussi le code à jour (croupier, règles) sur le dépôt asegames
+if command -v gh >/dev/null && gh auth status >/dev/null 2>&1 && [ -d .git ]; then
+  git add -A
+  if git diff --cached --name-only | grep -E '(-chain\.json|gh-signers\.json|seed.*\.txt|(^|/)\.env($|\.)|croupier/data)' | grep -v '\.env\.exemple$'; then
+    echo "ERREUR : un fichier secret allait être publié sur GitHub. Rien n'a été envoyé."; git reset -q
+  else
+    git commit -qm "ASE Vegas: mise à jour" && git push -q && echo "      GitHub à jour (croupiers)." || echo "      GitHub : rien de nouveau à envoyer."
+  fi
+fi
