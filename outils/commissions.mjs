@@ -34,6 +34,7 @@ function split(com, drop) {
 }
 
 const markers = [['.loto-v4-fait', 'Loto (v4)'], ['.tombola-v3-fait', 'Raffle (v3)'], ['.tresor-v2-fait', 'Treasure (v2)'],
+  ['.loto-ancien', 'Loto (ancien, 2 ASE)'], ['.raffle-ancienne', 'Raffle (ancienne, 5 ASE)'], ['.v5-ancien-tresor', 'Treasure (ancien, 0,5 ASE)'],
   ['.loto-v3-fait', 'Loto (v3, ancien)'], ['.tombola-v2-fait', 'Raffle (v2, ancien)'], ['.tresor-fait', 'Treasure (v1, ancien)']];
 let list = process.argv.slice(2).map((c) => [c, c]);
 if (!list.length) list = markers.filter(([f]) => existsSync(f)).map(([f, n]) => [readFileSync(f, 'utf8').trim(), n]);

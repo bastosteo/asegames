@@ -170,7 +170,7 @@ function renderMap() {
     b.className = cls.join(' ');
     b.textContent = a && !p ? ICON[a.ans] : '';
     b.disabled = !open || dug.has(c) || p;
-    b.title = a ? `${coord(c)}: ${NAME[a.ans]}` : dug.has(c) ? `${coord(c)}: dug, answer loading…` : `${coord(c)}: dig for ${S.cfg ? ase(S.cfg.price) : '0.5'} ASE`;
+    b.title = a ? `${coord(c)}: ${NAME[a.ans]}` : dug.has(c) ? `${coord(c)}: dug, answer loading…` : `${coord(c)}: dig for ${S.cfg ? ase(S.grid ? S.grid.price : S.cfg.price) : '0.2'} ASE`;
   });
   const hot = [...S.answers.values()].filter((a) => a.ans === 'H').length;
   $('#mapStatus').textContent = g ? `Map #${g.id} · ${plural(g.digs, 'dig', 'digs')} · ${hot} 🔥` : '20 × 20';
@@ -228,7 +228,7 @@ function renderMine() {
   const mine = myDigs();
   let html = mine.length
     ? '<ol class="winners">' + mine.map((d) => { const a = S.answers.get(d.c); return `<li><span class="stub">${coord(d.c)}</span>${a ? `${ICON[a.ans]} ${NAME[a.ans]}` : '<span class="muted">answer loading…</span>'}</li>`; }).join('') + '</ol>'
-    : `<p class="muted">No dig yet on this map. Click a cell on the map: ${S.cfg ? ase(S.cfg.price) : '0.5'} ASE per dig, ${S.cfg ? S.cfg.maxPerWallet : 5} digs per map.</p>`;
+    : `<p class="muted">No dig yet on this map. Click a cell on the map: ${S.cfg ? ase(S.grid ? S.grid.price : S.cfg.price) : '0.2'} ASE per dig, ${S.cfg ? S.cfg.maxPerWallet : 5} digs per map.</p>`;
   const wins = [...S.past.values(), S.grid].filter((g) => g && g.status === 'found' && g.winner === S.wallet.address);
   if (wins.length) html += '<h3>Your treasures</h3><ol class="winners">' + wins.map((g) => `<li>💰 Map #${g.id}<span class="muted small">${utcDay(g.endTs)}</span><span class="amount">${ase(g.prize)} ASE</span></li>`).join('') + '</ol>';
   box.innerHTML = html;

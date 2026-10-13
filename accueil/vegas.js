@@ -59,34 +59,36 @@ async function loadWins() {
   if (me) {
     const view = (c, m, a) => rpc.view(c, m, a);
     // ASE Loto : gains (settle) et remboursements des tirages annulés, 14 derniers tirages
-    if (LOTO.CONTRACT) {
+    for (const LC of [LOTO.CONTRACT, LOTO.OLD].filter(Boolean)) {
+      const old = LC !== LOTO.CONTRACT ? ' (previous Loto)' : '';
       try {
-        const st = await view(LOTO.CONTRACT, 'getState', []);
+        const st = await view(LC, 'getState', []);
         for (let id = st.cur; id >= Math.max(1, st.cur - 14); id--) {
-          const r = await view(LOTO.CONTRACT, 'getRound', [id]);
+          const r = await view(LC, 'getRound', [id]);
           if (!r || !r.buys || (r.status !== 'done' && r.status !== 'cancelled')) continue;
           if (r.status === 'done' && Date.now() < Number(r.drawTs)) continue;   // dévoilé à l'heure du tirage
           for (let k = 0; k < r.buys; k += 400) {
-            for (const p of await view(LOTO.CONTRACT, 'getPurchases', [id, k, Math.min(400, r.buys - k)])) {
+            for (const p of await view(LC, 'getPurchases', [id, k, Math.min(400, r.buys - k)])) {
               if (p.b !== me || p.paid) continue;
-              if (r.status === 'done' && p.prize !== '0') wins.push({ game: 'Loto', label: `Draw #${id}`, amount: p.prize, c: LOTO.CONTRACT, m: 'settle', a: [id, p.idx, 1] });
-              if (r.status === 'cancelled') wins.push({ game: 'Loto', label: `Refund, draw #${id}`, amount: (BigInt(r.price) * BigInt(p.g.length)).toString(), c: LOTO.CONTRACT, m: 'settle', a: [id, p.idx, 1] });
+              if (r.status === 'done' && p.prize !== '0') wins.push({ game: 'Loto', label: `Draw #${id}${old}`, amount: p.prize, c: LC, m: 'settle', a: [id, p.idx, 1] });
+              if (r.status === 'cancelled') wins.push({ game: 'Loto', label: `Refund, draw #${id}${old}`, amount: (BigInt(r.price) * BigInt(p.g.length)).toString(), c: LC, m: 'settle', a: [id, p.idx, 1] });
             }
           }
         }
       } catch (e) { console.warn('loto', e); }
     }
     // ASE Raffle : prix (claim) et remboursements, 8 dernières semaines
-    if (RAFFLE.CONTRACT) {
+    for (const RC of [RAFFLE.CONTRACT, RAFFLE.OLD].filter(Boolean)) {
+      const old = RC !== RAFFLE.CONTRACT ? ' (previous raffle)' : '';
       try {
-        const st = await view(RAFFLE.CONTRACT, 'getState', []);
+        const st = await view(RC, 'getState', []);
         for (let id = st.cur; id >= Math.max(1, st.cur - 8); id--) {
-          const r = await view(RAFFLE.CONTRACT, 'getRound', [id]);
+          const r = await view(RC, 'getRound', [id]);
           if (!r) continue;
           if (r.status === 'done' && Date.now() < Number(r.drawTs)) continue;   // dévoilé à l'heure du tirage
-          if (r.status === 'done') r.win.forEach((w, k) => { if (w.b === me && !r.claimed[k]) wins.push({ game: 'Raffle', label: `Raffle #${id}, ${['1st', '2nd', '3rd'][k]} prize`, amount: r.prizes[k], c: RAFFLE.CONTRACT, m: 'claim', a: [id, k] }); });
-          if (r.status === 'cancelled' && r.buys) for (const p of await view(RAFFLE.CONTRACT, 'getPurchases', [id, 0, Math.min(400, r.buys)])) {
-            if (p.b === me && !p.paid) wins.push({ game: 'Raffle', label: `Refund, raffle #${id}`, amount: (BigInt(r.price) * BigInt(p.n)).toString(), c: RAFFLE.CONTRACT, m: 'settle', a: [id, p.idx, 1] });
+          if (r.status === 'done') r.win.forEach((w, k) => { if (w.b === me && !r.claimed[k]) wins.push({ game: 'Raffle', label: `Raffle #${id}, ${['1st', '2nd', '3rd'][k]} prize${old}`, amount: r.prizes[k], c: RC, m: 'claim', a: [id, k] }); });
+          if (r.status === 'cancelled' && r.buys) for (const p of await view(RC, 'getPurchases', [id, 0, Math.min(400, r.buys)])) {
+            if (p.b === me && !p.paid) wins.push({ game: 'Raffle', label: `Refund, raffle #${id}${old}`, amount: (BigInt(r.price) * BigInt(p.n)).toString(), c: RC, m: 'settle', a: [id, p.idx, 1] });
           }
         }
       } catch (e) { console.warn('raffle', e); }

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ASE Treasure</title>
-<meta name="description" content="ASE Treasure: a treasure hidden on a 20 × 20 map on the Asentum testnet. 0.5 ASE per dig, hot or cold answers, the finder takes the whole treasure.">
+<meta name="description" content="ASE Treasure: a treasure hidden on a 20 × 20 map on the Asentum testnet. 0.2 ASE per dig, hot or cold answers, the finder takes the whole treasure.">
 <meta name="theme-color" content="#000000">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23F6C25C' stroke='%238A5212' stroke-width='2'/%3E%3Cpath d='M11 11 L21 21 M21 11 L11 21' stroke='%238A5212' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -41,7 +41,7 @@
       <span><i class="lg cold"></i> ❄️ Cold: further away</span>
       <span><i class="lg mine"></i> Your digs</span>
     </div>
-    <p class="muted small" id="digHint">Click a cell to dig it for <span class="js-price">0.5 ASE</span>. You get the answer as soon as your dig is confirmed.</p>
+    <p class="muted small" id="digHint">Click a cell to dig it for <span class="js-price">0.2 ASE</span>. You get the answer as soon as your dig is confirmed.</p>
   </section>
 
   <aside class="tside">
@@ -49,13 +49,13 @@
       <div class="tpot-text">
         <p id="potLabel" class="hero-label">Treasure to find</p>
         <p class="jackpot"><span id="pot">…</span> <span class="unit">ASE</span></p>
-        <p class="tsub">Grows by <span class="js-grow">0.425 ASE</span> with every dig.</p>
+        <p class="tsub">Grows by <span class="js-grow">0.17 ASE</span> with every dig.</p>
       </div>
       <svg class="coin-svg" viewBox="0 0 64 64" aria-hidden="true"><image href="../img/ase-token.png" x="2" y="2" width="60" height="60"/><circle cx="32" cy="32" r="30.6" fill="none" stroke="#FFFFFF" stroke-opacity=".28" stroke-width="1"/></svg>
     </div>
     <div class="how">
       <div class="how-t">How to play</div>
-      <p><b>1</b><span>Click a cell: <span class="js-price">0.5 ASE</span> per dig.</span></p>
+      <p><b>1</b><span>Click a cell: <span class="js-price">0.2 ASE</span> per dig.</span></p>
       <p><b>2</b><span>A few seconds later: 🔥 hot or ❄️ cold.</span></p>
       <p><b>3</b><span>Hot? Dig around it. Find the treasure, take it all.</span></p>
     </div>
@@ -84,7 +84,7 @@
   </section>
   <section class="panel rules" id="tab-rules" role="tabpanel" hidden>
     <h3>The game</h3>
-    <p>A treasure is hidden somewhere on a 20 × 20 map (400 cells). Every player digs the same map. One dig costs <strong class="js-price">0.5 ASE</strong>, with up to <strong class="js-max">5</strong> digs per wallet on each map. A cell can only be dug once, and every answer stays visible to everyone.</p>
+    <p>A treasure is hidden somewhere on a 20 × 20 map (400 cells). Every player digs the same map. One dig costs <strong class="js-price">0.2 ASE</strong>, with up to <strong class="js-max">5</strong> digs per wallet on each map. A cell can only be dug once, and every answer stays visible to everyone.</p>
     <h3>Hot or cold</h3>
     <table class="odds">
       <thead><tr><th scope="col">Answer</th><th scope="col">Meaning</th></tr></thead>

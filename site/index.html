@@ -74,7 +74,7 @@
         <p class="table-hint" id="tableHint">Throw the dice!</p>
       </div>
       <div class="balls roll-slots" id="rollSlots" aria-label="Rolled numbers"></div>
-      <button class="btn btn-primary btn-wide btn-roll" id="rollBtn" type="button">Roll the dice · <span class="js-price">2 ASE</span></button>
+      <button class="btn btn-primary btn-wide btn-roll" id="rollBtn" type="button">Roll the dice · <span class="js-price">1 ASE</span></button>
       <p class="quick">Feeling lucky? Roll several at once:
         <button class="chip" data-roll="5" type="button">5 tickets</button>
         <button class="chip" data-roll="10" type="button">10 tickets</button>
@@ -95,9 +95,9 @@
 
   <!-- ===== Ce qu'on peut gagner ===== -->
   <section class="wincards" aria-label="What you can win">
-    <div class="wc top"><span class="wc-l">5 matches</span><strong>Jackpot</strong><span class="muted">Rolls over until won</span></div>
-    <div class="wc"><span class="wc-l">4 matches</span><strong class="js-g4">50 ASE</strong><span class="muted">+ bonus</span></div>
-    <div class="wc"><span class="wc-l">3 matches</span><strong class="js-g3">5 ASE</strong><span class="muted">+ bonus</span></div>
+    <div class="wc top"><span class="wc-l">5 matches</span><strong>Jackpot</strong><span class="muted">35% of sales + rollover</span></div>
+    <div class="wc"><span class="wc-l">4 matches</span><strong>Up to <span class="js-g4">25 ASE</span></strong><span class="muted">depends on sales · + bonus</span></div>
+    <div class="wc"><span class="wc-l">3 matches</span><strong>Up to <span class="js-g3">2.5 ASE</span></strong><span class="muted">depends on sales · + bonus</span></div>
   </section>
 
   <!-- ===== Dernier tirage ===== -->
@@ -140,18 +140,18 @@
 
   <section class="panel rules" id="tab-rules" role="tabpanel" hidden>
     <h3>The game</h3>
-    <p>Throw the five 20-sided dice: they pick the 5 numbers of your ticket (from 1 to 20) for you, pure luck. A ticket costs <strong class="js-price">2 ASE</strong>. One draw takes place every day at <strong class="js-drawtime">19:00 UTC</strong>. Sales close <strong class="js-close">10 minutes</strong> before, then the next draw opens. Results are revealed at the draw time.</p>
+    <p>Throw the five 20-sided dice: they pick the 5 numbers of your ticket (from 1 to 20) for you, pure luck. A ticket costs <strong class="js-price">1 ASE</strong>. One draw takes place every day at <strong class="js-drawtime">19:00 UTC</strong>. Sales close <strong class="js-close">10 minutes</strong> before, then the next draw opens. Results are revealed at the draw time.</p>
     <h3>Prizes</h3>
     <table class="odds">
       <thead><tr><th scope="col">Tier</th><th scope="col">Prize</th></tr></thead>
       <tbody>
         <tr><th scope="row">5 matches</th><td>Jackpot: 35% of the draw's sales + rollover, shared between winners</td></tr>
-        <tr><th scope="row">4 matches</th><td><span class="js-g4">50 ASE</span> (25× the ticket price) + bonus</td></tr>
-        <tr><th scope="row">3 matches</th><td><span class="js-g3">5 ASE</span> (2.5× the ticket price) + bonus</td></tr>
+        <tr><th scope="row">4 matches</th><td>Up to <span class="js-g4">25 ASE</span> (25× the ticket price) + bonus</td></tr>
+        <tr><th scope="row">3 matches</th><td>Up to <span class="js-g3">2.5 ASE</span> (2.5× the ticket price) + bonus</td></tr>
       </tbody>
     </table>
     <p><strong>Bonus</strong>: if nobody hits 5 matches, half of the draw's 35% jackpot share is split among the 4- and 3-match winners; the other half rolls over to the next draw's jackpot.</p>
-    <p>Fixed prizes are paid from a pool of 50% of sales. On nights with so many winners that the pool isn't enough, both fixed prizes are reduced proportionally: 4 matches always win more than 3 matches, and 5 matches more than 4. Whatever is left in the pool goes to the jackpot.</p>
+    <p>Fixed prizes are paid from a pool of 50% of sales. When the pool isn't enough (few tickets sold, or many winners), both fixed prizes are reduced proportionally: 4 matches always win more than 3 matches, and 5 matches more than 4. Whatever is left in the pool goes to the jackpot.</p>
     <p><strong>ASE Airdrop</strong>: every ticket you play also counts as one chance in the weekly <a href="../airdrop/">ASE Airdrop</a> (every Monday, 3 winners).</p>
     <p><strong>Claiming</strong>: after the draw, the site shows “You won X ASE with N matches”. Click <strong>Claim</strong> in “My tickets” to receive your prize in your wallet. Prizes never expire: you can claim them at any time.</p>
     <h3>No cancellations, no refunds</h3>

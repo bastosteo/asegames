@@ -19,6 +19,8 @@ applyTheme('dark');   // ASE Vegas est uniquement en mode sombre, comme Asentum
 
 const utcTime = (ms) => new Date(Number(ms)).toISOString().slice(11, 16) + ' UTC';
 const utcWeekday = (ms) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date(Number(ms)).getUTCDay()];
+// Prix d'une mise : « 1 ASE », « 0.2 ASE »
+const fmtPrice = (w) => { const t = fmtAse(w, BigInt(w) % 10n ** 18n === 0n ? 0 : 2); return (t.includes('.') ? t.replace(/\.?0+$/, '') : t) + ' ASE'; };
 let info = null, offset = 0;
 async function load() {
   if (!CONFIG.CONTRACT) { $('#lotoJackpot').textContent = 'demo'; $('#lotoCountdown').textContent = '–'; return; }
@@ -27,6 +29,7 @@ async function load() {
     offset = Number(info.now) - Date.now();
     $('#lotoJackpot').textContent = fmtAse(info.jackpotEstimate, 0) + ' ASE';
     $('#lotoTime').textContent = utcTime(info.drawTs);
+    if (info.price) $('#lotoPrice').textContent = fmtPrice(info.price);
     tick();
   } catch { $('#lotoJackpot').textContent = '–'; }
 }
@@ -50,6 +53,7 @@ async function loadRaffle() {
     rinfo = await new Rpc(RAFFLE.RPC).view(RAFFLE.CONTRACT, 'info', []);
     roff = Number(rinfo.now) - Date.now();
     $('#rafflePot').textContent = fmtAse(rinfo.pot, 0) + ' ASE';
+    if (rinfo.price) $('#rafflePrice').textContent = fmtPrice(rinfo.price);
     $('#raffleTime').textContent = `${utcWeekday(rinfo.drawTs)} at ${utcTime(rinfo.drawTs)}`;
     tickRaffle();
   } catch { $('#rafflePot').textContent = '–'; }
@@ -80,7 +84,7 @@ async function loadDrop() {
     // Semaine des tickets : de la tombola du dimanche à la suivante (24 h avant chaque Airdrop du lundi)
     const f0 = prev && prev.status !== 'cancelled' ? Number(prev.drawTs) : Number(dinfo.fromTs);
     // Montant exact : 7,5 % de chaque achat de la semaine, déjà versés au contrat Airdrop.
-    const both = (x, y) => [x, y].filter(Boolean);
+    const both = (x, y) => [x, y].flatMap((v) => String(v || '').split(',')).map((v) => v.trim()).filter(Boolean);   // ancien(s) contrat(s) : liste séparée par des virgules
     const wk = await buildWeek({ view: (c, m, a) => rpc.view(c, m, a), loto: both(CONFIG.CONTRACT, DROP.OLD_LOTO), raffle: both(RAFFLE.CONTRACT, DROP.OLD_RAFFLE), treasure: both(TREASURE.CONTRACT, DROP.OLD_TREASURE), fromTs: f0, toTs: dinfo.drawTs, now: dinfo.now });
     $('#dropPot').textContent = fmtAse(BigInt(wk.pot) + BigInt(dinfo.carry), 2) + ' ASE';
   } catch { $('#dropPot').textContent = '–'; }
@@ -103,6 +107,8 @@ async function loadTreasure() {
     const i = await new Rpc(TREASURE.RPC).view(TREASURE.CONTRACT, 'info', []);
     $('#treasurePot').textContent = fmtAse(i.pot, 2) + ' ASE';
     $('#treasureDigs').textContent = String(i.digs);
+    const g = i.status === 'open' ? await new Rpc(TREASURE.RPC).view(TREASURE.CONTRACT, 'getGrid', [i.grid]).catch(() => null) : null;
+    $('#treasurePrice').textContent = fmtPrice((g && g.price) || i.price);
   } catch { $('#treasurePot').textContent = '–'; }
 }
 loadTreasure();

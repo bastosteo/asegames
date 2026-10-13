@@ -620,12 +620,12 @@ async function restoreWallet() {
 // ------------------------------------------------------------- rendu global
 function renderRulesValues() {
   if (!S.cfg) return;
-  const p = BigInt(S.cfg.price);
+  const p = currentPrice();   // prix du tirage en cours (un nouveau prix s'applique au tirage suivant)
   $$('.js-price').forEach((e) => (e.textContent = L.fmtAse(p, p % L.WEI === 0n ? 0 : 2) + ' ASE'));
   if (S.info) $$('.js-drawtime').forEach((e) => (e.textContent = utcTime(S.info.drawTs)));
   $$('.js-close').forEach((e) => (e.textContent = plural(S.cfg.closeMin, 'minute', 'minutes')));
   $$('.js-reveal').forEach((e) => (e.textContent = S.cfg.revealMin % 60 === 0 ? plural(S.cfg.revealMin / 60, 'hour', 'hours') : plural(S.cfg.revealMin, 'minute', 'minutes')));
-  const amount = (x) => L.fmtAse(x, x % L.WEI === 0n ? 0 : 2) + ' ASE';
+  const amount = (x) => { const t = L.fmtAse(x, x % L.WEI === 0n ? 0 : 2); return (t.includes('.') ? t.replace(/0+$/, '').replace(/\.$/, '') : t) + ' ASE'; };   // 2.5 ASE (pas 2.50)
   $$('.js-g4').forEach((e) => (e.textContent = amount(p * 25n)));
   $$('.js-g3').forEach((e) => (e.textContent = amount((p * 5n) / 2n)));
 }

@@ -283,7 +283,7 @@ async function restoreWallet() {
     return;
   }
   S.contract = L.toHex(CONFIG.CONTRACT);
-  const both = (a, b) => [a, b].filter(Boolean).map((x) => L.toHex(x));
+  const both = (a, b) => [a, b].flatMap((v) => String(v || '').split(',')).map((v) => v.trim()).filter(Boolean).map((x) => L.toHex(x));   // ancien(s) contrat(s) : liste séparée par des virgules
   S.loto = both(LOTO.CONTRACT, CONFIG.OLD_LOTO);
   S.raffle = both(RAFFLE.CONTRACT, CONFIG.OLD_RAFFLE);
   S.treasure = both(TREASURE.CONTRACT, CONFIG.OLD_TREASURE);

@@ -4,6 +4,8 @@
 export default {
   // Adresse du contrat de la tombola. Vide → MODE DÉMO (ou ?demo dans l'adresse).
   CONTRACT: '',
+  // Ancienne Raffle (en pause) : ses gains pas encore réclamés restent visibles dans « My wins ».
+  OLD: '',
   RPC: ['https://testnet.asentum.com', 'https://explorer.asentum.com/rpc'],
   EXPLORER: 'https://explorer.asentum.com',
   TELEGRAM_API: 'https://wallet.asentum.com',

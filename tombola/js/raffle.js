@@ -437,7 +437,7 @@ async function restoreWallet() {
 
 function renderRulesValues() {
   if (!S.cfg) return;
-  $$('.js-price').forEach((e) => (e.textContent = ase(S.cfg.price) + ' ASE'));
+  $$('.js-price').forEach((e) => (e.textContent = ase(S.info ? S.info.price : S.cfg.price) + ' ASE'));   // prix de la raffle en cours
   $$('.js-max').forEach((e) => (e.textContent = S.cfg.maxPerWallet));
   if (S.info) $$('.js-drawtime').forEach((e) => (e.textContent = `${utcWeekday(S.info.drawTs)} at ${utcTime(S.info.drawTs)}`));
   $$('.js-close').forEach((e) => (e.textContent = plural(S.cfg.closeMin, 'minute', 'minutes')));
