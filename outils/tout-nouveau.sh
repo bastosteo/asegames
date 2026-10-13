@@ -44,7 +44,8 @@ OLD_SEED=$(cat croupier/data-tresor/seed-v2.txt)
 
 echo "[1/5] Anciens contrats : vérification puis pause…"
 if [ ! -f .v5-pauses ]; then
-  V=$(TREASURE_SEED="$OLD_SEED" $RB verifier "$OL" "$OR" "$OT")
+  VL="$OL"; [ -f .v5-loto-fund ] && VL=-
+  V=$(TREASURE_SEED="$OLD_SEED" $RB verifier "$VL" "$OR" "$OT")
   if [ "$V" != "OK" ]; then
     echo "      ⏳ ${V#ATTENTE	}."
     echo "      Rien n'a été envoyé. Relance ce fichier un peu plus tard (après 21h00 pour le Loto)."
@@ -62,7 +63,8 @@ else echo "      Déjà fait."; fi
 
 # Liste relue sur la chaîne à chaque fois (enregistrée dans remboursements.txt)
 liste() {
-  $RB liste "$OL" "$OR" "$OT" > remboursements.tmp && mv remboursements.tmp remboursements.txt
+  local L="$OL"; [ -f .v5-loto-fund ] && L=-   # Loto déjà remplacé et remboursé par Nouveau-Loto-v5.bat
+  $RB liste "$L" "$OR" "$OT" > remboursements.tmp && mv remboursements.tmp remboursements.txt
   if [ -s remboursements.txt ]; then
     echo "      $(wc -l < remboursements.txt) wallet(s) à rembourser :"
     awk -F'\t' '{ printf "        %s  %s ASE  (%s)\n", $1, $2, $3; t += $2 } END { printf "      Total : %s ASE\n", t }' remboursements.txt

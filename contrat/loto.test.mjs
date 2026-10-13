@@ -188,7 +188,8 @@ sec('Calcul des rangs (3 000 grilles, recomptage indépendant)');
   const cnt = [0, 0, 0];
   for (const p of all) for (const g of p.g) { const k = ref.matches(g, rd.nums); if (k >= 3) cnt[k - 3]++; }
   t('nombre de gagnants à 3/4/5 bons identique au recomptage', JSON.stringify(cnt) === JSON.stringify(rd.cnt), JSON.stringify([cnt, rd.cnt]));
-  const exp = ref.payouts(rd.sales, rd.price, rd.jackpotIn, rd.cnt);
+  const kc = w.c.view('getConfig');
+  const exp = ref.payouts(rd.sales, rd.price, rd.jackpotIn, rd.cnt, [kc.skimAt || 0, kc.skimAmt || 0]);
   t('gains par rang = calcul de référence (' + rd.cnt.join('/') + ')', JSON.stringify(rd.per) === JSON.stringify(exp.per.map(String)), JSON.stringify([rd.per, exp.per.map(String)]));
   t('report = calcul de référence', rd.carryOut === exp.carry.toString());
   t('4 bons > 3 bons', rd.cnt[1] === 0 || BigInt(rd.per[1]) > BigInt(rd.per[0]));
@@ -503,6 +504,70 @@ sec('Plafond de grilles par tirage');
   t('31e grille refusée : tirage complet', !x.success && /draw full/.test(x.error), x.error);
   w.close(1);
   t('le tirage suivant est rouvert', w.buy(P[2], [ref.randomGrid()]).success && w.round(2).grids === 1);
+}
+
+// ---------------------------------------------------------------------
+sec('Prélèvement maison (v5) : jackpot non gagné > 70 ASE → 20 ASE au wallet owner');
+{
+  const has = !!world().c.view('getConfig').skimAt;
+  if (!has) console.log('  (contrat sans prélèvement : section ignorée)');
+  else {
+    const A70 = 70n * ASE, A20 = 20n * ASE;
+    // Gros tirage : 100 grilles à 2 ASE → report > 70 ASE
+    const w = world();
+    t('réglage par défaut : 70 / 20 ASE', w.c.view('getConfig').skimAt === A70.toString() && w.c.view('getConfig').skimAmt === A20.toString());
+    w.c.call(P[3], 'fund', [], 80n * ASE);   // jackpot de départ 80 ASE : le report dépassera forcément 70
+    for (let k = 0; k < 5; k++) w.buy(P[k % 3], Array.from({ length: 20 }, () => ref.randomGrid()));
+    // attendre la fermeture, puis mesurer le wallet owner pendant le tirage seulement
+    w.close(1); w.revealO(1); w.revealC(1);
+    const ob = w.chain.balanceOf(OWNER_PAY);
+    const ta = w.tallyAll(1);
+    const r = w.round(1);
+    const exp = ref.payouts(r.sales, r.price, r.jackpotIn, r.cnt, [A70, A20]);
+    t('tirage OK', ta.success, ta.error);
+    if (r.cnt[2] === 0) {
+      t('20 ASE prélevés (report brut ' + ((exp.carry + exp.skim) / ASE) + ' ASE > 70)', r.skim === A20.toString() && exp.skim === A20);
+      t('report = brut − 20 ASE', r.carryOut === exp.carry.toString() && w.st().jackpot === r.carryOut);
+      t('le wallet owner reçoit 20 ASE au tirage', w.chain.balanceOf(OWNER_PAY) - ob === A20);
+      t('événement Finalized avec skim', ta.events.some((e) => e.name === 'Finalized' && e.data.skim === A20.toString()));
+    }
+    t('solde cohérent', balanceOk(w));
+    // Tirage suivant : le report repasse au-dessus de 70 ? → encore 20 ASE, sinon rien
+    for (let k = 0; k < 2; k++) w.buy(P[k], Array.from({ length: 20 }, () => ref.randomGrid()));
+    const ob2 = w.chain.balanceOf(OWNER_PAY);
+    w.close(2); w.revealO(2); w.revealC(2); w.tallyAll(2);
+    const r2 = w.round(2), e2 = ref.payouts(r2.sales, r2.price, r2.jackpotIn, r2.cnt, [A70, A20]);
+    t('tirage 2 : prélèvement seulement si report > 70 (' + (e2.skim / ASE) + ' ASE)', r2.skim === e2.skim.toString() && r2.carryOut === e2.carry.toString() && w.chain.balanceOf(OWNER_PAY) - ob2 === e2.skim);
+    t('solde cohérent (2)', balanceOk(w));
+
+    // Petit tirage : report < 70 → rien
+    const s = world();
+    s.buy(P[0], [ref.randomGrid(), ref.randomGrid()]);
+    const sb = s.chain.balanceOf(OWNER_PAY);
+    s.draw(1);
+    t('report sous 70 ASE : aucun prélèvement', s.round(1).skim === '0' && s.chain.balanceOf(OWNER_PAY) === sb);
+
+    // fund : ajout au jackpot, puis prélèvement au tirage
+    const f = world();
+    t('fund refusé sans ASE', !f.c.call(P[0], 'fund', [], 0n).success);
+    const fr = f.c.call(P[0], 'fund', [], 100n * ASE);
+    t('fund ajoute 100 ASE au jackpot', fr.success && f.st().jackpot === (100n * ASE).toString(), fr.error);
+    t('jackpot affiché inclut le fund', BigInt(f.c.view('info').jackpotEstimate) >= 100n * ASE);
+    f.buy(P[1], [ref.randomGrid()]);
+    const fb = f.chain.balanceOf(OWNER_PAY);
+    f.draw(1);
+    const fr1 = f.round(1);
+    if (fr1.cnt[2] === 0) t('jackpot 100+ ASE non gagné → 20 ASE prélevés', fr1.skim === A20.toString() && f.chain.balanceOf(OWNER_PAY) - fb === A20);
+    t('solde cohérent (fund)', balanceOk(f));
+
+    // Réglage par l'admin
+    const g = world();
+    t('setSkim refusé à un joueur', !g.c.call(P[0], 'setSkim', [A70.toString(), A20.toString()]).success);
+    t('montant > seuil refusé', !g.c.call(ADMIN, 'setSkim', [A20.toString(), A70.toString()]).success);
+    t('setSkim 0 = désactivé', g.c.call(ADMIN, 'setSkim', [A70.toString(), '0']).success);
+    g.c.call(P[0], 'fund', [], 100n * ASE); g.buy(P[1], [ref.randomGrid()]); g.draw(1);
+    t('désactivé : aucun prélèvement', g.round(1).skim === '0' && BigInt(g.st().jackpot) > 100n * ASE);
+  }
 }
 
 console.log(`\n${ok} réussis, ${ko} échoués`);

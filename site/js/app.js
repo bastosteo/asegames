@@ -627,6 +627,10 @@ function renderRulesValues() {
   $$('.js-reveal').forEach((e) => (e.textContent = S.cfg.revealMin % 60 === 0 ? plural(S.cfg.revealMin / 60, 'hour', 'hours') : plural(S.cfg.revealMin, 'minute', 'minutes')));
   const amount = (x) => { const t = L.fmtAse(x, x % L.WEI === 0n ? 0 : 2); return (t.includes('.') ? t.replace(/0+$/, '').replace(/\.$/, '') : t) + ' ASE'; };   // 2.5 ASE (pas 2.50)
   $$('.js-g4').forEach((e) => (e.textContent = amount(p * 25n)));
+  // Prélèvement maison (contrat v5) : règle affichée seulement s'il est actif
+  const skimOn = S.cfg.skimAmt && BigInt(S.cfg.skimAmt) > 0n;
+  if ($('#skimRule')) $('#skimRule').hidden = !skimOn;
+  if (skimOn) { $$('.js-skim-at').forEach((e) => (e.textContent = amount(BigInt(S.cfg.skimAt)))); $$('.js-skim-amt').forEach((e) => (e.textContent = amount(BigInt(S.cfg.skimAmt)))); }
   $$('.js-g3').forEach((e) => (e.textContent = amount((p * 5n) / 2n)));
 }
 function renderAll() {

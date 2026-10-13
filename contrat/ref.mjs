@@ -43,7 +43,8 @@ export function drawNumbers(roundId, sO, sC, digest) {
 // 3 bons = 2,5 mises, réduits ensemble si la caisse ne suffit pas). Sans gagnant
 // à 5 bons : bonus = moitié des 35 % du tour, au prorata des gains fixes.
 // Un 4 bons touche au plus 80 % d'un 5 bons. Le reste → jackpot suivant.
-export function payouts(sales, price, jackpotIn, [n3, n4, n5]) {
+// skim = [seuil, montant] du prélèvement maison (loto v5) : si pas de 5 bons et report > seuil.
+export function payouts(sales, price, jackpotIn, [n3, n4, n5], skim = [0n, 0n]) {
   const S = BigInt(sales), P = BigInt(price), J = BigInt(jackpotIn);
   const N3 = BigInt(n3), N4 = BigInt(n4), N5 = BigInt(n5);
   const commission = S * 15n / 100n;
@@ -62,7 +63,9 @@ export function payouts(sales, price, jackpotIn, [n3, n4, n5]) {
   }
   const verse = N3 * g3 + N4 * g4 + N5 * g5;
   const airdrop = commission / 2n;
-  return { per: [g3, g4, g5], commission, airdrop, owner: (commission - airdrop) * 3n / 4n, carry: J + S - commission - verse };
+  const brut = J + S - commission - verse;
+  const pris = N5 === 0n && BigInt(skim[1]) > 0n && brut > BigInt(skim[0]) ? BigInt(skim[1]) : 0n;
+  return { per: [g3, g4, g5], commission, airdrop, owner: (commission - airdrop) * 3n / 4n, carry: brut - pris, skim: pris };
 }
 export const matches = (g, nums) => g.filter((n) => nums.includes(n)).length;
 

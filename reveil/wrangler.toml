@@ -1,0 +1,10 @@
+name = "asevegas-reveil"
+main = "worker.js"
+compatibility_date = "2024-09-01"
+
+[triggers]
+crons = ["*/10 * * * *"]
+
+[vars]
+REPO = "A_REMPLIR/asegames"
+BRANCH = "main"
