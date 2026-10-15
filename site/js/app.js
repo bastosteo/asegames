@@ -629,6 +629,10 @@ function renderRulesValues() {
   $$('.js-reveal').forEach((e) => (e.textContent = S.cfg.revealMin % 60 === 0 ? plural(S.cfg.revealMin / 60, 'hour', 'hours') : plural(S.cfg.revealMin, 'minute', 'minutes')));
   const amount = (x) => { const t = L.fmtAse(x, x % L.WEI === 0n ? 0 : 2); return (t.includes('.') ? t.replace(/0+$/, '').replace(/\.$/, '') : t) + ' ASE'; };   // 2.5 ASE (pas 2.50)
   $$('.js-g4').forEach((e) => (e.textContent = amount(p * 25n)));
+  // Gains « typiques » (simulations, 5 numéros sur 14 : ~15 et ~2 grilles ; sur 20 : gains pleins)
+  const t14 = FACES() <= 14;
+  $$('.js-t4').forEach((e) => (e.textContent = amount(t14 ? p * 15n : p * 25n)));
+  $$('.js-t3').forEach((e) => (e.textContent = amount(t14 ? p * 2n : (p * 5n) / 2n)));
   // Numéros 1..maxn (14 depuis le v6) et nombre de grilles différentes C(maxn, 5)
   { const n = FACES(); let c = 1; for (let k = 0; k < 5; k++) c = (c * (n - k)) / (k + 1); $$('.js-maxn').forEach((e) => (e.textContent = n)); $$('.js-combos').forEach((e) => (e.textContent = c.toLocaleString('en-US'))); }
   // Prélèvement maison (contrat v5) : règle affichée seulement s'il est actif
