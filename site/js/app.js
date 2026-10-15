@@ -636,6 +636,15 @@ function renderRulesValues() {
   // Numéros 1..maxn (14 depuis le v6) et nombre de grilles différentes C(maxn, 5)
   { const n = FACES(); let c = 1; for (let k = 0; k < 5; k++) c = (c * (n - k)) / (k + 1); $$('.js-maxn').forEach((e) => (e.textContent = n)); $$('.js-combos').forEach((e) => (e.textContent = c.toLocaleString('en-US'))); }
   $$('.js-g3').forEach((e) => (e.textContent = amount((p * 5n) / 2n)));
+  // Contrat avec règle de prélèvement (setSkim) : on le dit clairement, avec le réglage actuel.
+  const hasSkim = S.cfg.skimAt != null;
+  $$('.js-nojp').forEach((e) => (e.hidden = hasSkim));
+  $$('.js-skimrule').forEach((e) => {
+    e.hidden = !hasSkim; if (!hasSkim) return;
+    const at = BigInt(S.cfg.skimAt || 0), amt = BigInt(S.cfg.skimAmt || 0);
+    e.textContent = 'This contract also lets the admin set a jackpot skim: when nobody wins the jackpot and it rolls over above a set amount, a set part of it goes to the team wallet. '
+      + (amt > 0n ? `Current setting: ON, above ${amount(at)} of jackpot, ${amount(amt)} go to the team at each draw.` : 'Current setting: OFF (the whole jackpot stays for players).');
+  });
 }
 function renderAll() {
   renderWallet(); renderHero(); renderCart(); renderMine(); renderResults(); renderRanking(); renderAdmin(); renderRulesValues();
