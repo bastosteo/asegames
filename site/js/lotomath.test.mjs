@@ -7,7 +7,7 @@ t('0x→ase1 réel', L.toAse1('0xb9020dfb5dc39befb98985e25d060d6d13b38931') === 
 t('0x→ase1 sonde', L.toAse1('0x2cf70f9d91dee27b1363ddc5c3994aec8f7f1adf') === 'ase19nmsl8v3mm38kymrmhzu8x22aj8h7xkl57vjj8');
 let same = true;
 for (let i = 0; i < 300; i++) { const a = randomBytes(32).toString('hex'), b = randomBytes(32).toString('hex'), d = randomBytes(32).toString('hex');
-  if (JSON.stringify(L.drawNumbers(i, a, b, d)) !== JSON.stringify(ref.drawNumbers(i, a, b, d))) same = false;
+  if (JSON.stringify(L.drawNumbers(i, a, b, d, ref.MAXN)) !== JSON.stringify(ref.drawNumbers(i, a, b, d))) same = false;
   const g = [[1, 2, 3, 4, 5]]; if (L.nextDigest(d, '0xab', g, 'ff', i) !== ref.nextDigest(d, '0xab', g, 'ff', i)) same = false; }
 t('tirage + empreinte identiques à la référence (300 cas)', same);
 t('flash: 5 distincts', (() => { for (let i = 0; i < 500; i++) { const g = L.flashGrid(); if (new Set(g).size !== 5 || g.some((n) => n < 1 || n > 20)) return false; } return true; })());
@@ -26,5 +26,5 @@ t('gains du site = référence (1000 cas)', (() => {
   }
   return true;
 })());
-t('numéros du site = référence', (() => { for (let i = 0; i < 200; i++) { const h = R.sha(String(i)); if (L.drawNumbers(i, h, h, h).join() !== R.drawNumbers(i, h, h, h).join()) return false; } return true; })());
+t('numéros du site = référence', (() => { for (let i = 0; i < 200; i++) { const h = R.sha(String(i)); if (L.drawNumbers(i, h, h, h, R.MAXN).join() !== R.drawNumbers(i, h, h, h).join()) return false; } return true; })());
 console.log(ok, 'ok,', ko, 'ko'); process.exit(ko ? 1 : 0);

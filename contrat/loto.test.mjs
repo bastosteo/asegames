@@ -5,7 +5,10 @@ import * as ref from './ref.mjs';
 
 const SRC = readFileSync(new URL(process.env.LOTO_FILE || './loto.js', import.meta.url), 'utf8');
 const ASE = 10n ** 18n;
-const PRICE = 2n * ASE;
+const M = ref.MAXN;                          // 14 (v6) ; LOTO_MAXN=20 pour les anciennes versions
+const PRICE = 2n * ASE;                      // prix utilisé par les tests (world() le règle)
+const DEFAULT_PRICE = M === 20 ? 2n * ASE : ASE;   // prix par défaut du contrat testé
+const CAP = M === 20 ? 3000 : 1000;          // plafond de grilles par tirage par défaut
 
 let ok = 0, ko = 0, section = '';
 function t(name, cond, extra = '') {
@@ -24,13 +27,14 @@ const P = ['0x' + '1'.repeat(40), '0x' + '2'.repeat(40), '0x' + '3'.repeat(40), 
 
 // Un monde neuf : chaîne simulée + contrat déployé + initialisé.
 // Départ : samedi 10/10/2026 12:00 UTC (14h00 à Paris).
-function world({ start = Date.UTC(2026, 9, 10, 12, 0) } = {}) {
+function world({ start = Date.UTC(2026, 9, 10, 12, 0), raw = false } = {}) {
   const chain = new Chain({ startTimestampMs: start, blockTimeMs: 8000 });
   for (const a of [ADMIN, OWNER_PAY, COLLAB, ...P]) chain.fund(a, 100000n * ASE);
   const c = chain.deploy(SRC, ADMIN);
   const chO = ref.makeChain(200), chC = ref.makeChain(200);
   const r = c.call(ADMIN, 'init', [OWNER_PAY, COLLAB, COLLAB, chO[200], chC[200], DROP]);
   if (!r.success) throw new Error('init: ' + r.error);
+  if (!raw) { const k = c.view('getConfig'); if (k.price !== PRICE.toString()) c.call(ADMIN, 'setConfig', [PRICE.toString(), k.drawH, k.drawM, k.maxGrids, k.closeMin, k.revealMin]); }
   const w = {
     chain, c, chO, chC,
     st: () => c.view('getState'),
@@ -61,11 +65,11 @@ const balanceOk = (w) => w.chain.balanceOf(w.c.address) === w.expectedBalance();
 // ---------------------------------------------------------------------
 sec('Initialisation');
 {
-  const w = world();
+  const w = world({ raw: true });
   const cfg = w.c.view('getConfig');
   t('admin = déployeur', cfg.admin === ADMIN);
-  t('prix 2 ASE', cfg.price === PRICE.toString());
-  t('plafond 3000 grilles par tirage, 20 par achat', cfg.maxRound === 3000 && cfg.maxGrids === 20);
+  t('prix par défaut ' + DEFAULT_PRICE / ASE + ' ASE', cfg.price === DEFAULT_PRICE.toString());
+  t('plafond ' + CAP + ' grilles par tirage, 20 par achat', cfg.maxRound === CAP && cfg.maxGrids === 20);
   t('double init refusé', !w.c.call(ADMIN, 'init', [OWNER_PAY, COLLAB, COLLAB, w.chO[200], w.chC[200], DROP]).success);
   const r1 = w.round(1);
   t('tour 1 ouvert', r1.status === 'open');
@@ -84,18 +88,18 @@ sec('Initialisation');
 sec('Achat');
 {
   const w = world();
-  let r = w.buy(P[0], [[5, 3, 1, 2, 4], [18, 17, 16, 15, 14]], 'abcd');
+  let r = w.buy(P[0], [[5, 3, 1, 2, 4], [14, 13, 12, 11, 10]], 'abcd');
   t('achat de 2 grilles réussi', r.success, r.error);
   const pur = w.c.view('getPurchases', [1, 0, 10]);
-  t('grilles triées et enregistrées', JSON.stringify(pur[0].g) === '[[1,2,3,4,5],[14,15,16,17,18]]');
+  t('grilles triées et enregistrées', JSON.stringify(pur[0].g) === '[[1,2,3,4,5],[10,11,12,13,14]]');
   t('acheteur enregistré', pur[0].b === P[0]);
-  t('événement Buy émis (avec la graine)', r.events.some((e) => e.name === 'Buy' && e.data.grids === '[[1,2,3,4,5],[14,15,16,17,18]]' && e.data.seed === 'abcd'));
+  t('événement Buy émis (avec la graine)', r.events.some((e) => e.name === 'Buy' && e.data.grids === '[[1,2,3,4,5],[10,11,12,13,14]]' && e.data.seed === 'abcd'));
   t('contrat garde 85 % de 4 ASE (commission versée tout de suite)', w.chain.balanceOf(w.c.address) === 2n * PRICE * 85n / 100n);
   t('Airdrop reçoit 7,5 % dès l\'achat', w.chain.balanceOf(DROP) === 2n * PRICE * 75n / 1000n && w.round(1).airdrop === (2n * PRICE * 75n / 1000n).toString());
   t('achat horodaté', pur[0].t > 0);
   const rd = w.round(1);
   t('ventes du tour = 4 ASE, 2 grilles, 1 achat', rd.sales === (2n * PRICE).toString() && rd.grids === 2 && rd.buys === 1);
-  let d = ref.nextDigest(ref.initialDigest(1), P[0], [[1, 2, 3, 4, 5], [14, 15, 16, 17, 18]], 'abcd', 0);
+  let d = ref.nextDigest(ref.initialDigest(1), P[0], [[1, 2, 3, 4, 5], [10, 11, 12, 13, 14]], 'abcd', 0);
   t('empreinte des grilles recalculable (référence indépendante)', rd.digest === d);
   t('gas d\'un achat de 20 grilles < 1 000 000', (() => {
     const g = Array.from({ length: 20 }, () => ref.randomGrid());
@@ -113,8 +117,9 @@ sec('Grilles invalides');
   };
   bad('numéro en double refusé', [[1, 1, 2, 3, 4]]);
   bad('numéro 0 refusé', [[0, 1, 2, 3, 4]]);
-  t('numéros 19 et 20 acceptés', w.buy(P[1], [[16, 17, 18, 19, 20]]).success);
-  bad('numéro 21 refusé', [[1, 2, 3, 4, 21]]);
+  t(`numéros ${M - 1} et ${M} acceptés`, w.buy(P[1], [[M - 4, M - 3, M - 2, M - 1, M]]).success);
+  bad(`numéro ${M + 1} refusé`, [[1, 2, 3, 4, M + 1]]);
+  if (M < 20) bad('numéro 20 refusé (5 sur ' + M + ')', [[1, 2, 3, 4, 20]]);
   bad('numéro décimal refusé', [[1.5, 2, 3, 4, 5]]);
   bad('texte refusé', [['a', 2, 3, 4, 5]]);
   bad('4 numéros refusés', [[1, 2, 3, 4]]);
@@ -171,12 +176,12 @@ sec('Tirage et ordre des révélations');
 }
 
 // ---------------------------------------------------------------------
-sec('Calcul des rangs (3 000 grilles, recomptage indépendant)');
+sec('Calcul des rangs (' + CAP + ' grilles, recomptage indépendant)');
 {
   const w = world();
   const all = [];
   let n = 0;
-  while (n < 3000) {
+  while (n < CAP) {
     const who = P[n % 4];
     const g = Array.from({ length: 20 }, () => ref.randomGrid());
     const r = w.buy(who, g); if (!r.success) throw new Error(r.error);
@@ -240,7 +245,7 @@ sec('Commission 15 % : moitié Airdrop, moitié équipe 75/25');
 sec('Partage entre gagnants + jackpot (le test "joue à Dieu" : il connaît les 2 secrets)');
 {
   const w = world();
-  const G = [2, 7, 11, 13, 17];
+  const G = M === 20 ? [2, 7, 11, 13, 17] : [2, 7, 9, 11, 13];
   w.buy(P[0], [G]);
   w.buy(P[1], [G]);
   for (let i = 0; i < 10; i++) w.buy(P[2], [ref.randomGrid()]);
@@ -326,8 +331,10 @@ sec('Accès admin refusé aux autres');
   for (const bad of [['1', 21, 0, 20, 10, 120], ['2000000000000000000', 5, 0, 20, 10, 120], ['2000000000000000000', 21, 60, 20, 10, 120], ['2000000000000000000', 21, 0, 51, 10, 120], ['2000000000000000000', 21, 0, 20, 1, 120], ['2000000000000000000', 21, 0, 20, 10, 20]])
     t('setConfig hors bornes refusé ' + JSON.stringify(bad), !w.c.call(ADMIN, 'setConfig', bad).success);
   t('setConfig valide accepté', w.c.call(ADMIN, 'setConfig', ['3000000000000000000', 20, 15, 10, 15, 90]).success && w.c.view('getConfig').maxGrids === 10);
-  t('setConfig sans plafond par tirage : inchangé', w.c.view('getConfig').maxRound === 3000);
-  t('setConfig avec plafond par tirage', w.c.call(ADMIN, 'setConfig', ['3000000000000000000', 20, 15, 10, 15, 90, 5000]).success && w.c.view('getConfig').maxRound === 5000);
+  t('setConfig sans plafond par tirage : inchangé', w.c.view('getConfig').maxRound === CAP);
+  const CAP2 = M === 20 ? 5000 : 1200;
+  t('setConfig avec plafond par tirage', w.c.call(ADMIN, 'setConfig', ['3000000000000000000', 20, 15, 10, 15, 90, CAP2]).success && w.c.view('getConfig').maxRound === CAP2);
+  if (M < 20) t('plafond par tirage > 1500 refusé (jamais toutes les combinaisons)', !w.c.call(ADMIN, 'setConfig', ['3000000000000000000', 20, 15, 10, 15, 90, 2002]).success);
   t('plafond par tirage < grilles par achat refusé', !w.c.call(ADMIN, 'setConfig', ['3000000000000000000', 20, 15, 10, 15, 90, 5]).success);
   t('setTipCollab refusé à l\'admin', !w.c.call(ADMIN, 'setTipCollab', ['b'.repeat(64)]).success);
   t('aucune fonction de retrait n\'existe', !Object.keys(w.c.api).some((k) => /withdraw|sweep|drain|rescue/i.test(k)));
@@ -425,7 +432,7 @@ function forceDraw(w, id, G, buyer, grid) {
   }
   throw new Error('graine introuvable');
 }
-const G = [2, 7, 11, 13, 17];
+const G = M === 20 ? [2, 7, 11, 13, 17] : [2, 7, 9, 11, 13];
 const per = (w, id) => w.round(id).per.map(BigInt);
 
 sec('Gains fixes + bonus (pas de jackpot gagné)');

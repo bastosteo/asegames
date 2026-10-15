@@ -2,7 +2,9 @@
 // Sert aux tests (recalcul croisé) et au script croupier.
 import { createHash, randomBytes } from 'node:crypto';
 
-export const PICK = 5, MAXN = 20;
+// MAXN : 14 depuis le loto v6 (LOTO_MAXN=20 pour tester les anciennes versions).
+export const PICK = 5, MAXN = Number(process.env.LOTO_MAXN || 14);
+const NOBIAS = 256 - (256 % MAXN);
 export const sha = (bufOrText) => createHash('sha256').update(bufOrText).digest('hex');
 export const shaHex = (hex) => sha(Buffer.from(hex, 'hex'));
 
@@ -30,7 +32,7 @@ export function drawNumbers(roundId, sO, sC, digest) {
   while (nums.length < PICK) {
     for (const b of Buffer.from(seed, 'hex')) {
       if (nums.length >= PICK) break;
-      if (b >= 240) continue;   // 240 = 12 × 20 : pas de biais
+      if (b >= NOBIAS) continue;   // multiple de MAXN : pas de biais
       const n = (b % MAXN) + 1;
       if (!nums.includes(n)) nums.push(n);
     }

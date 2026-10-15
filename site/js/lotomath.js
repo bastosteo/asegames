@@ -48,14 +48,16 @@ export const sha256Hex = (h) => sha256Bytes(hexToBytes(h));
 export const initialDigest = (roundId) => sha256Text('LOTOASE-ROUND|' + roundId);
 export const nextDigest = (prev, buyer, grids, seed, idx) => sha256Text(prev + '|' + buyer + '|' + JSON.stringify(grids) + '|' + seed + '|' + idx);
 
-export function drawNumbers(roundId, sO, sC, digest) {
+// maxn : numéros 1..maxn (20 jusqu'au loto v5, 14 depuis le v6 : getConfig().maxn).
+export function drawNumbers(roundId, sO, sC, digest, maxn = MAXN) {
+  const lim = 256 - (256 % maxn);
   let seed = sha256Text('LOTOASE|' + roundId + '|' + sO + '|' + sC + '|' + digest);
   const nums = [];
   while (nums.length < PICK) {
     for (const b of hexToBytes(seed)) {
       if (nums.length >= PICK) break;
-      if (b >= 240) continue;
-      const n = (b % MAXN) + 1;
+      if (b >= lim) continue;
+      const n = (b % maxn) + 1;
       if (!nums.includes(n)) nums.push(n);
     }
     seed = sha256Hex(seed);

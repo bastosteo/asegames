@@ -2,7 +2,7 @@
 //  LOTO ASE — loto à numéros, pari mutuel, testnet Asentum
 // =====================================================================
 //  Règles :
-//   - Grille = 5 numéros distincts entre 1 et 20. Prix par défaut : 2 ASE.
+//   - Grille = 5 numéros distincts entre 1 et 14 (v6). Prix par défaut : 1 ASE.
 //   - Un tirage par jour (21h00 heure de Paris par défaut, heure d'été
 //     gérée). Les ventes ferment 10 min avant ; le tour suivant s'ouvre.
 //   - Répartition des ventes d'un tour :
@@ -43,7 +43,8 @@
 // =====================================================================
 
 const PICK = 5;                 // numéros par grille
-const MAXN = 20;                // numéros possibles : 1..20
+const MAXN = 14;                // numéros possibles : 1..14 (2 002 grilles différentes)
+const NOBIAS = 256 - (256 % MAXN); // 252 = 18 × 14 : octets acceptés pour un tirage sans biais
 const BPS = 10000n;             // base des pourcentages (10000 = 100 %)
 const SHARE_COMMISSION = 1500n; // 15 % : moitié équipe (75/25), moitié cagnotte ASE Airdrop
 const SHARE_JACKPOT = 3500n;    // 35 % (le reste, 50 %, = caisse des gains fixes)
@@ -160,8 +161,8 @@ function chainOk(secret, tip) {
   return false;
 }
 
-// Numéros gagnants : 5 numéros distincts dans 1..20, tirage uniforme
-// (on rejette les octets ≥ 240 = 12 × 20 pour éviter tout biais).
+// Numéros gagnants : 5 numéros distincts dans 1..MAXN, tirage uniforme
+// (on rejette les octets ≥ NOBIAS pour éviter tout biais).
 function drawNumbers(roundId, sO, sC, digest) {
   let seed = sha256Text('LOTOASE|' + roundId + '|' + sO + '|' + sC + '|' + digest);
   const nums = [];
@@ -169,7 +170,7 @@ function drawNumbers(roundId, sO, sC, digest) {
     const bytes = hexToBytes(seed);
     for (const b of bytes) {
       if (nums.length >= PICK) break;
-      if (b >= 240) continue;
+      if (b >= NOBIAS) continue;
       const n = (b % MAXN) + 1;
       if (nums.indexOf(n) < 0) nums.push(n);
     }
@@ -184,7 +185,7 @@ function matches(grid, nums) {
   return k;
 }
 
-// Vérifie une grille : 5 entiers distincts entre 1 et 20 → triée.
+// Vérifie une grille : 5 entiers distincts entre 1 et MAXN → triée.
 function cleanGrid(g) {
   assert(Array.isArray(g) && g.length === PICK, 'a ticket = ' + PICK + ' numbers');
   const out = [];
@@ -379,8 +380,9 @@ function batchRange(from, count, total) {
     const c = {
       admin: sender(),
       payOwner: addr(payOwner), payCollab: addr(payCollab), collabAdmin: addr(collabAdmin), payAirdrop: addr(payAirdrop),
-      price: (2n * 10n ** 18n).toString(),   // 2 ASE
-      maxGrids: 20, maxRound: 3000,          // grilles max par achat / par tirage
+      price: (10n ** 18n).toString(),        // 1 ASE
+      maxGrids: 20, maxRound: 1000,          // grilles max par achat / par tirage (2 002 combinaisons : jamais toutes)
+      maxn: MAXN,                            // numéros 1..maxn (lu par le site)
       drawH: 21, drawM: 0,                   // 21h00 Paris
       closeMin: 10, revealMin: 120,          // fermeture 10 min avant ; alerte du croupier si pas révélé en 2 h
       paused: false,
@@ -545,7 +547,7 @@ function batchRange(from, count, total) {
     assert(ok(G, 1, MAX_GRIDS_HARD), 'tickets per purchase: 1 to ' + MAX_GRIDS_HARD);
     assert(ok(A, 2, 60), 'closing: 2 to 60 min');
     assert(ok(B, 30, 1440), 'reveal: 30 to 1440 min');
-    assert(ok(T, G, 100000), 'tickets per draw: ' + G + ' to 100000');
+    assert(ok(T, G, 1500), 'tickets per draw: ' + G + ' to 1500');   // < 2 002 combinaisons
     Object.assign(c, { price: v.toString(), drawH: H, drawM: M, maxGrids: G, closeMin: A, revealMin: B, maxRound: T });
     jset('cfg', c);
     // Si personne n'a encore joué le tour en cours, il prend les nouveaux

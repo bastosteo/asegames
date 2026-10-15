@@ -28,6 +28,7 @@ function world({ start = Date.UTC(2026, 9, 10, 12, 0), games = true } = {}) {
     w.raffle = chain.deploy(RAFFLE, ADMIN);
     const lO = ref.makeChain(60), lC = ref.makeChain(60), rO = ref.makeChain(60), rC = ref.makeChain(60);
     if (!w.loto.call(ADMIN, 'init', [OWNER_PAY, COLLAB, COLLAB, lO[60], lC[60], a.address]).success) throw new Error('loto init');
+    { const k = w.loto.view('getConfig'); w.loto.call(ADMIN, 'setConfig', [(2n * ASE).toString(), k.drawH, k.drawM, k.maxGrids, k.closeMin, k.revealMin]); }   // tests écrits pour 2 ASE la grille
     if (!w.raffle.call(ADMIN, 'init', [OWNER_PAY, COLLAB, COLLAB, rO[60], rC[60], a.address]).success) throw new Error('raffle init');
     const drawGame = (c, O, C, id, tally) => {
       const s = () => c.view('getState');

@@ -2,6 +2,7 @@
 //   node outils/loto-aide.mjs info <contrat>      → état utile en JSON
 //   node outils/loto-aide.mjs hex <ase1…>         → adresse 0x
 //   node outils/loto-aide.mjs cfg <contrat>       → réglages (getConfig) en JSON
+//   node outils/loto-aide.mjs prelevement <contrat> → prélèvement maison (wei) du dernier tirage terminé
 //   node outils/loto-aide.mjs attendre <contrat> <deploye|initialise|pause> → attend que la chaîne le confirme
 import { toHex } from '../site/js/lotomath.js';
 const RPC = (process.env.RPC_URL || 'https://testnet.asentum.com').replace(/\/$/, '');
@@ -18,6 +19,12 @@ else if (cmd === 'info') {
   const r = (await view(a, 'getRound', [s.cur])).returnValue;
   console.log(JSON.stringify({ admin: c.admin, payOwner: c.payOwner, payCollab: c.payCollab, collabAdmin: c.collabAdmin, paused: c.paused,
     tipO: s.tipO, tipC: s.tipC, owed: s.owed, jackpot: s.jackpot, enAttente: s.cur - s.next, cur: s.cur, grillesTourEnCours: r.grids }));
+} else if (cmd === 'prelevement') {
+  // prélèvement maison (wei) du dernier tirage terminé (0 s'il n'y en a pas eu)
+  const s = (await view(a, 'getState')).returnValue;
+  let out = '0';
+  for (let id = s.next - 1; id >= 1 && id >= s.next - 3; id--) { const r = (await view(a, 'getRound', [id])).returnValue; if (r && r.status === 'done') { out = r.skim || '0'; break; } }
+  console.log(out);
 } else if (cmd === 'attendre') {
   for (let i = 0; i < 60; i++) {
     const v = await view(a, 'getConfig').catch(() => ({}));

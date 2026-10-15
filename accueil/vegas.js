@@ -59,7 +59,7 @@ async function loadWins() {
   if (me) {
     const view = (c, m, a) => rpc.view(c, m, a);
     // ASE Loto : gains (settle) et remboursements des tirages annulés, 14 derniers tirages
-    for (const LC of [LOTO.CONTRACT, LOTO.OLD].filter(Boolean)) {
+    for (const LC of [LOTO.CONTRACT, ...String(LOTO.OLD || '').split(',')].map((x) => x.trim()).filter(Boolean)) {   // anciens Loto : liste séparée par des virgules
       const old = LC !== LOTO.CONTRACT ? ' (previous Loto)' : '';
       try {
         const st = await view(LC, 'getState', []);
@@ -78,7 +78,7 @@ async function loadWins() {
       } catch (e) { console.warn('loto', e); }
     }
     // ASE Raffle : prix (claim) et remboursements, 8 dernières semaines
-    for (const RC of [RAFFLE.CONTRACT, RAFFLE.OLD].filter(Boolean)) {
+    for (const RC of [RAFFLE.CONTRACT, ...String(RAFFLE.OLD || '').split(',')].map((x) => x.trim()).filter(Boolean)) {
       const old = RC !== RAFFLE.CONTRACT ? ' (previous raffle)' : '';
       try {
         const st = await view(RC, 'getState', []);

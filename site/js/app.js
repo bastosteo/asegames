@@ -149,9 +149,11 @@ setInterval(tickCountdown, 1000);
 // le joueur ne choisit pas. Un numéro déjà sorti sur la grille est relancé.
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Nombre de faces = numéros du loto (14 depuis le v6 ; 20 avant) : lu dans la configuration du contrat
+const FACES = () => (S.cfg && S.cfg.maxn) || 20;
 function rollD20() {
-  const b = new Uint8Array(1);
-  for (;;) { crypto.getRandomValues(b); if (b[0] < 240) return (b[0] % 20) + 1; }
+  const n = FACES(), lim = 256 - (256 % n), b = new Uint8Array(1);
+  for (;;) { crypto.getRandomValues(b); if (b[0] < lim) return (b[0] % n) + 1; }
 }
 function renderSlots(nums, active = -1) {
   $('#rollSlots').innerHTML = Array.from({ length: L.PICK }, (_, i) =>
@@ -187,7 +189,7 @@ async function simulate(dice, W, H, S, maxMs) {
       if (d.y > H - S) { d.y = H - S; d.vy = -Math.abs(d.vy) * 0.6; }
       const sp = Math.hypot(d.vx, d.vy);
       if (sp > 18) moving = true;
-      if (sp > 70 && Math.random() < 0.35) d.txt.textContent = 1 + Math.floor(Math.random() * 20);
+      if (sp > 70 && Math.random() < 0.35) d.txt.textContent = 1 + Math.floor(Math.random() * FACES());
     }
     for (let i = 0; i < dice.length; i++) for (let j = i + 1; j < dice.length; j++) {
       const p = dice[i], q = dice[j], dx = q.x - p.x, dy = q.y - p.y, dist = Math.hypot(dx, dy) || 1;
@@ -473,7 +475,7 @@ async function verifyRound(id) {
     // Les secrets ne sont plus affichés : on ne signale qu'une anomalie éventuelle.
     if (!o1 || !c1) step(false, 'Draw secrets', !o1 ? o2 : c2);
     // 3) Numéros
-    const nums = L.drawNumbers(id, r.sO, r.sC, d);
+    const nums = L.drawNumbers(id, r.sO, r.sC, d, FACES());
     step(JSON.stringify(nums) === JSON.stringify(r.nums), 'Numbers drawn', `<span class="balls tiny" style="display:inline-flex;vertical-align:middle">${nums.map((n) => ballHtml(n, 'gold')).join('')}</span>`);
     // 4) Gagnants
     const cnt = [0, 0, 0];
@@ -627,6 +629,8 @@ function renderRulesValues() {
   $$('.js-reveal').forEach((e) => (e.textContent = S.cfg.revealMin % 60 === 0 ? plural(S.cfg.revealMin / 60, 'hour', 'hours') : plural(S.cfg.revealMin, 'minute', 'minutes')));
   const amount = (x) => { const t = L.fmtAse(x, x % L.WEI === 0n ? 0 : 2); return (t.includes('.') ? t.replace(/0+$/, '').replace(/\.$/, '') : t) + ' ASE'; };   // 2.5 ASE (pas 2.50)
   $$('.js-g4').forEach((e) => (e.textContent = amount(p * 25n)));
+  // Numéros 1..maxn (14 depuis le v6) et nombre de grilles différentes C(maxn, 5)
+  { const n = FACES(); let c = 1; for (let k = 0; k < 5; k++) c = (c * (n - k)) / (k + 1); $$('.js-maxn').forEach((e) => (e.textContent = n)); $$('.js-combos').forEach((e) => (e.textContent = c.toLocaleString('en-US'))); }
   // Prélèvement maison (contrat v5) : règle affichée seulement s'il est actif
   const skimOn = S.cfg.skimAmt && BigInt(S.cfg.skimAmt) > 0n;
   if ($('#skimRule')) $('#skimRule').hidden = !skimOn;
