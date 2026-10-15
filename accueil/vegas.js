@@ -9,6 +9,7 @@
 import LOTO from './loto/js/config.js';
 import RAFFLE from './raffle/js/config.js';
 import TREASURE from './treasure/js/config.js';
+import DROP from './airdrop/js/config.js';
 import { Rpc, ExtensionWallet, TelegramWallet } from './loto/js/chain.js';
 import * as L from './loto/js/lotomath.js';
 
@@ -235,3 +236,15 @@ export function startVegas({ walletButton = false } = {}) {
   document.addEventListener('asevegas:refresh-wins', loadWins);
 }
 export const myWins = () => ({ wins: V.wins, total: total(), wallet: V.wallet });
+
+// Liens « Contract » des règles et de l'accueil : adresse du contrat de chaque jeu, vers l'explorateur.
+(function fillContracts() {
+  const C = { loto: LOTO.CONTRACT, raffle: RAFFLE.CONTRACT, treasure: TREASURE.CONTRACT, airdrop: DROP.CONTRACT };
+  for (const a of document.querySelectorAll('a[data-contract]')) {
+    const addr = C[a.dataset.contract];
+    if (!addr) continue;
+    const ase1 = addr.startsWith('ase1') ? addr : L.toAse1(addr);
+    a.href = `${LOTO.EXPLORER}/address/${ase1}`;
+    a.textContent = ase1;
+  }
+})();

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Met ASE Vegas en ligne sur Cloudflare Pages (https://asevegas.pages.dev).
+# Met ASE Vegas en ligne sur Cloudflare Pages (https://asevegas.com, et asevegas.pages.dev).
 # Lancé par "Mettre-en-ligne-ASE-Vegas.bat" sous Windows, ou directement dans WSL.
 set -e
 export PATH="$HOME/.nvm/versions/node/v22.23.3/bin:/usr/local/bin:/usr/bin:/bin"
@@ -15,15 +15,15 @@ else
   echo "[2/4] Déjà connecté à Cloudflare."
 fi
 $W pages project create asevegas --production-branch main > /dev/null 2>&1 || true
-echo "[3/4] Envoi du site sur https://asevegas.pages.dev …"
+echo "[3/4] Envoi du site sur https://asevegas.com …"
 $W pages deploy asegame --project-name asevegas --branch main --commit-dirty=true
 # L'ancienne adresse asegame.pages.dev renvoie maintenant vers asevegas.pages.dev (mêmes pages).
 echo "[4/4] Redirection de l'ancienne adresse asegame.pages.dev…"
 R=$(mktemp -d)
-printf '/* https://asevegas.pages.dev/:splat 301\n' > "$R/_redirects"
-printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=https://asevegas.pages.dev/"><title>ASE Vegas</title><a href="https://asevegas.pages.dev/">ASE Vegas has moved to asevegas.pages.dev</a>\n' > "$R/index.html"
+printf '/* https://asevegas.com/:splat 301\n' > "$R/_redirects"
+printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=https://asevegas.com/"><title>ASE Vegas</title><a href="https://asevegas.com/">ASE Vegas has moved to asevegas.com</a>\n' > "$R/index.html"
 (cd "$R" && $W pages deploy . --project-name asegame --branch main --commit-dirty=true > /dev/null 2>&1) \
-  && echo "      asegame.pages.dev → asevegas.pages.dev" || echo "      (redirection non faite : pas grave, l'ancien site reste tel quel)"
+  && echo "      asegame.pages.dev → asevegas.com" || echo "      (redirection non faite : pas grave, l'ancien site reste tel quel)"
 rm -rf "$R"
 # Croupiers GitHub : envoie aussi le code à jour (croupier, règles) sur le dépôt asegames
 if command -v gh >/dev/null && gh auth status >/dev/null 2>&1 && [ -d .git ]; then

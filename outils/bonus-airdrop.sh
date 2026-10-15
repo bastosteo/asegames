@@ -18,4 +18,4 @@ echo "Contrat Airdrop : $DROP"
 read -r -p "⚠️  Envoyer $AMT ASE depuis main dans la cagnotte de l'Airdrop (fund) ? (o/n) " r
 [[ "$r" =~ ^[oOyY] ]] || { echo "Rien n'a été envoyé."; exit 0; }
 asentum call "$DROP" fund --from main --args '[]' $OPT "$AMT"
-echo "Envoyé. La cagnotte affichée sur asevegas.pages.dev/airdrop/ se met à jour dans une minute environ."
+echo "Envoyé. La cagnotte affichée sur asevegas.com/airdrop/ se met à jour dans une minute environ."

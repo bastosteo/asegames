@@ -318,3 +318,7 @@ input:focus-visible { outline: 1px solid var(--accent) !important; }
 
 /* Un élément masqué reste masqué, même si son style lui donne un affichage (ex. bandeau des gains) */
 [hidden] { display: none !important; }
+
+/* Adresses des contrats en pied de page : longues, elles passent à la ligne sans déborder */
+.foot-contracts { overflow-wrap: anywhere; }
+.rules a[data-contract] { overflow-wrap: anywhere; }

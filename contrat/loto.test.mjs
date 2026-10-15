@@ -517,7 +517,19 @@ sec('Plafond de grilles par tirage');
 sec('Prélèvement maison (v5) : jackpot non gagné > 70 ASE → 20 ASE au wallet owner');
 {
   const has = !!world().c.view('getConfig').skimAt;
-  if (!has) console.log('  (contrat sans prélèvement : section ignorée)');
+  if (!has) {
+    console.log('  (contrat sans prélèvement maison)');
+    const f = world();
+    t('aucune fonction de prélèvement (setSkim absent)', !f.c.api.setSkim);
+    t('fund refusé sans ASE', !f.c.call(P[0], 'fund', [], 0n).success);
+    t('fund ajoute 100 ASE au jackpot', f.c.call(P[0], 'fund', [], 100n * ASE).success && f.st().jackpot === (100n * ASE).toString());
+    f.buy(P[1], [ref.randomGrid()]);
+    const ob = f.chain.balanceOf(OWNER_PAY);
+    f.draw(1);
+    const r1 = f.round(1);
+    if (r1.cnt[2] === 0) t('jackpot non gagné : tout est reporté, rien pour l\'owner au tirage', BigInt(r1.carryOut) > 100n * ASE && f.chain.balanceOf(OWNER_PAY) === ob);
+    t('solde cohérent (fund)', balanceOk(f));
+  }
   else {
     const A70 = 70n * ASE, A20 = 20n * ASE;
     // Gros tirage : 100 grilles à 2 ASE → report > 70 ASE

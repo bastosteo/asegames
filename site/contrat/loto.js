@@ -15,9 +15,6 @@
 //     Pas de gagnant à 5 bons → la moitié des 35 % du tour est versée en
 //     bonus aux 4 et 3 bons (en proportion de leur gain fixe).
 //     Tout le reste (jackpot non gagné, reste de la caisse) → jackpot suivant.
-//     Prélèvement maison (v5) : si le jackpot n'est pas gagné et que le jackpot
-//     reporté dépasse 70 ASE, 20 ASE sont envoyés au wallet owner (réglable,
-//     setSkim ; 0 = désactivé). Règle affichée sur le site.
 //     Un gagnant à 4 bons ne touche jamais plus que 80 % d'un 5 bons.
 //   - Les gains se RÉCLAMENT (settle de son achat, bouton Claim du site),
 //     sans limite de temps ; l'événement "Paid" indique le nombre de bons numéros.
@@ -28,10 +25,10 @@
 //     les deux secrets (le croupier les révèle en quelques minutes).
 //
 //  Sécurité :
-//   - Aucune fonction ne permet à l'admin de retirer des fonds. Seuls partent,
-//     automatiquement : la commission (15 %) À CHAQUE ACHAT (la part Airdrop
-//     arrive donc tout de suite dans la cagnotte Airdrop), et le prélèvement
-//     maison ci-dessus, au tirage. fund() permet d'ajouter de l'ASE au jackpot.
+//   - Aucune fonction ne permet à l'admin de retirer des fonds. Seule la
+//     commission (15 %) est envoyée, automatiquement, À CHAQUE ACHAT (la part
+//     Airdrop arrive donc tout de suite dans la cagnotte Airdrop).
+//     fund() permet à n'importe qui d'ajouter de l'ASE au jackpot.
 //   - L'état est enregistré AVANT chaque envoi d'ASE.
 //   - Montants en BigInt (wei), stockés en texte.
 //
@@ -310,11 +307,7 @@ function finalize(r, c, s) {
   }
   const per = [g3, g4, g5].map(String);
   const owed = n3 * g3 + n4 * g4 + n5 * g5;
-  let carry = J + S - commission - owed;              // tout le reste → jackpot suivant
-  // Prélèvement maison : jackpot non gagné et reporté au-dessus du seuil
-  const skim = n5 === 0n && big(c.skimAmt || 0) > 0n && carry > big(c.skimAt || 0) ? big(c.skimAmt) : 0n;
-  carry -= skim;
-  r.skim = skim.toString();
+  const carry = J + S - commission - owed;            // tout le reste → jackpot suivant
   r.per = per;
   r.jackpotIn = J.toString();
   r.carryOut = carry.toString();
@@ -326,9 +319,8 @@ function finalize(r, c, s) {
   jset('st', s);
   emit('Finalized', {
     round: String(r.id), nums: JSON.stringify(r.nums), counts: JSON.stringify(r.cnt), per: JSON.stringify(per),
-    jackpotIn: r.jackpotIn, carryOut: r.carryOut, commission: r.commission, airdrop: r.airdrop, skim: r.skim,
+    jackpotIn: r.jackpotIn, carryOut: r.carryOut, commission: r.commission, airdrop: r.airdrop,
   });
-  if (skim > 0n) transfer(c.payOwner, skim.toString());   // état déjà enregistré
 }
 
 // Gain total d'un achat et nombre de grilles gagnantes à 3, 4, 5 bons.
@@ -386,7 +378,6 @@ function batchRange(from, count, total) {
       drawH: 21, drawM: 0,                   // 21h00 Paris
       closeMin: 10, revealMin: 120,          // fermeture 10 min avant ; alerte du croupier si pas révélé en 2 h
       paused: false,
-      skimAt: (70n * 10n ** 18n).toString(), skimAmt: (20n * 10n ** 18n).toString(),   // prélèvement maison
     };
     jset('cfg', c);
     const s = {
@@ -557,17 +548,6 @@ function batchRange(from, count, total) {
     if (r.status === 'open' && r.grids === 0) newRound(r.id, c, 0);
     jset('st', s);
     emit('Config', { key: 'game', value: JSON.stringify([c.price, H, M, G, A, B, T]) });
-    return true;
-  },
-  // Prélèvement maison : au-dessus de « at » (wei) de jackpot reporté, « amt » (wei) au wallet owner. amt = 0 : désactivé.
-  setSkim(at, amt) {
-    noValue();
-    const c = cfg(); onlyAdmin(c);
-    const A = big(at), M = big(amt);
-    assert(M >= 0n && M <= A && A <= 10n ** 24n, 'amount: 0 to threshold');
-    c.skimAt = A.toString(); c.skimAmt = M.toString();
-    jset('cfg', c);
-    emit('Config', { key: 'skim', value: c.skimAt + ',' + c.skimAmt });
     return true;
   },
   // Ajout volontaire d'ASE au jackpot (promotion…).

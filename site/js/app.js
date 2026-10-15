@@ -635,10 +635,6 @@ function renderRulesValues() {
   $$('.js-t3').forEach((e) => (e.textContent = amount(t14 ? p * 2n : (p * 5n) / 2n)));
   // Numéros 1..maxn (14 depuis le v6) et nombre de grilles différentes C(maxn, 5)
   { const n = FACES(); let c = 1; for (let k = 0; k < 5; k++) c = (c * (n - k)) / (k + 1); $$('.js-maxn').forEach((e) => (e.textContent = n)); $$('.js-combos').forEach((e) => (e.textContent = c.toLocaleString('en-US'))); }
-  // Prélèvement maison (contrat v5) : règle affichée seulement s'il est actif
-  const skimOn = S.cfg.skimAmt && BigInt(S.cfg.skimAmt) > 0n;
-  if ($('#skimRule')) $('#skimRule').hidden = !skimOn;
-  if (skimOn) { $$('.js-skim-at').forEach((e) => (e.textContent = amount(BigInt(S.cfg.skimAt)))); $$('.js-skim-amt').forEach((e) => (e.textContent = amount(BigInt(S.cfg.skimAmt)))); }
   $$('.js-g3').forEach((e) => (e.textContent = amount((p * 5n) / 2n)));
 }
 function renderAll() {

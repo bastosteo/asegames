@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Nouveau Loto (v6) : 5 numéros sur 14 (au lieu de 20), grille à 1 ASE, plafond 1 000 grilles par tirage ; même prélèvement maison : quand le jackpot n'est
-# pas gagné et que le report dépasse 70 ASE, 20 ASE partent dans ton wallet de commission
-# (règle affichée dans les règles du site). Lancé par "Nouveau-Loto-14.bat".
+# Nouveau Loto (v6) : 5 numéros sur 14 (au lieu de 20), grille à 1 ASE, plafond 1 000 grilles par tirage ;
+# plus aucun prélèvement maison : tout le jackpot non gagné est reporté.
+# Lancé par "Nouveau-Loto-14.bat".
 # Si tu as lancé "Recuperer-jackpot.bat" la veille, le jackpot récupéré est proposé à l'étape 3.
 # Étapes (chaque transaction depuis "main" est demandée o/n avant ; relançable sans risque) :
 #  1. vérifie qu'aucun tirage n'est en cours sur le Loto actuel, puis le met en pause ;
@@ -74,7 +74,7 @@ else
   for i in $(seq 1 36); do sleep 5; [ "$(get "$($AIDE cfg "$N")" closeMin)" = "$(get "$LC" closeMin)" ] && { echo " ok"; break; }; echo -n "."; done
 fi
 C=$($AIDE cfg "$N")
-echo "      Prélèvement maison : au-dessus de $(ase "$(get "$C" skimAt)") ASE de report, $(ase "$(get "$C" skimAmt)") ASE vers $(get "$C" payOwner)"
+echo "      Nouveau Loto : 5 numéros sur 14, aucun prélèvement sur le jackpot."
 
 echo "[3/5] Jackpot de départ…"
 OJ=$(get "$LI" jackpot)
@@ -131,5 +131,5 @@ if [ -s remboursements-loto.txt ]; then
   done 3< remboursements-loto.txt
 else echo "      Personne à rembourser."; fi
 echo
-echo "Nouveau Loto : $N (5 numéros sur 14, 1 ASE la grille, prélèvement 20 ASE au-dessus de 70 ASE de report)"
-echo "Site : https://asevegas.pages.dev/loto/"
+echo "Nouveau Loto : $N (5 numéros sur 14, 1 ASE la grille, jackpot reporté en entier)"
+echo "Site : https://asevegas.com/loto/"
