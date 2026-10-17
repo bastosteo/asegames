@@ -37,7 +37,14 @@ const markers = [['.loto-v4-fait', 'Loto (v4)'], ['.tombola-v3-fait', 'Raffle (v
   ['.loto-ancien', 'Loto (ancien, 2 ASE)'], ['.raffle-ancienne', 'Raffle (ancienne, 5 ASE)'], ['.v5-ancien-tresor', 'Treasure (ancien, 0,5 ASE)'],
   ['.loto-v3-fait', 'Loto (v3, ancien)'], ['.tombola-v2-fait', 'Raffle (v2, ancien)'], ['.tresor-fait', 'Treasure (v1, ancien)']];
 let list = process.argv.slice(2).map((c) => [c, c]);
-if (!list.length) list = markers.filter(([f]) => existsSync(f)).map(([f, n]) => [readFileSync(f, 'utf8').trim(), n]);
+if (!list.length) {
+  // un fichier peut contenir plusieurs adresses séparées par des virgules (anciens contrats)
+  const seen = new Set();
+  for (const [f, n] of markers.filter(([f]) => existsSync(f))) {
+    const addrs = readFileSync(f, 'utf8').split(/[\s,]+/).filter((a) => /^ase1[0-9a-z]{38}$/.test(a));
+    addrs.forEach((a, i) => { if (!seen.has(a)) { seen.add(a); list.push([a, addrs.length > 1 ? `${n} #${i + 1}` : n]); } });
+  }
+}
 if (!list.length) { console.log('Aucun contrat trouvé : donne une adresse, ex. node outils/commissions.mjs ase1…'); process.exit(1); }
 
 const grand = { owner: 0n, collab: 0n, drop: 0n };

@@ -4,7 +4,7 @@
 # Règle posée : « au-dessus de J de report, J vont à la maison » (J = jackpot actuel).
 # Au tirage de ce soir, si au moins 1 grille est vendue et que personne n'a 5 bons, le report dépasse
 # forcément J : le contrat t'envoie J ASE. Le site affiche la nouvelle règle (House share) entre-temps.
-# Demain : lance "Nouveau-Loto-14.bat" et remets ce montant dans le jackpot du nouveau Loto.
+# Demain : lance "Loto-propre.bat" et remets ce montant dans le jackpot du nouveau Loto.
 # ⚠️ La transaction (depuis "main") est demandée (o/n) avant.
 set -euo pipefail
 export PATH="$HOME/.nvm/versions/node/v22.23.3/bin:$HOME/.asentum/bin:/usr/local/bin:/usr/bin:/bin"
@@ -60,4 +60,4 @@ if [ "$(get "$I" grillesTourEnCours)" = "0" ]; then
 fi
 echo
 echo "C'est réglé. Ce soir à l'heure du tirage, le jackpot part dans ton wallet de commission (la pause n'empêche pas le tirage)."
-echo "Après le tirage, lance \"Nouveau-Loto-14.bat\" (ou demain matin)."
+echo "Après le tirage, lance \"Loto-propre.bat\" (ou demain matin)."

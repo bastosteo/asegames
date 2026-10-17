@@ -108,12 +108,21 @@ async function refresh() {
 }
 
 // ------------------------------------------------------------- en-tête
+// Trésor déjà fouillé sur la carte encore ouverte (en attente de la réclamation) : plus de fouilles.
+function foundCell() {
+  const g = S.grid; if (!g || g.status !== 'open') return null;
+  const t = [...S.answers.values()].find((a) => a.ans === 'T');
+  return t && S.digs.some((d) => d.c === t.cell) ? t : null;
+}
 function myDigs() { return S.wallet ? S.digs.filter((d) => d.b === S.wallet.address) : []; }
 function renderHero() {
   const i = S.info, g = S.grid; if (!i) return;
   $('#pot').textContent = g && g.status === 'found' ? ase(g.prize, 2) : ase(i.pot, 2);
   $('#potLabel').textContent = g && g.status === 'found' ? `Map #${g.id}: treasure found!` : 'Treasure to find';
+  const ft = foundCell();
+  if (ft) $('#potLabel').textContent = `Map #${g.id}: treasure found!`;
   $('#gridWhen').textContent = !g ? 'The first map opens in a few minutes.'
+    : ft ? `💎 The treasure was found at ${coord(ft.cell)}! Digging is closed on this map. The next map opens in about 2 minutes.`
     : g.status === 'open' ? `Map #${g.id}, opened ${utcDay(g.openTs)} at ${utcTime(g.openTs)}. The treasure grows with every dig.` + (BigInt(g.carryIn || '0') > 0n ? ` Includes ${ase(g.carryIn)} ASE carried over from map #${g.id - 1}.` : '')
     : g.status === 'found' ? `Found by ${L.shortAddr(g.winner)} after ${plural(g.t + 1, 'dig', 'digs')}. A new map opens in a few minutes.`
     : 'A new map opens in a few minutes.';
@@ -155,7 +164,7 @@ function buildMap() {
   m.addEventListener('click', (e) => { const b = e.target.closest('.cell'); if (b) dig(Number(b.dataset.c)); });
 }
 function renderMap() {
-  const g = S.grid, open = g && g.status === 'open' && !(S.info && S.info.paused);
+  const g = S.grid, open = g && g.status === 'open' && !(S.info && S.info.paused) && !foundCell();
   const mine = new Set(myDigs().map((d) => d.c));
   const dug = new Set(S.digs.map((d) => d.c));
   $('#map').classList.toggle('locked', !open);
@@ -193,6 +202,8 @@ async function dig(cell) {
   if (!S.wallet) return openWallet();
   const g = S.grid;
   if (!g || g.status !== 'open' || S.pending.has(cell)) return;
+  const ft = foundCell();
+  if (ft) return toast(`💎 The treasure was already found at ${coord(ft.cell)}. Wait for the next map (about 2 minutes)!`, '', 8000);
   if (myDigs().length + S.pending.size >= S.cfg.maxPerWallet) return toast(`You already used your ${S.cfg.maxPerWallet} digs on this map. Wait for the next one!`, 'err');
   const price = BigInt(g.price);
   if (S.balance !== null && S.balance < price) return toast(`Insufficient balance: you need ${ase(price)} ASE plus a little gas.`, 'err');

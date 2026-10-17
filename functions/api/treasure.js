@@ -10,6 +10,9 @@
 //  vérifie avec la racine publiée dans le contrat avant la 1re fouille.
 //  Réglages (secrets du projet Cloudflare Pages) : TREASURE_SEED, TREASURE_CONTRACT,
 //  RPC_URL (option, https://testnet.asentum.com par défaut).
+//  Option « carte suivante rapide » : GH_TOKEN + GH_REPO (ex. bastos/asegames). Dès qu'une
+//  fouille tombe sur le trésor, le service lance le croupier GitHub, qui envoie la preuve du
+//  trésor et ouvre la carte suivante (1 à 2 minutes au lieu d'attendre son passage).
 // =====================================================================
 import { boardAsync, CELLS } from '../_lib/board.mjs';
 
@@ -18,6 +21,19 @@ async function boardOf(seed, grid) {
   const k = String(grid);
   if (!memo.has(k)) { if (memo.size > 20) memo.clear(); memo.set(k, boardAsync(seed, grid)); }
   return memo.get(k);
+}
+const kicked = new Map();   // grille → heure du dernier lancement du croupier
+async function kickCroupier(env, grid) {
+  if (!env.GH_TOKEN || !env.GH_REPO) return;
+  const last = kicked.get(grid) || 0;
+  if (Date.now() - last < 4 * 60000) return;   // au plus une fois toutes les 4 minutes par grille
+  kicked.set(grid, Date.now());
+  const r = await fetch(`https://api.github.com/repos/${env.GH_REPO}/actions/workflows/croupier.yml/dispatches`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${env.GH_TOKEN}`, accept: 'application/vnd.github+json', 'user-agent': 'asevegas-treasure', 'x-github-api-version': '2022-11-28' },
+    body: JSON.stringify({ ref: env.GH_BRANCH || 'main' }),
+  }).catch((e) => ({ status: 0, text: async () => String(e) }));
+  if (r.status !== 204) console.log('GitHub a répondu', r.status, await r.text());
 }
 function reply(status, obj) {
   return new Response(JSON.stringify(obj), {
@@ -36,7 +52,7 @@ async function view(env, method, args) {
   return j.returnValue;
 }
 
-export async function onRequestGet({ request, env }) {
+export async function onRequestGet({ request, env, waitUntil }) {
   try {
     if (!env.TREASURE_SEED || !env.TREASURE_CONTRACT) return reply(503, { error: 'treasure service not configured' });
     const u = new URL(request.url);
@@ -59,6 +75,9 @@ export async function onRequestGet({ request, env }) {
         for (let k = 0; k < g.digs; k += 400) for (const d of await view(env, 'getDigs', [grid, k, Math.min(400, g.digs - k)])) dug.add(d.c);
         cells = cells.filter((c) => dug.has(c));   // jamais de réponse pour une case non fouillée
       }
+    }
+    if (!closed && cells.includes(b.treasure)) {   // le trésor vient d'être fouillé : croupier tout de suite
+      const p = kickCroupier(env, grid); if (waitUntil) waitUntil(p); else await p;
     }
     return reply(200, { grid, root: b.root, closed, answers: cells.map((c) => b.answer(c)), treasure: closed ? b.treasure : undefined });
   } catch (e) {
