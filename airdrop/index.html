@@ -65,10 +65,11 @@
       <div><dt>Players</dt><dd id="players" class="mono-num">–</dd></div>
     </dl>
     <ol class="podium" aria-label="Prizes">
-      <li><span class="medal m1">1</span><span class="p-label">1st, 50%</span><strong id="prize1">–</strong></li>
-      <li><span class="medal m2">2</span><span class="p-label">2nd, 30%</span><strong id="prize2">–</strong></li>
-      <li><span class="medal m3">3</span><span class="p-label">3rd, 20%</span><strong id="prize3">–</strong></li>
+      <li><span class="medal m1">1</span><span class="p-label" id="plabel1">1st, 50%</span><strong id="prize1">–</strong></li>
+      <li><span class="medal m2">2</span><span class="p-label" id="plabel2">2nd, 30%</span><strong id="prize2">–</strong></li>
+      <li><span class="medal m3">3</span><span class="p-label" id="plabel3">3rd, 20%</span><strong id="prize3">–</strong></li>
     </ol>
+    <p class="est-note small" id="lotsLine" hidden></p>
     <p class="est-note small muted" id="estNote">Exact amount: it is already in the airdrop contract.</p>
     <p class="banner" id="soonBanner" hidden>The ASE Airdrop is launching soon: the first draw will be announced here.</p>
     <p class="banner win-banner" id="winBanner" hidden></p>
@@ -119,6 +120,21 @@
     <p>Every ticket played during the week counts: <strong>1 Loto ticket = 1 chance</strong>, <strong>1 Raffle ticket = 1 chance</strong> and <strong>1 Treasure dig = 1 chance</strong>. A ticket counts in the week it is bought: the week runs from the Sunday Raffle closing to the next Sunday Raffle closing.</p>
     <p>Every ticket and dig feeds the airdrop pot right away. The amount shown is exact at any time: it is what the airdrop contract already holds for this week.</p>
     <h3>The draw</h3>
+    <div class="v2only" hidden>
+    <p>Every <strong class="js-drawtime">Monday at 19:00 UTC</strong>, the airdrop pot is drawn among all the chances of the period:</p>
+    <table class="odds">
+      <thead><tr><th scope="col">Winner</th><th scope="col">Prize</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Lucky lots</th><td>Up to <span class="js-lots">100</span> lots of <span class="js-lot">20 ASE</span>, using at most 50% of the pot</td></tr>
+        <tr><th scope="row">1st</th><td>50% of the rest of the pot</td></tr>
+        <tr><th scope="row">2nd</th><td>30% of the rest of the pot</td></tr>
+        <tr><th scope="row">3rd</th><td>20% of the rest of the pot</td></tr>
+      </tbody>
+    </table>
+    <p>Example: with a 2,540 ASE pot, 63 lucky lots of 20 ASE, then 640 / 384 / 256 ASE for the top 3. Each <strong>chance</strong> can win only once, but a player with many chances can win several prizes.</p>
+    <p>Prizes are <strong>sent directly</strong> to the winners' wallets: nothing to claim. If there are fewer chances than prizes, the unawarded prizes roll over to the next airdrop.</p>
+    </div>
+    <div class="v1only">
     <p>Every <strong class="js-drawtime">Monday at 19:00 UTC</strong>, the day after the big Sunday raffle, 3 <strong>different wallets</strong> are drawn, each with chances proportional to its tickets:</p>
     <table class="odds">
       <thead><tr><th scope="col">Winner</th><th scope="col">Prize</th></tr></thead>
@@ -129,10 +145,11 @@
       </tbody>
     </table>
     <p>Prizes are <strong>sent directly</strong> to the winners' wallets: nothing to claim. With fewer than 3 players, the unawarded prizes roll over to the next airdrop.</p>
+    </div>
     <p>If the draw isn't completed within <strong class="js-reveal">6 hours</strong>, it is cancelled and the whole week (players and pot) is carried into the next airdrop.</p>
     <h3>Contract and admin powers</h3>
     <p>Contract: <a data-contract="airdrop" target="_blank" rel="noopener">see the explorer</a> (Asentum testnet). Every ticket, draw and payment is public on chain.</p>
-    <p>What the admin can do: change the draw day and time, and lower the amount carried over from previous airdrops. The game operator sends the list of this week's players to the contract; anyone can check it on this page. What the admin cannot do: choose the winners, or move, freeze or take the airdrop pot. Anyone can add ASE to the pot.</p>
+    <p>What the admin can do: change the draw day<span class="v2only" hidden>s</span> and time, <span class="v2only" hidden>change the size and number of lucky lots for the next airdrops, </span>and lower the amount carried over from previous airdrops. The game operator sends the list of this week's players to the contract; anyone can check it on this page. What the admin cannot do: choose the winners, or move, freeze or take the airdrop pot. Anyone can add ASE to the pot.</p>
     <p class="muted small">Asentum testnet: testnet ASE has no monetary value.</p>
   </section>
 </main>

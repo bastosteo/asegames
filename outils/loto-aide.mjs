@@ -19,6 +19,12 @@ else if (cmd === 'info') {
   const r = (await view(a, 'getRound', [s.cur])).returnValue;
   console.log(JSON.stringify({ admin: c.admin, payOwner: c.payOwner, payCollab: c.payCollab, collabAdmin: c.collabAdmin, paused: c.paused,
     tipO: s.tipO, tipC: s.tipC, owed: s.owed, jackpot: s.jackpot, enAttente: s.cur - s.next, cur: s.cur, grillesTourEnCours: r.grids }));
+} else if (cmd === 'tombola') {
+  // tombola : tour en cours (tickets, tirage) et dernier tirage terminé
+  const s = (await view(a, 'getState')).returnValue, r = (await view(a, 'getRound', [s.cur])).returnValue;
+  const p = s.cur > 1 ? (await view(a, 'getRound', [s.cur - 1])).returnValue : null;
+  const now = (await view(a, 'info')).returnValue.now;
+  console.log(JSON.stringify({ now, cur: s.cur, next: s.next, tickets: r.tickets, drawTs: r.drawTs, lastDone: p && p.status === 'done' ? p.drawTs : 0, owed: s.owed }));
 } else if (cmd === 'prelevement') {
   // prélèvement maison (wei) du dernier tirage terminé (0 s'il n'y en a pas eu)
   const s = (await view(a, 'getState')).returnValue;

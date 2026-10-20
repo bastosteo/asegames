@@ -50,9 +50,9 @@ const warp = (to) => fetch(mock.url + '/__warp', { method: 'POST', body: JSON.st
 
 // Samedi : loto (3 joueurs) + tombola (4 joueurs)
 const grid = [1, 2, 3, 4, 5];
-L.call(players[0], 'buy', [[grid, grid, grid], ''], 6n * ASE);
-L.call(players[1], 'buy', [[grid], ''], 2n * ASE);
-L.call(players[5], 'buy', [[grid, grid], ''], 4n * ASE);
+L.call(players[0], 'buy', [[grid, grid, grid], ''], 3n * ASE);
+L.call(players[1], 'buy', [[grid], ''], 1n * ASE);
+L.call(players[5], 'buy', [[grid, grid], ''], 2n * ASE);
 for (let i = 0; i < 4; i++) R.call(players[i + 2], 'buy', [i + 1, ''], BigInt(i + 1) * 5n * ASE);
 await warp(L.view('getRound', [1]).closeTs + 1000);
 t('loto du samedi tiré', drawGame(L, g[0], g[1], 1, true));
@@ -61,7 +61,7 @@ t('status airdrop lisible', st0.code === 0 && /OK, 40 secrets/.test(st0.out), st
 await warp(R.view('getRound', [1]).closeTs + 1000);
 t('grosse tombola du dimanche tirée', drawGame(R, g[2], g[3], 1, false));
 await warp(A.view('getRound', [1]).drawTs - 3 * 3600000);
-t('achat loto lundi', L.call(players[6], 'buy', [[grid], ''], 2n * ASE).success);
+t('achat loto lundi', L.call(players[6], 'buy', [[grid], ''], 1n * ASE).success);
 await warp(A.view('getRound', [1]).drawTs + 60000);
 const a = await once(envO);
 t('lundi 21h01 : liste envoyée tout de suite (le loto du lundi compte pour la semaine suivante)', a.code === 0 && A.view('getRound', [1]).status === 'listed', a.out.slice(-400));
@@ -70,13 +70,14 @@ const q1 = await once(envO);
 const r1 = A.view('getRound', [1]);
 t('passage owner : liste envoyée + secret owner', q1.code === 0 && r1.status === 'listed' && !!r1.sO, q1.out.slice(-400));
 t('liste : 1 grille / 1 ticket = 1 chance', JSON.stringify(A.view('getEntries', [1, 0])) === JSON.stringify([[players[0], 3], [players[1], 1], [players[2], 1], [players[3], 2], [players[4], 3], [players[5], 6]]), JSON.stringify(A.view('getEntries', [1, 0])));
-t('cagnotte = frais de la semaine (sans le loto du lundi)', BigInt(r1.pot) === (12n + 50n) * ASE * 75n / 1000n && mock.chain.balanceOf(A.address) - BigInt(r1.pot) === 2n * ASE * 75n / 1000n);
+t('cagnotte = frais de la semaine (sans le loto du lundi)', BigInt(r1.pot) === (6n + 50n) * ASE * 6n / 100n && mock.chain.balanceOf(A.address) - BigInt(r1.pot) === 1n * ASE * 6n / 100n);
 const bal = players.map((p) => mock.chain.balanceOf(p));
 const q2 = await once(envC);
 const r = A.view('getRound', [1]);
 t('passage collab : 3 gagnants, prix envoyés', q2.code === 0 && r.status === 'done' && r.win.length === 3, q2.out.slice(-300));
-t('gagnants = référence indépendante', JSON.stringify(r.win) === JSON.stringify(ref.airdropWinners(1, r.sO, r.sC, r.digest, A.view('getEntries', [1, 0]))));
-t('chaque gagnant a reçu son prix', r.win.every((w, k) => mock.chain.balanceOf(w.b) - bal[players.indexOf(w.b)] === BigInt(r.prizes[k])));
+t('gagnants = référence indépendante', JSON.stringify(r.win) === JSON.stringify(ref.airdropWinnersV2(1, r.sO, r.sC, r.digest, A.view('getEntries', [1, 0]), r.prizes.length)));
+{ const due = new Map(); r.win.forEach((w, k) => due.set(w.b, (due.get(w.b) || 0n) + BigInt(r.prizes[k])));
+  t('chaque gagnant a reçu ses prix', [...due].every(([b, v]) => mock.chain.balanceOf(b) - bal[players.indexOf(b)] === v) && r.paid === r.win.length); }
 t('annonce Telegram', mock.alerts.some((x) => x.includes('ASE Airdrop n°1')), mock.alerts.join(' | ').slice(0, 300));
 const q3 = await once(envO);
 t('passage suivant : rien à faire', q3.code === 0 && /0 transaction/.test(q3.out), q3.out.slice(-200));

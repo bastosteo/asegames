@@ -39,8 +39,8 @@ const once = (env) => new Promise((res) => {
 });
 const warp = (to) => fetch(mock.url + '/__warp', { method: 'POST', body: JSON.stringify({ to }) });
 
-// Semaine 1 : 2 wallets seulement → tirage quand même, le 3e prix est reporté
-C.call(players[0], 'buy', [4, ''], 20n * ASE); C.call(players[1], 'buy', [2, ''], 10n * ASE);
+// Tirage 1 : 2 tickets seulement → tirage quand même, le 3e prix est reporté
+C.call(players[0], 'buy', [1, ''], 5n * ASE); C.call(players[1], 'buy', [1, ''], 5n * ASE);
 const r1 = C.view('getRound', [1]);
 await warp(r1.closeTs + 1000);
 const a1 = await once(envO), a2 = await once(envC);
@@ -48,7 +48,7 @@ const w1 = C.view('getRound', [1]);
 t('2 participants : tirage fait, 2 gagnants', a1.code === 0 && a2.code === 0 && w1.status === 'done' && w1.win.length === 2, a2.out.slice(-300));
 t('le 3e prix passe à la tombola 2', BigInt(w1.carryOut) > 0n && C.view('getRound', [2]).carryIn === w1.carryOut);
 t('annonce : report mentionné', mock.alerts.some((x) => x.includes('Tombola n°1') && x.includes('reportés')));
-// Semaine 2 : 5 wallets
+// Tirage 2 : 5 wallets
 for (let i = 2; i < 7; i++) C.call(players[i], 'buy', [1 + (i % 5), ''], BigInt(1 + (i % 5)) * 5n * ASE);
 await warp(C.view('getRound', [2]).closeTs + 1000);
 const q1 = await once(envO);
@@ -56,16 +56,16 @@ t('passage owner : fermeture + secret owner', q1.code === 0 && !!C.view('getRoun
 const q2 = await once(envC);
 const r = C.view('getRound', [2]);
 t('passage collab : 3 gagnants tirés', q2.code === 0 && r.status === 'done' && r.win.length === 3, q2.out.slice(-300));
-const all = C.view('getPurchases', [2, 0, 400]).map((p) => ({ b: p.b, n: p.n, first: p.first }));
-t('gagnants = référence indépendante', JSON.stringify(r.win) === JSON.stringify(ref.raffleWinners(2, r.sO, r.sC, r.digest, all)));
+const all = C.view('getPurchases', [2, 0, 400]);
+t('tickets gagnants = référence indépendante', JSON.stringify(r.win) === JSON.stringify(ref.raffleTicketsV4(2, r.sO, r.sC, r.digest, r.tickets, r.prizes.length)));
 { const C1 = BigInt(w1.commission) + BigInt(r.commission), D = BigInt(w1.airdrop) + BigInt(r.airdrop);
-  t('commission versée à chaque achat : 7,5 % Airdrop, reste équipe', D === C1 / 2n && mock.chain.balanceOf(DROP) === D && mock.chain.balanceOf(OWN_PAY) + mock.chain.balanceOf(COL_PAY) === C1 - D); }
-t('cagnotte 2 = report + 85 % des ventes', BigInt(r.prizes[0]) + BigInt(r.prizes[1]) + BigInt(r.prizes[2]) === BigInt(w1.carryOut) + BigInt(r.sales) - BigInt(r.commission));
+  t('commission versée à chaque achat : 6 % Airdrop, reste équipe', D === C1 * 6n / 15n && mock.chain.balanceOf(DROP) === D && mock.chain.balanceOf(OWN_PAY) + mock.chain.balanceOf(COL_PAY) === C1 - D); }
+t('cagnotte 2 = report + 85 % des ventes', r.prizes.reduce((a, x) => a + BigInt(x), 0n) === BigInt(w1.carryOut) + BigInt(r.sales) - BigInt(r.commission));
 t('annonce Telegram des gagnants', mock.alerts.some((x) => x.includes('Tombola n°2') && x.includes('1er prix')), mock.alerts.join(' | ').slice(0, 300));
 const q3 = await once(envO);
 t('passage suivant : rien à faire', q3.code === 0 && /0 transaction/.test(q3.out), q3.out.slice(-200));
-const b = mock.chain.balanceOf(r.win[0].b);
-t('le gagnant réclame son prix', C.call(r.win[0].b, 'claim', [2, 0]).success && mock.chain.balanceOf(r.win[0].b) - b === BigInt(r.prizes[0]));
+const p0 = all.find((p) => p.first <= r.win[0] && r.win[0] < p.first + p.n), b = mock.chain.balanceOf(p0.b);
+t('le gagnant réclame son prix', C.call(p0.b, 'claim', [2, 0, p0.idx]).success && mock.chain.balanceOf(p0.b) - b === BigInt(r.prizes[0]));
 
 mock.stop();
 console.log(`\n${ok} réussis, ${ko} échoués`);

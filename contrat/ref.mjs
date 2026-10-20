@@ -131,3 +131,42 @@ export function airdropPrizes(total) {
   const T = BigInt(total), p1 = T / 2n, p2 = T * 3n / 10n;
   return [p1, p2, T - p1 - p2];
 }
+
+// --------------------------- TOMBOLA v4 (3 tirages / semaine, lots) ---------------------------
+// Prix : jusqu'à maxLots lots (≤ 40 % de la cagnotte, ≤ tickets − 3), le top 3 prend tout le reste 50/30/20.
+export function rafflePrizesV4(pool, tickets, lot = 100n * 10n ** 18n, maxLots = 27) {
+  const P = BigInt(pool), L = BigInt(lot), nTop = Math.min(3, tickets);
+  let nLots = L > 0n ? Number((P * 4000n) / 10000n / L) : 0;
+  nLots = Math.min(nLots, maxLots, 200, tickets - nTop);
+  const top = P - L * BigInt(nLots), p1 = top / 2n, p2 = (top * 3n) / 10n;
+  const pr = [p1, p2, top - p1 - p2].slice(0, nTop).concat(Array(nLots).fill(L));
+  return { prizes: pr, carry: P - pr.reduce((a, x) => a + x, 0n) };
+}
+export function raffleTicketsV4(id, sO, sC, digest, total, n) {
+  const win = [], seen = new Set();
+  for (let k = 0; win.length < n && k < 100000; k++) {
+    const t = Number(BigInt('0x' + sha('ASERAFFLE|' + id + '|' + sO + '|' + sC + '|' + digest + '|' + k).slice(0, 13)) % BigInt(total));
+    if (seen.has(t)) continue;
+    seen.add(t); win.push(t);
+  }
+  return win;
+}
+
+// --------------------------- AIRDROP v2 (top 3 + lots) ---------------------------
+export function airdropPrizesV2(total, tickets, lot = 20n * 10n ** 18n, maxLots = 100) {
+  const T = BigInt(total), L = BigInt(lot), nTop = Math.min(3, tickets);
+  let n = L > 0n ? Number((T * 5000n) / 10000n / L) : 0;
+  n = Math.min(n, maxLots, 300, tickets - nTop);
+  const top = T - L * BigInt(n), p1 = top / 2n, p2 = (top * 3n) / 10n;
+  return [p1, p2, top - p1 - p2].slice(0, nTop).concat(Array(n).fill(L));
+}
+// entries : [[adresse, tickets], …] dans l'ordre ; renvoie [{ b, t }] (chances différentes)
+export function airdropWinnersV2(id, sO, sC, digest, entries, n) {
+  const total = entries.reduce((a, e) => a + e[1], 0), ts = [], seen = new Set();
+  for (let k = 0; ts.length < n && k < 100000; k++) {
+    const t = Number(BigInt('0x' + sha('ASEDROP|' + id + '|' + sO + '|' + sC + '|' + digest + '|' + k).slice(0, 13)) % BigInt(total));
+    if (seen.has(t)) continue;
+    seen.add(t); ts.push(t);
+  }
+  return ts.map((t) => { let x = t; for (const e of entries) { if (x < e[1]) return { b: e[0], t }; x -= e[1]; } return null; });
+}

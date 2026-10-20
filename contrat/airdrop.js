@@ -1,23 +1,24 @@
 // =====================================================================
-//  ASE AIRDROP — tirage hebdomadaire des frais du loto et de la tombola
+//  ASE AIRDROP v2 — tirage hebdomadaire : top 3 + lots
 // =====================================================================
 //  Règles :
-//   - Les contrats ASE Loto et ASE Raffle envoient ici la moitié de leur
-//     commission (7,5 % des ventes) à chaque tirage réussi.
-//   - Chaque lundi à 21h00 (heure de Paris, 19h/20h UTC), lendemain de la tombola, tirage au sort de la
-//     cagnotte de la semaine : 1er 50 %, 2e 30 %, 3e 20 %, 3 wallets
-//     DIFFÉRENTS. Chances : 1 grille de loto ou 1 ticket de tombola de la
-//     semaine = 1 chance.
+//   - Les jeux ASE Vegas envoient ici une part de leur commission (6 % des
+//     ventes) à chaque achat.
+//   - Chaque lundi à 21h00 (heure de Paris), tirage au sort de la cagnotte de
+//     la semaine : jusqu'à maxLots LOTS (20 ASE par défaut, au plus 50 % de la
+//     cagnotte), puis le top 3 se partage tout le reste : 50 / 30 / 20 %.
+//     Chances : 1 grille, 1 ticket ou 1 fouille de la semaine = 1 chance ;
+//     chaque chance gagne au plus une fois (un wallet peut gagner plusieurs prix).
 //   - La liste des participants est calculée à partir des données publiques
 //     des deux jeux (tirages réussis dont l'heure est dans la semaine) par
 //     l'opérateur, puis envoyée ici AVANT les secrets ; le site la recalcule
 //     pour que chacun puisse vérifier.
 //   - Hasard : double secret en chaîne (owner puis collaborateur), révélés
-//     APRÈS la liste. Gagnant k : ticket = SHA-256("ASEDROP|tour|sO|sC|
-//     empreinte|k") mod tickets restants (les wallets déjà gagnants sont
-//     retirés : jamais deux fois le même wallet).
-//   - Les prix sont envoyés directement aux gagnants. Une part sans gagnant
-//     (moins de 3 wallets) reste dans la cagnotte pour la semaine suivante.
+//     APRÈS la liste. Tirage k : chance = SHA-256("ASEDROP|tour|sO|sC|
+//     empreinte|k") mod chances ; chance déjà tirée → k+1. Ordre : 1er, 2e, 3e, lots.
+//   - Les prix sont envoyés directement aux gagnants (les 40 premiers au
+//     tirage, les suivants par payRest, appelable par tous). Une part sans
+//     gagnant (pas assez de chances) reste dans la cagnotte suivante.
 //   - Tirage non fait en 6 h → annulé ; la semaine est reprise (participants
 //     et frais) dans le tirage suivant.
 //
@@ -26,8 +27,10 @@
 // =====================================================================
 
 const BPS = 10000n;
-const SPLIT = [5000n, 3000n];   // 1er 50 %, 2e 30 %, 3e = le reste (20 %)
-const WINNERS = 3;
+const SPLIT = [5000n, 3000n];   // top 3 : 1er 50 %, 2e 30 %, 3e = le reste (20 %)
+const LOT_SHARE = 5000n;        // les lots ne prennent jamais plus de 50 % de la cagnotte
+const MAX_LOTS = 300;           // plafond absolu du nombre de lots
+const PAY_NOW = 40, PAY_BATCH = 60;   // prix envoyés au tirage, puis par appel de payRest
 const DAY = 86400000;
 const HOUR = 3600000;
 const MAX_CHAIN_SKIP = 1;
@@ -169,10 +172,11 @@ function parisOffsetMs(utcMs) {
 
 // Prochain tirage (jour de semaine wd, 0 = dimanche, heure de Paris h:m)
 // strictement après t (ms UTC).
-function nextDrawAfter(t, wd, h, m) {
+// days : masque des jours (1 = dimanche, 2 = lundi, 4 = mardi … 64 = samedi).
+function nextDrawAfter(t, days, h, m) {
   let d = Math.floor(t / DAY) - 1;
   for (let i = 0; i < 10; i++, d++) {
-    if ((((d + 4) % 7) + 7) % 7 !== wd) continue;     // 1970-01-01 = jeudi
+    if (!((days >> ((((d + 4) % 7) + 7) % 7)) & 1)) continue;     // 1970-01-01 = jeudi
     const local = d * DAY + (h * 60 + m) * 60000;
     const x = local - parisOffsetMs(local - 2 * HOUR);
     if (x > t) return x;
@@ -196,9 +200,10 @@ function initDigest(id) { return sha256Text('ASEDROP-ROUND|' + id); }
 function newRound(id, c, after) {
   const r = {
     id, status: 'open', revealMin: c.revealMin,
-    drawTs: nextDrawAfter(Math.max(after, nowMs()), c.drawDay, c.drawH, c.drawM),
+    drawTs: nextDrawAfter(Math.max(after, nowMs()), c.drawDays, c.drawH, c.drawM),
     fromTs: 0, pot: '0', carryIn: '0', tickets: 0, wallets: 0, chunks: 0, last: '',
     digest: initDigest(id), sO: null, sC: null, win: null, prizes: null, carryOut: null,
+    lot: c.lot, maxLots: c.maxLots, paid: 0,
   };
   putR(r);
   emit('RoundOpened', { round: String(id), drawTs: String(r.drawTs) });
@@ -233,46 +238,72 @@ function entries(r) {
   return all;
 }
 
-// 3 wallets différents, chances proportionnelles aux tickets ; un gagnant
-// est retiré avant le tirage suivant.
-function drawWinners(r) {
-  const all = entries(r), out = {}, win = [];
-  let rem = r.tickets;
-  for (let k = 0; k < WINNERS && rem > 0; k++) {
+// Prix : [1er, 2e, 3e, lot, lot…] pour une cagnotte "total" et n chances.
+function prizesOf(r, total) {
+  const L = big(r.lot || '0'), nTop = Math.min(3, r.tickets);
+  let n = L > 0n ? Number((total * LOT_SHARE) / BPS / L) : 0;
+  n = Math.min(n, r.maxLots || 0, MAX_LOTS, r.tickets - nTop);
+  const top = total - L * big(n), p1 = (top * SPLIT[0]) / BPS, p2 = (top * SPLIT[1]) / BPS;
+  const pr = [p1, p2, top - p1 - p2].slice(0, nTop);
+  for (let k = 0; k < n; k++) pr.push(L);
+  return pr;
+}
+
+// n chances différentes, puis leurs wallets (un seul passage sur la liste).
+function drawWinners(r, n) {
+  const ts = [], seen = {};
+  for (let k = 0; ts.length < n && k < 100000; k++) {
     const h = sha256Text('ASEDROP|' + r.id + '|' + r.sO + '|' + r.sC + '|' + r.digest + '|' + k);
-    const t = Number(BigInt('0x' + h.slice(0, 13)) % BigInt(rem));
-    let x = t;
-    for (const e of all) {
-      if (out[e[0]]) continue;
-      if (x < e[1]) { out[e[0]] = 1; win.push({ b: e[0], n: e[1], t }); rem -= e[1]; break; }
-      x -= e[1];
+    const t = Number(BigInt('0x' + h.slice(0, 13)) % BigInt(r.tickets));
+    if (seen[t]) continue;
+    seen[t] = 1; ts.push(t);
+  }
+  assert(ts.length === n, 'draw failed');
+  const order = ts.map((t, k) => [t, k]).sort((x, y) => x[0] - y[0]), win = new Array(n);
+  let base = 0, q = 0;
+  for (let j = 0; j < r.chunks && q < n; j++) {
+    for (const e of jget('e:' + r.id + ':' + j, [])) {
+      while (q < n && order[q][0] < base + e[1]) { win[order[q][1]] = { b: e[0], t: order[q][0] }; q++; }
+      base += e[1];
+      if (q >= n) break;
     }
   }
   return win;
 }
 
+// Envoie jusqu'à "max" prix pas encore payés (état enregistré avant les envois).
+function payNext(r, s, max) {
+  const a = r.paid, b = Math.min(r.win.length, a + max);
+  let sum = 0n;
+  for (let k = a; k < b; k++) sum += big(r.prizes[k]);
+  r.paid = b;
+  putR(r);
+  s.owed = (big(s.owed || '0') - sum).toString();
+  s.tot.paid = (big(s.tot.paid) + sum).toString();
+  jset('st', s);
+  for (let k = a; k < b; k++) if (big(r.prizes[k]) > 0n) transfer(r.win[k].b, r.prizes[k]);
+  return b - a;
+}
+
 function finalize(r, s) {
   const total = big(r.pot) + big(s.carry);
   r.carryIn = s.carry;
-  const p = [(total * SPLIT[0]) / BPS, (total * SPLIT[1]) / BPS];
-  p.push(total - p[0] - p[1]);
-  const win = r.tickets > 0 ? drawWinners(r) : [];
-  let paid = 0n;
-  for (let k = 0; k < win.length; k++) paid += p[k];
-  r.win = win;
-  r.prizes = p.map(String);
-  r.carryOut = (total - paid).toString();
+  const pr = r.tickets > 0 ? prizesOf(r, total) : [];
+  r.win = r.tickets > 0 ? drawWinners(r, pr.length) : [];
+  let won = 0n;
+  for (const x of pr) won += x;
+  r.prizes = pr.map(String);
+  r.carryOut = (total - won).toString();
   r.status = 'done';
-  putR(r);
+  r.paid = 0;
   s.carry = r.carryOut;
+  s.owed = (big(s.owed || '0') + won).toString();
   s.lastTs = r.drawTs;
   s.next = r.id + 1;
   s.tot.pots = (big(s.tot.pots) + big(r.pot)).toString();
-  s.tot.paid = (big(s.tot.paid) + paid).toString();
   s.tot.rounds += 1;
-  jset('st', s);
-  for (let k = 0; k < win.length; k++) if (p[k] > 0n) transfer(win[k].b, p[k].toString());
-  emit('Drawn', { round: String(r.id), winners: JSON.stringify(win), prizes: JSON.stringify(r.prizes), pot: r.pot, carry: r.carryOut });
+  emit('Drawn', { round: String(r.id), winners: JSON.stringify(r.win.slice(0, 3)), lots: String(Math.max(0, r.win.length - 3)), prizes: JSON.stringify(r.prizes.slice(0, 4)), pot: r.pot, carry: r.carryOut });
+  payNext(r, s, PAY_NOW);
 }
 
 ({
@@ -284,11 +315,12 @@ function finalize(r, s) {
     assert(isSecret(tipOwner) && isSecret(tipCollab) && tipOwner !== tipCollab, 'invalid tips');
     const c = {
       admin: sender(), operator: addr(operator), collabAdmin: addr(collabAdmin),
-      drawDay: 1, drawH: 21, drawM: 0,         // lundi 21h00 Paris (lendemain de la tombola)
+      drawDays: 2, drawH: 21, drawM: 0,        // lundi 21h00 Paris (masque : 2 = lundi)
       revealMin: 360,
+      lot: (20n * 10n ** 18n).toString(), maxLots: 100,   // lots de 20 ASE (au plus 50 % de la cagnotte)
     };
     jset('cfg', c);
-    const s = { cur: 1, next: 1, carry: '0', lastTs: 0, tipO: tipOwner, tipC: tipCollab, tot: { pots: '0', paid: '0', funded: '0', rounds: 0 } };
+    const s = { cur: 1, next: 1, carry: '0', owed: '0', lastTs: 0, tipO: tipOwner, tipC: tipCollab, tot: { pots: '0', paid: '0', funded: '0', rounds: 0 } };
     newRound(1, c, 0);
     jset('st', s);
     emit('Init', { admin: c.admin });
@@ -377,6 +409,14 @@ function finalize(r, s) {
     return true;
   },
 
+  // Envoie les prix restants d'un tirage (au-delà des 40 premiers). Appelable par tous.
+  payRest(roundId) {
+    noValue();
+    const s = st(), r = getR(Number(roundId));
+    assert(r.status === 'done' && r.paid < r.win.length, 'nothing to pay');
+    return payNext(r, s, PAY_BATCH);
+  },
+
   // Tirage non fait à temps : annulé, la semaine passe au tirage suivant.
   cancelExpired(roundId) {
     noValue();
@@ -393,15 +433,16 @@ function finalize(r, s) {
   },
 
   // ADMIN
-  // jour (0 = dimanche, 1 = lundi … 6), heure, minute (Paris), délai du tirage (min).
-  setConfig(drawDay, drawH, drawM, revealMin) {
+  // jours (masque : 1 = dimanche, 2 = lundi, 4 = mardi, 8 = mercredi, 16 = jeudi,
+  // 32 = vendredi, 64 = samedi ; ex. 2 = lundi, 34 = lundi + vendredi), heure, minute (Paris), délai (min).
+  setConfig(drawDays, drawH, drawM, revealMin) {
     noValue();
     const c = cfg(); onlyAdmin(c);
-    const D = Number(drawDay), H = Number(drawH), M = Number(drawM), B = Number(revealMin);
+    const D = Number(drawDays), H = Number(drawH), M = Number(drawM), B = Number(revealMin);
     const ok = (x, lo, hi) => Number.isInteger(x) && x >= lo && x <= hi;
-    assert(ok(D, 0, 6) && ok(H, 6, 23) && ok(M, 0, 59), 'day 0-6, time 06:00 to 23:59');
+    assert(ok(D, 1, 127) && ok(H, 6, 23) && ok(M, 0, 59), 'days 1-127, time 06:00 to 23:59');
     assert(ok(B, 60, 2880), 'draw delay: 60 to 2880 min');
-    Object.assign(c, { drawDay: D, drawH: H, drawM: M, revealMin: B });
+    Object.assign(c, { drawDays: D, drawH: H, drawM: M, revealMin: B });
     jset('cfg', c);
     const s = sync(c, st());
     const r = getR(s.cur);
@@ -411,6 +452,18 @@ function finalize(r, s) {
     putR(r);
     jset('st', s);
     emit('Config', { key: 'schedule', value: JSON.stringify([D, H, M, B]) });
+    return true;
+  },
+  // Lots : montant (wei, 0 = aucun lot) et nombre maximum. Pour les PROCHAINS tirages.
+  setLots(lot, maxLots) {
+    noValue();
+    const c = cfg(); onlyAdmin(c);
+    const v = big(lot), n = Number(maxLots);
+    assert(v >= 0n && v <= 10n ** 22n, 'lot: 0 to 10000 ASE');
+    assert(Number.isInteger(n) && n >= 0 && n <= MAX_LOTS, 'lots: 0 to ' + MAX_LOTS);
+    c.lot = v.toString(); c.maxLots = n;
+    jset('cfg', c);
+    emit('Config', { key: 'lots', value: c.lot + ',' + n });
     return true;
   },
   setOperator(a) {
@@ -486,7 +539,8 @@ function finalize(r, s) {
     const t = nowMs();
     return {
       now: String(t), round: r.id, status: t >= r.drawTs ? 'closing' : r.status, drawTs: String(r.drawTs),
-      fromTs: String(s.lastTs), carry: s.carry, nextToDraw: s.next, revealMin: c.revealMin, totals: s.tot,
+      fromTs: String(s.lastTs), carry: s.carry, owed: s.owed || '0', nextToDraw: s.next, revealMin: c.revealMin, drawDays: c.drawDays, totals: s.tot,
+      lot: r.lot, maxLots: r.maxLots,
     };
   },
 });

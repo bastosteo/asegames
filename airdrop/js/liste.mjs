@@ -19,7 +19,9 @@
 // view(contrat, méthode, args) → Promise de la valeur lue.
 
 export const CUTOFF_MS = 24 * 3600000;
-export const airdropShare = (amount) => ((BigInt(amount) * 1500n) / 10000n) / 2n;   // 7,5 %
+// Part Airdrop d'un achat, exactement comme le contrat : bps = 600 (6 %, contrats « 9/6 ») ou 750 (7,5 %).
+export const airdropShare = (amount, bps = 750) => { const com = (BigInt(amount) * 1500n) / 10000n; return bps === 750 ? com / 2n : (com * BigInt(bps)) / 1500n; };
+async function dropBps(view, contract) { try { const c = await view(contract, 'getConfig', []); return Number((c && c.dropBps) || 750); } catch { return 750; } }
 
 const list = (x) => (Array.isArray(x) ? x : x ? [x] : []).filter(Boolean);
 const inWin = (ts, from, to) => ts > from && ts <= to;
@@ -38,7 +40,7 @@ export async function buildWeek({ view, loto, raffle, treasure, fromTs, toTs, no
 
   for (const [game, contracts] of [['loto', loto], ['raffle', raffle]]) {
     for (const contract of list(contracts)) {
-      const st = await view(contract, 'getState', []);
+      const st = await view(contract, 'getState', []), bps = await dropBps(view, contract);
       for (let id = st.cur; id >= 1; id--) {
         const r = await view(contract, 'getRound', [id]);
         if (!r) continue;
@@ -57,7 +59,7 @@ export async function buildWeek({ view, loto, raffle, treasure, fromTs, toTs, no
             if (!inWin(Number(p.t), from, to)) continue;
             const n = game === 'loto' ? p.g.length : p.n;
             add(p.b, n); tickets += n;
-            share += airdropShare(price * BigInt(n));
+            share += airdropShare(price * BigInt(n), bps);
           }
         }
         if (!tickets) continue;
@@ -69,7 +71,7 @@ export async function buildWeek({ view, loto, raffle, treasure, fromTs, toTs, no
 
   // ASE Treasure : 1 fouille = 1 chance.
   for (const contract of list(treasure)) {
-    const st = await view(contract, 'getState', []);
+    const st = await view(contract, 'getState', []), bps = await dropBps(view, contract);
     for (let id = st.cur; id >= 1; id--) {
       const g = await view(contract, 'getGrid', [id]);
       if (!g) continue;
@@ -88,7 +90,7 @@ export async function buildWeek({ view, loto, raffle, treasure, fromTs, toTs, no
         for (const d of digs) {
           if (!inWin(Number(d.t), from, to)) continue;
           add(d.b, 1); n++;
-          share += airdropShare(g.price);
+          share += airdropShare(g.price, bps);
         }
       }
       if (!n) continue;

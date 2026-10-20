@@ -95,7 +95,7 @@ sec('Achat');
   t('acheteur enregistré', pur[0].b === P[0]);
   t('événement Buy émis (avec la graine)', r.events.some((e) => e.name === 'Buy' && e.data.grids === '[[1,2,3,4,5],[10,11,12,13,14]]' && e.data.seed === 'abcd'));
   t('contrat garde 85 % de 4 ASE (commission versée tout de suite)', w.chain.balanceOf(w.c.address) === 2n * PRICE * 85n / 100n);
-  t('Airdrop reçoit 7,5 % dès l\'achat', w.chain.balanceOf(DROP) === 2n * PRICE * 75n / 1000n && w.round(1).airdrop === (2n * PRICE * 75n / 1000n).toString());
+  t('Airdrop reçoit 6 % dès l\'achat', w.chain.balanceOf(DROP) === 2n * PRICE * 6n / 100n && w.round(1).airdrop === (2n * PRICE * 6n / 100n).toString());
   t('achat horodaté', pur[0].t > 0);
   const rd = w.round(1);
   t('ventes du tour = 4 ASE, 2 grilles, 1 achat', rd.sales === (2n * PRICE).toString() && rd.grids === 2 && rd.buys === 1);
@@ -210,18 +210,18 @@ sec('Calcul des rangs (' + CAP + ' grilles, recomptage indépendant)');
 }
 
 // ---------------------------------------------------------------------
-sec('Commission 15 % : moitié Airdrop, moitié équipe 75/25');
+sec('Commission 15 % : 6 % Airdrop, 9 % équipe 75/25');
 {
   const w = world();
-  // 7 grilles = 14 ASE → 2,1 ASE de commission → 1,05 Airdrop, 0,7875 owner, 0,2625 collab
+  // 7 grilles = 14 ASE → 2,1 ASE de commission → 0,84 Airdrop, 0,945 owner, 0,315 collab
   const bO = w.chain.balanceOf(OWNER_PAY), bC = w.chain.balanceOf(COLLAB), bD = w.chain.balanceOf(DROP);
   w.buy(P[0], Array.from({ length: 7 }, () => ref.randomGrid()));
-  t('commission versée dès l\'achat (avant le tirage)', w.chain.balanceOf(DROP) - bD === 1050000000000000000n);
+  t('commission versée dès l\'achat (avant le tirage)', w.chain.balanceOf(DROP) - bD === 840000000000000000n);
   const d = w.draw(1);
   t('tirage OK', d.success, d.error);
-  t('owner reçoit 0,7875 ASE', w.chain.balanceOf(OWNER_PAY) - bO === 787500000000000000n);
-  t('collaborateur reçoit 0,2625 ASE', w.chain.balanceOf(COLLAB) - bC === 262500000000000000n);
-  t('contrat Airdrop reçoit 1,05 ASE', w.chain.balanceOf(DROP) - bD === 1050000000000000000n && w.round(1).airdrop === '1050000000000000000');
+  t('owner reçoit 0,945 ASE', w.chain.balanceOf(OWNER_PAY) - bO === 945000000000000000n);
+  t('collaborateur reçoit 0,315 ASE', w.chain.balanceOf(COLLAB) - bC === 315000000000000000n);
+  t('contrat Airdrop reçoit 0,84 ASE', w.chain.balanceOf(DROP) - bD === 840000000000000000n && w.round(1).airdrop === '840000000000000000');
   t('commission enregistrée = 15 % exact', w.round(1).commission === (21n * ASE / 10n).toString());
   // Montant "tordu" : prix 0,033… pour tester les arrondis
   const w2 = world();

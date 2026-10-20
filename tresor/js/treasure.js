@@ -363,6 +363,8 @@ async function restoreWallet() {
 }
 function renderRulesValues() {
   if (!S.cfg) return;
+  { const d = Number((S.cfg && S.cfg.dropBps) || 750), fmt = (b) => (b / 100).toLocaleString('en-GB') + '%';
+    document.querySelectorAll('.js-fees').forEach((e) => (e.textContent = `Fees: 15% of every ${'dig'} paid, sent right away: ${fmt(1500 - d)} to the ASE Vegas team and ${fmt(d)} to the weekly ASE Airdrop pot.`)); }
   $$('.js-price').forEach((e) => (e.textContent = ase(S.grid ? S.grid.price : S.cfg.price) + ' ASE'));
   $$('.js-max').forEach((e) => (e.textContent = S.cfg.maxPerWallet));
   $$('.js-grow').forEach((e) => (e.textContent = ase((BigInt(S.grid ? S.grid.price : S.cfg.price) * 85n) / 100n) + ' ASE'));

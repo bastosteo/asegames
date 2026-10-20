@@ -26,8 +26,21 @@ const utcDay = (ms) => new Date(Number(ms)).toLocaleDateString('en-GB', { timeZo
 const utcWeekday = (ms) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date(Number(ms)).getUTCDay()];
 const plural = (n, one, many) => `${Number(n).toLocaleString('en-GB')} ${n === 1 ? one : many}`;
 const ase = (w, d) => L.fmtAse(BigInt(w), d ?? (BigInt(w) % L.WEI === 0n ? 0 : 2));
-const rankName = ['1st', '2nd', '3rd'];
+const RANK = ['1st', '2nd', '3rd'];
+const rankName = new Proxy(RANK, { get: (a, k) => (k in a ? a[k] : 'lucky lot') });
 const split = (total) => { const T = BigInt(total), p1 = T / 2n, p2 = (T * 3n) / 10n; return [p1, p2, T - p1 - p2]; };
+// Airdrop v2 : jusqu'à maxLots lots (≤ 50 % de la cagnotte, ≤ chances − 3), le top 3 prend tout le reste.
+const isV2 = () => !!S.cfg && S.cfg.drawDays !== undefined;
+function prizesV2(total, chances, lot, maxLots) {
+  const T = BigInt(total), Lw = BigInt(lot || 0), nTop = Math.min(3, chances);
+  let n = Lw > 0n ? Number((T * 5000n) / 10000n / Lw) : 0;
+  n = Math.max(0, Math.min(n, Number(maxLots || 0), 300, chances - nTop));
+  const top = T - Lw * BigInt(n), p1 = top / 2n, p2 = (top * 3n) / 10n;
+  return [p1, p2, top - p1 - p2].slice(0, nTop).concat(Array(n).fill(Lw));
+}
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const daysText = (mask) => { const d = DAYS.filter((_, k) => (mask >> k) & 1); return d.length === 7 ? 'every day' : d.length > 1 ? d.slice(0, -1).join(', ') + ' and ' + d.at(-1) : d[0]; };
+const myKs = (r) => (r.win || []).map((w, k) => (w.b === S.me ? k : -1)).filter((k) => k >= 0);
 const pct = (a, b) => (b ? (a * 100 / b).toLocaleString('en-GB', { maximumFractionDigits: a * 100 / b < 1 ? 2 : 1 }) : '0') + '%';
 
 document.documentElement.dataset.theme = 'dark';
@@ -95,7 +108,11 @@ function renderHero() {
   const i = S.info, w = S.week; if (!i || !w) return;
   const total = BigInt(w.pot) + BigInt(i.carry);
   $('#pot').textContent = ase(total, 2);
-  split(total).forEach((x, k) => ($('#prize' + (k + 1)).textContent = ase(x) + ' ASE'));
+  const v2 = isV2(), nCh = w.entries.reduce((a, e) => a + e[1], 0);
+  const pr = v2 ? prizesV2(total, Math.max(nCh, 3 + Number(i.maxLots || 0)), i.lot, i.maxLots) : split(total);
+  [0, 1, 2].forEach((k) => ($('#prize' + (k + 1)).textContent = ase(pr[k] || 0n) + ' ASE'));
+  ['1st', '2nd', '3rd'].forEach((n, k) => { const e = $('#plabel' + (k + 1)); if (e) e.textContent = v2 ? n : `${n}, ${[50, 30, 20][k]}%`; });
+  const ll = $('#lotsLine'); if (ll) { ll.hidden = !v2; const n = pr.length - 3; if (v2) ll.textContent = n > 0 ? `+ ${n} lucky ${n > 1 ? 'lots' : 'lot'} of ${ase(i.lot)} ASE` : `+ lucky lots of ${ase(i.lot)} ASE as the pot grows`; }
   const cut = Number(i.drawTs) - CUTOFF_MS;
   $('#estNote').textContent = `Exact amount: it is already in the airdrop contract. Tickets count until ${utcWeekday(cut)} at ${utcTime(cut)} (when Raffle sales close).`;
   const pending = [...S.rounds.values()].find((r) => r.id < i.round && (r.status === 'closed' || r.status === 'listed'));
@@ -107,9 +124,10 @@ function renderHero() {
 function tickCountdown() {
   const i = S.info; if (!i) return;
   // Semaine des tickets : de la tombola d'un dimanche à la tombola du dimanche suivant.
-  const WEEK = 7 * 86400000, cut = Number(i.drawTs) - CUTOFF_MS, f = Math.min(1, Math.max(0, 1 - (cut - chainNow()) / WEEK));
+  const cut = Number(i.drawTs) - CUTOFF_MS, start = Number(i.fromTs) > 0 ? Number(i.fromTs) - CUTOFF_MS : cut - 7 * 86400000, span = Math.max(1, cut - start);
+  const f = Math.min(1, Math.max(0, (chainNow() - start) / span)), days = Math.max(1, Math.round(span / 86400000));
   $('#weekBar').style.width = (f * 100).toFixed(1) + '%';
-  $('#weekPct').textContent = f < 1 ? `Day ${Math.min(7, Math.floor(f * 7) + 1)} / 7` : 'Closed, new tickets count for next week';
+  $('#weekPct').textContent = f < 1 ? `Day ${Math.min(days, Math.floor(f * days) + 1)} / ${days}` : 'Closed, new tickets count for the next airdrop';
   const left = Math.floor((resultTs() - chainNow()) / 1000);
   if (left > 0) {
     const d = Math.floor(left / 86400), h = Math.floor((left % 86400) / 3600), m = Math.floor((left % 3600) / 60), x = left % 60;
@@ -133,17 +151,18 @@ function renderMine() {
   html += n
     ? `<p>Each of your tickets is one chance at the 1st prize (${ase(split(pot)[0])} ASE so far). The more you play before ${utcWeekday(Number(S.info.drawTs) - CUTOFF_MS)} ${utcTime(Number(S.info.drawTs) - CUTOFF_MS)} (when Raffle sales close), the more chances you get.</p>`
     : `<p class="muted">No chance yet this week for ${esc(L.shortAddr(S.me))}. Play <a href="../loto/">ASE Loto</a>, <a href="../raffle/">ASE Raffle</a> or <a href="../treasure/">ASE Treasure</a>: every ticket or dig this week is one chance.</p>`;
-  const won = [...S.rounds.values()].filter((r) => r.status === 'done' && r.win.some((w) => w.b === S.me)).sort((a, b) => b.id - a.id);
-  if (won.length) html += '<h3>Your airdrop wins</h3><ol class="winners">' + won.map((r) => { const k = r.win.findIndex((w) => w.b === S.me); return `<li><span class="medal m${k + 1}">${k + 1}</span>Airdrop #${r.id}<span class="muted small">${utcDay(r.drawTs)}</span><span class="tag ok">Sent to your wallet</span><span class="amount">${ase(r.prizes[k])} ASE</span></li>`; }).join('') + '</ol>';
+  const won = [...S.rounds.values()].filter((r) => r.status === 'done' && myKs(r).length).sort((a, b) => b.id - a.id);
+  if (won.length) html += '<h3>Your airdrop wins</h3><ol class="winners">' + won.map((r) => { const ks = myKs(r), k = ks[0], sum = ks.reduce((a, j) => a + BigInt(r.prizes[j]), 0n); return `<li><span class="medal m${Math.min(k + 1, 3)}">${k < 3 ? k + 1 : '★'}</span>Airdrop #${r.id}${ks.length > 1 ? ` (${ks.length} prizes)` : ''}<span class="muted small">${utcDay(r.drawTs)}</span><span class="tag ok">Sent to your wallet</span><span class="amount">${ase(sum)} ASE</span></li>`; }).join('') + '</ol>';
   box.innerHTML = html;
 }
 function renderWinBanner() {
   const b = $('#winBanner');
   const last = [...S.rounds.values()].filter((r) => r.status === 'done').sort((a, c) => c.id - a.id)[0];
-  const k = S.me && last ? last.win.findIndex((w) => w.b === S.me) : -1;
+  const ks = S.me && last ? myKs(last) : [], k = ks.length ? ks[0] : -1;
   b.hidden = k < 0;
   if (k < 0) return;
-  b.textContent = `🪂 You won the ${rankName[k]} prize of airdrop #${last.id}: ${ase(last.prizes[k])} ASE, already sent to your wallet!`;
+  const sum = ks.reduce((a, j) => a + BigInt(last.prizes[j]), 0n);
+  b.textContent = `🪂 You won ${ks.length > 1 ? ks.length + ' prizes' : 'the ' + rankName[k] + (k < 3 ? ' prize' : '')} in airdrop #${last.id}: ${ase(sum)} ASE, already sent to your wallet!`;
   const seen = store.get('airdrop.seen', []);
   if (!seen.includes(last.id)) { confetti(); store.set('airdrop.seen', [...seen, last.id].slice(-50)); }
 }
@@ -180,7 +199,8 @@ function renderResults() {
     const total = BigInt(r.pot) + BigInt(r.carryIn);
     if (!r.win.length) return `<div class="round-block">${head}<span class="tag">No player: ${ase(total)} ASE rolled over</span></div></div>`;
     return `<div class="round-block">${head}<button class="link-btn" data-verify="${r.id}">Verify</button></div>
-      <ol class="winners">${r.win.map((w, k) => `<li><span class="medal m${k + 1}">${k + 1}</span><span class="who">${esc(L.shortAddr(w.b))}</span><span class="muted small">${plural(w.n, 'chance', 'chances')}</span><span class="tag ok">Sent</span><span class="amount">${ase(r.prizes[k])} ASE</span></li>`).join('')}</ol>
+      <ol class="winners">${r.win.slice(0, 3).map((w, k) => `<li><span class="medal m${k + 1}">${k + 1}</span><span class="who">${esc(L.shortAddr(w.b))}</span>${w.n ? `<span class="muted small">${plural(w.n, 'chance', 'chances')}</span>` : ''}<span class="tag ok">${typeof r.paid === 'number' && k >= r.paid ? 'Sending…' : 'Sent'}</span><span class="amount">${ase(r.prizes[k])} ASE</span></li>`).join('')}</ol>
+      ${r.win.length > 3 ? `<p class="small"><strong>${r.win.length - 3} lucky lots of ${ase(r.prizes[3])} ASE</strong>: ${r.win.slice(3).map((w) => esc(L.shortAddr(w.b))).join(' · ')}</p>` : ''}
       ${BigInt(r.carryOut) > 0n ? `<p class="muted small">${ase(r.carryOut)} ASE rolled over to the next airdrop.</p>` : ''}</div>`;
   }).join('');
   $$('[data-verify]').forEach((b) => (b.onclick = () => verify(Number(b.dataset.verify))));
@@ -199,6 +219,15 @@ function drawWinners(id, sO, sC, digest, entries) {
     }
   }
   return win;
+}
+function drawWinnersV2(id, sO, sC, digest, entries, n) {
+  const total = entries.reduce((a, e) => a + e[1], 0), ts = [], seen = new Set();
+  for (let k = 0; ts.length < n && k < 100000; k++) {
+    const t = Number(BigInt('0x' + L.sha256Text('ASEDROP|' + id + '|' + sO + '|' + sC + '|' + digest + '|' + k).slice(0, 13)) % BigInt(total));
+    if (seen.has(t)) continue;
+    seen.add(t); ts.push(t);
+  }
+  return ts.map((t) => { let x = t; for (const [b, m] of entries) { if (x < m) return { b, t }; x -= m; } return null; });
 }
 async function verify(id) {
   const body = $('#verifyBody');
@@ -221,10 +250,17 @@ async function verify(id) {
     const [o1, o2] = ext(r.sO, 'sO'), [c1, c2] = ext(r.sC, 'sC');
     step(o1, 'Operator secret', `<code>${r.sO}</code><br>${o2}`);
     step(c1, 'Collaborator secret', `<code>${r.sC}</code><br>${c2}`);
-    const w = drawWinners(id, r.sO, r.sC, d, stored);
-    step(JSON.stringify(w) === JSON.stringify(r.win), 'Winners', w.map((x, k) => `${rankName[k]}: ${esc(L.shortAddr(x.b))} (${plural(x.n, 'chance', 'chances')})`).join(', '));
-    const pz = split(BigInt(r.pot) + BigInt(r.carryIn));
-    step(pz.every((x, k) => x.toString() === r.prizes[k]), 'Prizes', `50 / 30 / 20% of ${ase(BigInt(r.pot) + BigInt(r.carryIn))} ASE: ${pz.map((x) => ase(x)).join(' / ')} ASE`);
+    if (r.lot !== undefined) {   // v2 : top 3 + lots
+      const pz = prizesV2(BigInt(r.pot) + BigInt(r.carryIn), r.tickets, r.lot, r.maxLots);
+      step(pz.length === r.prizes.length && pz.every((x, k) => x.toString() === r.prizes[k]), 'Prizes', `${pz.length > 3 ? pz.length - 3 + ' lucky lots of ' + ase(r.lot) + ' ASE (at most 50% of the pot), then ' : ''}the top 3 share the rest 50 / 30 / 20%: ${pz.slice(0, 3).map((x) => ase(x)).join(' / ')} ASE`);
+      const w = drawWinnersV2(id, r.sO, r.sC, d, stored, pz.length);
+      step(JSON.stringify(w) === JSON.stringify(r.win), 'Winners', w.slice(0, 3).map((x, k) => `${rankName[k]}: ${esc(L.shortAddr(x.b))}`).join(', ') + (w.length > 3 ? ` + ${w.length - 3} lucky lots` : ''));
+    } else {
+      const w = drawWinners(id, r.sO, r.sC, d, stored);
+      step(JSON.stringify(w) === JSON.stringify(r.win), 'Winners', w.map((x, k) => `${rankName[k]}: ${esc(L.shortAddr(x.b))} (${plural(x.n, 'chance', 'chances')})`).join(', '));
+      const pz = split(BigInt(r.pot) + BigInt(r.carryIn));
+      step(pz.every((x, k) => x.toString() === r.prizes[k]), 'Prizes', `50 / 30 / 20% of ${ase(BigInt(r.pot) + BigInt(r.carryIn))} ASE: ${pz.map((x) => ase(x)).join(' / ')} ASE`);
+    }
     body.innerHTML = steps.join('') + '<p class="small muted" style="margin-top:12px">Everything is recomputed in your browser from the public data of the three contracts.</p>';
   } catch (e) { body.innerHTML = `<p class="error">Verification failed: ${esc(cleanError(e))}</p>`; }
 }
@@ -237,7 +273,9 @@ function selectTab(name) {
 $$('.tabs [role=tab]').forEach((b) => (b.onclick = () => selectTab(b.dataset.tab)));
 function renderRulesValues() {
   if (!S.cfg) return;
-  if (S.info) $$('.js-drawtime').forEach((e) => (e.textContent = `${utcWeekday(resultTs())} at ${utcTime(resultTs())}`));
+  if (S.info) $$('.js-drawtime').forEach((e) => (e.textContent = `${isV2() ? daysText(S.cfg.drawDays) : utcWeekday(resultTs())} at ${utcTime(resultTs())}`));
+  $$('.v1only').forEach((e) => (e.hidden = isV2())); $$('.v2only').forEach((e) => (e.hidden = !isV2()));
+  if (isV2() && S.info) { $$('.js-lot').forEach((e) => (e.textContent = ase(S.info.lot) + ' ASE')); $$('.js-lots').forEach((e) => (e.textContent = S.info.maxLots)); }
   $$('.js-reveal').forEach((e) => (e.textContent = S.cfg.revealMin % 60 === 0 ? plural(S.cfg.revealMin / 60, 'hour', 'hours') : plural(S.cfg.revealMin, 'minute', 'minutes')));
 }
 function renderChanceCard() {

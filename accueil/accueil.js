@@ -55,6 +55,11 @@ async function loadRaffle() {
     $('#rafflePot').textContent = fmtAse(rinfo.pot, 0) + ' ASE';
     if (rinfo.price) $('#rafflePrice').textContent = fmtPrice(rinfo.price);
     $('#raffleTime').textContent = `${utcWeekday(rinfo.drawTs)} at ${utcTime(rinfo.drawTs)}`;
+    if (rinfo.drawDays !== undefined) {   // tombola v4 : plusieurs tirages par semaine, top 3 + lots
+      const D = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].filter((_, k) => (rinfo.drawDays >> k) & 1);
+      $('#raffleEvery').textContent = D.length > 1 ? D.join(' · ') : 'Every ' + utcWeekday(rinfo.drawTs);
+      $('#raffleWinners').textContent = `Up to ${3 + Number(rinfo.maxLots || 0)} winners`;
+    }
     tickRaffle();
   } catch { $('#rafflePot').textContent = '–'; }
 }

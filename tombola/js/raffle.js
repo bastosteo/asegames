@@ -28,9 +28,29 @@ const utcWeekday = (ms) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursda
 const plural = (n, one, many) => `${Number(n).toLocaleString('en-GB')} ${n === 1 ? one : many}`;
 const ase = (w, d) => L.fmtAse(BigInt(w), d ?? (BigInt(w) % L.WEI === 0n ? 0 : 2));
 const tno = (t) => '#' + String(t + 1).padStart(4, '0');
-const rankName = ['1st', '2nd', '3rd'];
-// Prix d'une cagnotte (report compris) : 50 / 30 / 20 %. Rangs sans gagnant → 0 (reportés).
+const RANK = ['1st', '2nd', '3rd'];
+const rankName = (k) => RANK[k] || 'lucky lot';
+// Tombola v4 (3 tirages / semaine, top 3 + lots) ou v3 (1 tirage, 3 gagnants) : le site gère les deux.
+const isV4 = () => !!S.cfg && S.cfg.drawDays !== undefined;
+// v3 : 50 / 30 / 20 % de la cagnotte. Rangs sans gagnant → 0 (reportés).
 const prizesOfPool = (pool, winners = 3) => { const P = BigInt(pool), p1 = P / 2n, p2 = (P * 3n) / 10n; return [p1, p2, P - p1 - p2].map((x, k) => (k < winners ? x : 0n)); };
+// v4 : jusqu'à maxLots lots (≤ 40 % de la cagnotte, ≤ tickets − 3), le top 3 prend tout le reste 50/30/20.
+function prizesV4(pool, tickets, lot, maxLots) {
+  const P = BigInt(pool), Lw = BigInt(lot || 0), nTop = Math.min(3, tickets);
+  let n = Lw > 0n ? Number((P * 4000n) / 10000n / Lw) : 0;
+  n = Math.max(0, Math.min(n, maxLots, 200, tickets - nTop));
+  const top = P - Lw * BigInt(n), p1 = top / 2n, p2 = (top * 3n) / 10n;
+  return [p1, p2, top - p1 - p2].slice(0, nTop).concat(Array(n).fill(Lw));
+}
+// Gagnants d'une tombola tirée : [{ t, i, b }] (v4 : retrouvés depuis les achats).
+function winsOf(r) {
+  if (!r || !r.win) return [];
+  if (typeof r.win[0] !== 'number') return r.win;
+  const list = S.purchases.get(r.id) || [];
+  return r.win.map((t) => { const p = list.find((x) => x.first <= t && t < x.first + x.n); return { t, i: p ? p.idx : -1, b: p ? p.b : '' }; });
+}
+const claimArgs = (r, k) => (typeof (r.win || [])[0] === 'number' ? [r.id, k, winsOf(r)[k].i] : [r.id, k]);
+const daysText = (mask) => { const d = DAYS.filter((_, k) => (mask >> k) & 1); return d.length === 7 ? 'every day' : d.length > 1 ? d.slice(0, -1).join(', ') + ' and ' + d.at(-1) : d[0]; };
 const poolOf = (r) => BigInt(r.carryIn || '0') + BigInt(r.sales) - BigInt(r.commission || '0');
 
 // ------------------------------------------------------------- thème, notifications
@@ -88,9 +108,13 @@ async function refresh() {
 // ------------------------------------------------------------- hero
 function renderHero() {
   const i = S.info; if (!i) return;
-  const pr = prizesOfPool(i.pot);
+  const v4 = isV4(), pr = v4 ? prizesV4(i.pot, Math.max(i.tickets, 3 + Number(i.maxLots || 0)), i.lot, Number(i.maxLots || 0)) : prizesOfPool(i.pot);
   $('#pot').textContent = ase(BigInt(i.pot), 0);
-  [0, 1, 2].forEach((k) => ($('#prize' + (k + 1)).textContent = ase(pr[k]) + ' ASE'));
+  [0, 1, 2].forEach((k) => ($('#prize' + (k + 1)).textContent = ase(pr[k] || 0n) + ' ASE'));
+  ['1st', '2nd', '3rd'].forEach((n, k) => ($('#plabel' + (k + 1)).textContent = v4 ? n : `${n} · ${[50, 30, 20][k]}%`));
+  const lots = pr.length - 3;
+  $('#lotsLine').hidden = !v4;
+  if (v4) $('#lotsLine').textContent = lots > 0 ? `+ ${lots} lucky ${lots > 1 ? 'lots' : 'lot'} of ${ase(i.lot)} ASE` : `+ lucky lots of ${ase(i.lot)} ASE as the pot grows`;
   $('#drawWhen').textContent = `Raffle #${i.round}, draw ${utcDay(i.drawTs)} at ${utcTime(i.drawTs)}`;
   const carry = BigInt(i.carryIn || '0');
   $('#rolled').hidden = carry <= 0n;
@@ -254,15 +278,16 @@ function renderMine() {
     const mine = (S.purchases.get(id) || []).filter((p) => p.b === me);
     if (!mine.length) continue;
     const nums = mine.flatMap((p) => Array.from({ length: p.n }, (_, k) => p.first + k));
-    const winT = r.win ? r.win.map((w) => w.t) : [];
+    const W = winsOf(r), winT = W.map((w) => w.t);
     let status = '<span class="tag">Waiting for the draw</span>', right = '';
     if (r.status === 'done') {
-      const k = r.win.findIndex((w) => w.b === me);
-      if (k >= 0) {
-        status = `<span class="tag win">🏆 ${rankName[k]} prize</span>`;
-        right = r.claimed[k] ? `<span class="tag ok">Claimed</span><span class="amount">+${ase(r.prizes[k])} ASE</span>`
-          : `<span class="amount">+${ase(r.prizes[k])} ASE</span><button class="btn btn-primary btn-small" data-claim="${id}:${k}">Claim</button>`;
-        if (!r.claimed[k]) todo.push(['claim', id, k, BigInt(r.prizes[k])]);
+      const ks = W.map((w, k) => (w.b === me ? k : -1)).filter((k) => k >= 0);
+      if (ks.length) {
+        const won = ks.reduce((a, k) => a + BigInt(r.prizes[k]), 0n), open = ks.filter((k) => !r.claimed[k]);
+        status = `<span class="tag win">🏆 ${ks.map((k) => (k < 3 ? rankName(k) + ' prize' : '')).filter(Boolean).concat(ks.filter((k) => k >= 3).length ? [`${ks.filter((k) => k >= 3).length} × lucky lot`] : []).join(' + ')}</span>`;
+        right = !open.length ? `<span class="tag ok">Claimed</span><span class="amount">+${ase(won)} ASE</span>`
+          : `<span class="amount">+${ase(won)} ASE</span><button class="btn btn-primary btn-small" data-claim="${id}:${open.join(',')}">Claim</button>`;
+        for (const k of open) todo.push(['claim', id, k, BigInt(r.prizes[k])]);
       } else { status = '<span class="tag">Drawn</span>'; right = '<span class="muted small">Not a winner this time</span>'; }
     } else if (r.status === 'cancelled') {
       status = '<span class="tag warn">Cancelled: 100% refunded</span>';
@@ -276,10 +301,10 @@ function renderMine() {
   const total = todo.reduce((a, x) => a + x[3], 0n);
   const head = todo.length ? `<div class="claim-banner"><div><strong>${ase(total)} ASE</strong> to claim <span class="muted small">(no time limit)</span></div><button class="btn btn-primary" id="claimAll">${todo.length > 1 ? 'Claim all' : 'Claim'}</button></div>` : '';
   box.innerHTML = head + (html || '<p class="muted">You have no tickets in recent raffles. Get one just above!</p>');
-  const call = (x) => (x[0] === 'claim' ? sendTx(`${rankName[x[2]]} prize claimed`, 'claim', [x[1], x[2]]) : sendTx('Refund received', 'settle', [x[1], x[2], 1]));
+  const call = (x) => (x[0] === 'claim' ? sendTx(`${rankName(x[2])} prize claimed`, 'claim', claimArgs(S.rounds.get(x[1]), x[2])) : sendTx('Refund received', 'settle', [x[1], x[2], 1]));
   const ca = $('#claimAll');
   if (ca) ca.onclick = async () => { for (const x of todo) { S.purchasesAt.delete(x[1]); if (!(await call(x))) break; } await refresh(); };
-  box.querySelectorAll('[data-claim]').forEach((b) => (b.onclick = async () => { const [id, k] = b.dataset.claim.split(':').map(Number); if (await call(['claim', id, k])) { confetti(60); await refresh(); } }));
+  box.querySelectorAll('[data-claim]').forEach((b) => (b.onclick = async () => { const [a, ks] = b.dataset.claim.split(':'), id = Number(a); let any = false; for (const k of ks.split(',').map(Number)) { if (!(await call(['claim', id, k]))) break; any = true; } if (any) { confetti(60); await refresh(); } }));
   box.querySelectorAll('[data-refund]').forEach((b) => (b.onclick = async () => { const [id, i] = b.dataset.refund.split(':').map(Number); S.purchasesAt.delete(id); if (await call(['refund', id, i])) await refresh(); }));
   announceWins();
 }
@@ -289,11 +314,12 @@ function announceWins() {
   const seen = new Set(store.get(key, []));
   for (const r of S.rounds.values()) {
     if (r.status !== 'done') continue;
-    const k = r.win.findIndex((w) => w.b === me);
-    if (k < 0 || seen.has(r.id)) continue;
+    const W = winsOf(r), ks = W.map((w, k) => (w.b === me ? k : -1)).filter((k) => k >= 0);
+    if (!ks.length || seen.has(r.id)) continue;
     seen.add(r.id);
-    toast(`🏆 You won the ${rankName[k]} prize of raffle #${r.id}: ${ase(r.prizes[k])} ASE with ticket ${tno(r.win[k].t)}! ` + (r.claimed[k] ? 'Already claimed.' : 'Claim it in “My tickets” whenever you like.'), 'ok', 0);
-    if (!r.claimed[k]) confetti();
+    const won = ks.reduce((a, k) => a + BigInt(r.prizes[k]), 0n), open = ks.some((k) => !r.claimed[k]);
+    toast(`🏆 You won ${ks.length > 1 ? ks.length + ' prizes' : 'the ' + rankName(ks[0]) + (ks[0] < 3 ? ' prize' : '')} in raffle #${r.id}: ${ase(won)} ASE with ticket ${ks.map((k) => tno(W[k].t)).join(', ')}! ` + (open ? 'Claim it in “My tickets” whenever you like.' : 'Already claimed.'), 'ok', 0);
+    if (open) confetti();
   }
   store.set(key, [...seen].slice(-200));
 }
@@ -305,7 +331,7 @@ function renderResults() {
   $('#resultsBody').innerHTML = rows.map((r) => {
     if (r.status === 'cancelled') return `<div class="round-block"><div class="round-head"><h3>Raffle #${r.id}</h3><span class="muted small">${utcDay(r.drawTs)}</span><span class="tag warn">Cancelled, players refunded</span></div></div>`;
     return `<div class="round-block"><div class="round-head"><h3>Raffle #${r.id}</h3><span class="muted small">${utcDay(r.drawTs)} · ${plural(r.tickets, 'ticket', 'tickets')} · ${plural(r.wallets, 'player', 'players')}</span><button class="link-btn" data-verify="${r.id}">Verify</button></div>
-      <ol class="winners">${r.win.map((w, k) => `<li><span class="medal m${k + 1}">${k + 1}</span><span class="stub win">${tno(w.t)}</span><span class="who">${L.shortAddr(w.b)}</span>${r.claimed[k] ? '<span class="tag ok">Claimed</span>' : '<span class="tag">Not claimed yet</span>'}<span class="amount">${ase(r.prizes[k])} ASE</span></li>`).join('')}</ol>${BigInt(r.carryOut || '0') > 0n ? `<p class="muted small">Only ${plural(r.win.length, 'player', 'players')}: ${ase(r.carryOut)} ASE carried over to raffle #${r.id + 1}.</p>` : ''}</div>`;
+      <ol class="winners">${winsOf(r).slice(0, 3).map((w, k) => `<li><span class="medal m${k + 1}">${k + 1}</span><span class="stub win">${tno(w.t)}</span><span class="who">${w.b ? L.shortAddr(w.b) : '…'}</span>${r.claimed[k] ? '<span class="tag ok">Claimed</span>' : '<span class="tag">Not claimed yet</span>'}<span class="amount">${ase(r.prizes[k])} ASE</span></li>`).join('')}</ol>${r.win.length > 3 ? `<p class="small"><strong>${r.win.length - 3} lucky lots of ${ase(r.prizes[3])} ASE</strong>: ${winsOf(r).slice(3).map((w, j) => `<span class="stub win${r.claimed[j + 3] ? '' : ' unclaimed'}" title="${w.b ? L.shortAddr(w.b) : ''}">${tno(w.t)}</span>`).join(' ')}</p>` : ''}${BigInt(r.carryOut || '0') > 0n ? `<p class="muted small">Not enough tickets for every prize: ${ase(r.carryOut)} ASE carried over to raffle #${r.id + 1}.</p>` : ''}</div>`;
   }).join('');
   $$('[data-verify]').forEach((b) => (b.onclick = () => verify(Number(b.dataset.verify))));
 }
@@ -317,6 +343,15 @@ function drawWinners(id, sO, sC, digest, list) {
     const i = list.findIndex((p) => t >= p.first && t < p.first + p.n);
     if (win.some((w) => w.b === list[i].b)) continue;
     win.push({ t, i, b: list[i].b });
+  }
+  return win;
+}
+function drawTicketsV4(id, sO, sC, digest, total, n) {
+  const win = [], seen = new Set();
+  for (let k = 0; win.length < n && k < 100000; k++) {
+    const t = Number(BigInt('0x' + L.sha256Text('ASERAFFLE|' + id + '|' + sO + '|' + sC + '|' + digest + '|' + k).slice(0, 13)) % BigInt(total));
+    if (seen.has(t)) continue;
+    seen.add(t); win.push(t);
   }
   return win;
 }
@@ -340,10 +375,17 @@ async function verify(id) {
     const [o1, o2] = chainCheck(r.sO, 'sO'), [c1, c2] = chainCheck(r.sC, 'sC');
     step(o1, 'Operator secret', `<code>${r.sO}</code><br>${o2}`);
     step(c1, 'Collaborator secret', `<code>${r.sC}</code><br>${c2}`);
-    const w = drawWinners(id, r.sO, r.sC, d, list);
-    step(JSON.stringify(w) === JSON.stringify(r.win), 'Winning tickets', w.map((x, k) => `${rankName[k]}: ${tno(x.t)} (${L.shortAddr(x.b)})`).join(', '));
-    const pz = prizesOfPool(poolOf(r), r.win.length);
-    step(pz.every((x, k) => x.toString() === r.prizes[k]), 'Prizes', `50 / 30 / 20% of the pot (carry-over included): ${pz.map((x) => ase(x)).join(' / ')} ASE` + (r.win.length < 3 ? ' (prizes without a winner carried over)' : ''));
+    if (typeof r.win[0] === 'number') {   // v4
+      const pz = prizesV4(poolOf(r), r.tickets, r.lot, r.maxLots);
+      step(pz.length === r.prizes.length && pz.every((x, k) => x.toString() === r.prizes[k]), 'Prizes', `${pz.length - 3 > 0 ? pz.length - 3 + ' lucky lots of ' + ase(r.lot) + ' ASE (at most 40% of the pot), then ' : ''}the top 3 share the rest 50 / 30 / 20%: ${pz.slice(0, 3).map((x) => ase(x)).join(' / ')} ASE`);
+      const tk = drawTicketsV4(id, r.sO, r.sC, d, r.tickets, r.prizes.length);
+      step(JSON.stringify(tk) === JSON.stringify(r.win), 'Winning tickets', tk.slice(0, 3).map((x, k) => `${rankName(k)}: ${tno(x)}`).join(', ') + (tk.length > 3 ? `, lots: ${tk.slice(3).map(tno).join(' ')}` : ''));
+    } else {
+      const w = drawWinners(id, r.sO, r.sC, d, list);
+      step(JSON.stringify(w) === JSON.stringify(r.win), 'Winning tickets', w.map((x, k) => `${rankName(k)}: ${tno(x.t)} (${L.shortAddr(x.b)})`).join(', '));
+      const pz = prizesOfPool(poolOf(r), r.win.length);
+      step(pz.every((x, k) => x.toString() === r.prizes[k]), 'Prizes', `50 / 30 / 20% of the pot (carry-over included): ${pz.map((x) => ase(x)).join(' / ')} ASE` + (r.win.length < 3 ? ' (prizes without a winner carried over)' : ''));
+    }
     body.innerHTML = steps.join('') + '<p class="small muted" style="margin-top:12px">Everything is recomputed in your browser from the contract\'s public data.</p>';
   } catch (e) { body.innerHTML = `<p class="error">Verification failed: ${esc(cleanError(e))}</p>`; }
 }
@@ -363,7 +405,10 @@ function renderAdmin() {
   $('#pauseState').textContent = S.cfg.paused ? 'The raffle is paused.' : 'The raffle is open.';
   $('#pauseBtn').textContent = S.cfg.paused ? 'Resume' : 'Pause';
   setIfIdle('#fPrice [name=price]', L.fmtAse(BigInt(S.cfg.price)).replace(/,/g, ''));
-  setIfIdle('#fTime [name=d]', S.cfg.drawDay); setIfIdle('#fTime [name=h]', S.cfg.drawH); setIfIdle('#fTime [name=m]', S.cfg.drawM);
+  $('#fTime [name=d]').closest('label').hidden = isV4(); $('#dayChecks').hidden = !isV4(); $('#fLots').hidden = !isV4();
+  if (isV4()) { $$('#dayChecks input').forEach((x) => { if (!x.dataset.touched) x.checked = !!((S.cfg.drawDays >> Number(x.value)) & 1); }); setIfIdle('#fLots [name=lot]', L.fmtAse(BigInt(S.cfg.lot)).replace(/,/g, '')); setIfIdle('#fLots [name=n]', S.cfg.maxLots); }
+  else setIfIdle('#fTime [name=d]', S.cfg.drawDay);
+  setIfIdle('#fTime [name=h]', S.cfg.drawH); setIfIdle('#fTime [name=m]', S.cfg.drawM);
   setIfIdle('#fMax [name=w]', S.cfg.maxPerWallet); setIfIdle('#fMax [name=t]', S.cfg.maxRound);
   setIfIdle('#fTimings [name=close]', S.cfg.closeMin); setIfIdle('#fTimings [name=reveal]', S.cfg.revealMin);
 }
@@ -374,10 +419,12 @@ function adminForm(sel, fn) {
     try { const [label, method, args] = fn(new FormData(e.target)); if (await sendTx(label, method, args)) { e.target.querySelectorAll('input,select').forEach((i) => delete i.dataset.touched); await refresh(); } } catch (err) { toast(cleanError(err), 'err'); }
   });
 }
-const cfgArgs = (p) => { const c = { ...S.cfg, ...p }; return [String(c.price), c.drawDay, c.drawH, c.drawM, c.maxPerWallet, c.closeMin, c.revealMin, c.maxRound]; };
+const cfgArgs = (p) => { const c = { ...S.cfg, ...p }; return [String(c.price), isV4() ? c.drawDays : c.drawDay, c.drawH, c.drawM, c.maxPerWallet, c.closeMin, c.revealMin, c.maxRound]; };
+const daysMask = () => $$('#dayChecks input').reduce((a, x) => a | (x.checked ? 1 << Number(x.value) : 0), 0);
 adminForm('#fPause', () => [S.cfg.paused ? 'Raffle resumed' : 'Raffle paused', 'setPaused', [!S.cfg.paused]]);
 adminForm('#fPrice', (f) => ['Price saved', 'setConfig', cfgArgs({ price: L.parseAse(f.get('price')).toString() })]);
-adminForm('#fTime', (f) => ['Draw time saved', 'setConfig', cfgArgs({ drawDay: Number(f.get('d')), drawH: Number(f.get('h')), drawM: Number(f.get('m')) })]);
+adminForm('#fTime', (f) => ['Draw time saved', 'setConfig', cfgArgs(isV4() ? { drawDays: daysMask(), drawH: Number(f.get('h')), drawM: Number(f.get('m')) } : { drawDay: Number(f.get('d')), drawH: Number(f.get('h')), drawM: Number(f.get('m')) })]);
+adminForm('#fLots', (f) => ['Lucky lots saved (next raffles)', 'setLots', [L.parseAse(f.get('lot')).toString(), Number(f.get('n'))]]);
 adminForm('#fMax', (f) => ['Limits saved', 'setConfig', cfgArgs({ maxPerWallet: Number(f.get('w')), maxRound: Number(f.get('t')) })]);
 adminForm('#fTimings', (f) => ['Timings saved', 'setConfig', cfgArgs({ closeMin: Number(f.get('close')), revealMin: Number(f.get('reveal')) })]);
 
@@ -437,9 +484,13 @@ async function restoreWallet() {
 
 function renderRulesValues() {
   if (!S.cfg) return;
+  { const d = Number((S.cfg && S.cfg.dropBps) || 750), fmt = (b) => (b / 100).toLocaleString('en-GB') + '%';
+    document.querySelectorAll('.js-fees').forEach((e) => (e.textContent = `Fees: 15% of every ${'ticket'} paid, sent right away: ${fmt(1500 - d)} to the ASE Vegas team and ${fmt(d)} to the weekly ASE Airdrop pot.`)); }
   $$('.js-price').forEach((e) => (e.textContent = ase(S.info ? S.info.price : S.cfg.price) + ' ASE'));   // prix de la raffle en cours
   $$('.js-max').forEach((e) => (e.textContent = S.cfg.maxPerWallet));
-  if (S.info) $$('.js-drawtime').forEach((e) => (e.textContent = `${utcWeekday(S.info.drawTs)} at ${utcTime(S.info.drawTs)}`));
+  if (S.info) $$('.js-drawtime').forEach((e) => (e.textContent = `${isV4() ? daysText(S.cfg.drawDays) : utcWeekday(S.info.drawTs)} at ${utcTime(S.info.drawTs)}`));
+  $$('.v3only').forEach((e) => (e.hidden = isV4())); $$('.v4only').forEach((e) => (e.hidden = !isV4()));
+  if (isV4()) { $$('.js-lot').forEach((e) => (e.textContent = ase(S.cfg.lot) + ' ASE')); $$('.js-lots').forEach((e) => (e.textContent = S.cfg.maxLots)); $$('.js-winners').forEach((e) => (e.textContent = 3 + Number(S.cfg.maxLots))); }
   $$('.js-close').forEach((e) => (e.textContent = plural(S.cfg.closeMin, 'minute', 'minutes')));
   $$('.js-reveal').forEach((e) => (e.textContent = S.cfg.revealMin % 60 === 0 ? plural(S.cfg.revealMin / 60, 'hour', 'hours') : plural(S.cfg.revealMin, 'minute', 'minutes')));
 }

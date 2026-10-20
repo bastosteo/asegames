@@ -6,8 +6,8 @@
 //   - Un tirage par jour (21h00 heure de Paris par défaut, heure d'été
 //     gérée). Les ventes ferment 10 min avant ; le tour suivant s'ouvre.
 //   - Répartition des ventes d'un tour :
-//       15 % commission : 7,5 % équipe (75 % owner, 25 % collaborateur)
-//                         + 7,5 % envoyés au contrat ASE Airdrop
+//       15 % commission : 9 % équipe (75 % owner, 25 % collaborateur)
+//                         + 6 % envoyés au contrat ASE Airdrop
 //       35 % jackpot (5 bons), partagé entre ses gagnants, + reports
 //       50 % caisse des gains fixes : 4 bons = 25 mises, 3 bons = 2,5 mises.
 //            Si la caisse ne suffit pas, les deux gains baissent dans la
@@ -43,7 +43,8 @@ const PICK = 5;                 // numéros par grille
 const MAXN = 14;                // numéros possibles : 1..14 (2 002 grilles différentes)
 const NOBIAS = 256 - (256 % MAXN); // 252 = 18 × 14 : octets acceptés pour un tirage sans biais
 const BPS = 10000n;             // base des pourcentages (10000 = 100 %)
-const SHARE_COMMISSION = 1500n; // 15 % : moitié équipe (75/25), moitié cagnotte ASE Airdrop
+const SHARE_COMMISSION = 1500n; // 15 % de commission : 9 % équipe (75/25) + 6 % cagnotte ASE Airdrop
+const SHARE_DROP = 600n;       // dont 6 % pour l'ASE Airdrop
 const SHARE_JACKPOT = 3500n;    // 35 % (le reste, 50 %, = caisse des gains fixes)
 const OWNER_CUT = 7500n;        // 75 % de la commission pour l'owner
 const DAY = 86400000;           // un jour en ms
@@ -370,7 +371,7 @@ function batchRange(from, count, total) {
     assert(isSecret(tipOwner) && isSecret(tipCollab), 'invalid tips');
     assert(tipOwner !== tipCollab, 'identical tips');
     const c = {
-      admin: sender(),
+      admin: sender(), dropBps: 600,
       payOwner: addr(payOwner), payCollab: addr(payCollab), collabAdmin: addr(collabAdmin), payAirdrop: addr(payAirdrop),
       price: (10n ** 18n).toString(),        // 1 ASE
       maxGrids: 20, maxRound: 1000,          // grilles max par achat / par tirage (2 002 combinaisons : jamais toutes)
@@ -418,7 +419,7 @@ function batchRange(from, count, total) {
     r.grids += clean.length;
     r.sales = (big(r.sales) + cost).toString();
     // Commission prélevée tout de suite : moitié Airdrop, moitié équipe 75/25
-    const com = (cost * SHARE_COMMISSION) / BPS, cDrop = com / 2n, cOwner = ((com - cDrop) * OWNER_CUT) / BPS;
+    const com = (cost * SHARE_COMMISSION) / BPS, cDrop = (com * SHARE_DROP) / SHARE_COMMISSION, cOwner = ((com - cDrop) * OWNER_CUT) / BPS;
     r.commission = (big(r.commission) + com).toString();
     r.airdrop = (big(r.airdrop) + cDrop).toString();
     putR(r);

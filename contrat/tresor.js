@@ -7,7 +7,7 @@
 //     fouille qu'une fois.
 //   - Réponse : trésor, chaud (trésor à 3 cases ou moins, diagonales comprises)
 //     ou froid. À CHAQUE fouille : 15 % de commission versés tout de suite
-//     (moitié équipe 75/25, moitié contrat ASE Airdrop) ; 85 % vont au trésor.
+//     (9 % équipe 75/25, 6 % contrat ASE Airdrop) ; 85 % vont au trésor.
 //   - La position est scellée au départ : l'opérateur publie la racine d'un arbre
 //     de Merkle qui fixe les 400 réponses (voir functions/_lib/board.mjs). Le
 //     service de réponses donne, pour chaque case fouillée, la réponse et sa
@@ -21,7 +21,8 @@
 // =====================================================================
 
 const BPS = 10000n;
-const SHARE_COMMISSION = 1500n;  // 15 % : moitié équipe (75/25), moitié cagnotte ASE Airdrop
+const SHARE_COMMISSION = 1500n; // 15 % de commission : 9 % équipe (75/25) + 6 % cagnotte ASE Airdrop
+const SHARE_DROP = 600n;       // dont 6 % pour l'ASE Airdrop
 const OWNER_CUT = 7500n;
 const SIZE = 20, CELLS = 400, DEPTH = 9;
 const MAX_BATCH = 400;
@@ -163,7 +164,7 @@ function netOf(price) { return big(price) - (big(price) * SHARE_COMMISSION) / BP
     noValue();
     assert(!storage.get('cfg'), 'already initialized');
     const c = {
-      admin: sender(), operator: addr(operator), payOwner: addr(payOwner), payCollab: addr(payCollab), payAirdrop: addr(payAirdrop),
+      admin: sender(), dropBps: 600, operator: addr(operator), payOwner: addr(payOwner), payCollab: addr(payCollab), payAirdrop: addr(payAirdrop),
       price: (5n * 10n ** 17n).toString(),   // 0,5 ASE
       maxPerWallet: 5, paused: false,
     };
@@ -210,7 +211,7 @@ function netOf(price) { return big(price) - (big(price) * SHARE_COMMISSION) / BP
     if (mine === 0) g.wallets++;
     g.digs = i + 1;
     g.sales = (big(g.sales) + big(g.price)).toString();
-    const com = big(g.price) - netOf(g.price), cDrop = com / 2n, cOwner = ((com - cDrop) * OWNER_CUT) / BPS;
+    const com = big(g.price) - netOf(g.price), cDrop = (com * SHARE_DROP) / SHARE_COMMISSION, cOwner = ((com - cDrop) * OWNER_CUT) / BPS;
     g.commission = (big(g.commission) + com).toString();
     g.airdrop = (big(g.airdrop) + cDrop).toString();
     putG(g);

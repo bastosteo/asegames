@@ -63,7 +63,7 @@ const buyRandom = (n) => {
     const p = players[i % players.length];
     const k = 1 + (i % 5);
     const g = Array.from({ length: k }, () => ref.randomGrid());
-    const x = C.call(p, "buy", [g, i.toString(16)], 2n * ASE * BigInt(k));
+    const x = C.call(p, "buy", [g, i.toString(16)], BigInt(C.view("getConfig").price) * BigInt(k));
     if (!x.success) throw new Error(x.error);
   }
 };
@@ -86,8 +86,8 @@ t('tour 1 fermé, révélé (owner puis collab), compté, finalisé', view('getR
 t('chaque gagnant a réclamé son gain (dettes = 0)', done1);
 const rd1 = view('getRound', [1]);
 t('numéros = référence indépendante', JSON.stringify(rd1.nums) === JSON.stringify(ref.drawNumbers(1, rd1.sO, rd1.sC, rd1.digest)));
-const C1 = BigInt(rd1.commission), D1 = C1 / 2n, O1 = (C1 - D1) * 7500n / 10000n;
-t('commission : moitié au contrat Airdrop', mock.chain.balanceOf(DROP) === D1);
+const C1 = BigInt(rd1.commission), D1 = C1 * 6n / 15n, O1 = (C1 - D1) * 7500n / 10000n;
+t('commission : 6 % des ventes au contrat Airdrop', mock.chain.balanceOf(DROP) === D1);
 t('commission owner reçue (75 % de l\'autre moitié)', mock.chain.balanceOf(OWN_PAY) === O1);
 t('commission collab reçue (25 % de l\'autre moitié)', mock.chain.balanceOf(COL_PAY) === C1 - D1 - O1);
 await waitFor(() => mock.alerts.some((a) => a.includes('Tirage n°1')), 5000, 'annonce');

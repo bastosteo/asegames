@@ -622,6 +622,8 @@ async function restoreWallet() {
 // ------------------------------------------------------------- rendu global
 function renderRulesValues() {
   if (!S.cfg) return;
+  { const d = Number((S.cfg && S.cfg.dropBps) || 750), fmt = (b) => (b / 100).toLocaleString('en-GB') + '%';
+    document.querySelectorAll('.js-fees').forEach((e) => (e.textContent = `Fees: 15% of every ${'ticket'} paid, sent right away: ${fmt(1500 - d)} to the ASE Vegas team and ${fmt(d)} to the weekly ASE Airdrop pot.`)); }
   const p = currentPrice();   // prix du tirage en cours (un nouveau prix s'applique au tirage suivant)
   $$('.js-price').forEach((e) => (e.textContent = L.fmtAse(p, p % L.WEI === 0n ? 0 : 2) + ' ASE'));
   if (S.info) $$('.js-drawtime').forEach((e) => (e.textContent = utcTime(S.info.drawTs)));

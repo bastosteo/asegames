@@ -94,12 +94,12 @@ sec('Semaine complète : loto + tombola → airdrop');
   let wk = await w.week(1);
   t('liste prête tout de suite : l\'achat d\'après la tombola compte pour la semaine suivante', wk.ready && !wk.games.some((g) => g.game === 'loto' && g.id === 3), JSON.stringify(wk));
   const nx = await buildWeek({ view: w.view, loto: w.loto.address, raffle: w.raffle.address, fromTs: w.round(1).drawTs, toTs: w.round(2).drawTs, now: Number(w.chain.timestampMs) });
-  t('semaine suivante en cours : montant exact, tirage pas encore fait compris', JSON.stringify(nx.entries) === JSON.stringify([[P[1], 1]]) && nx.pot === (2n * ASE * 75n / 1000n).toString() && !nx.ready, JSON.stringify(nx));
+  t('semaine suivante en cours : montant exact, tirage pas encore fait compris', JSON.stringify(nx.entries) === JSON.stringify([[P[1], 1]]) && nx.pot === (2n * ASE * 6n / 100n).toString() && !nx.ready, JSON.stringify(nx));
   t('loto n°3 (lundi) tiré', w.drawLoto(3));
   const received = w.chain.balanceOf(w.a.address) - bal0 + bal0;
   t('liste prête', wk.ready, JSON.stringify(wk.waiting));
   t('1 grille / 1 ticket = 1 chance (dimanche tombola incluse, lundi exclu)', JSON.stringify(wk.entries) === JSON.stringify([[P[0], 8], [P[1], 1], [P[2], 3], [P[3], 5], [P[4], 1]]), JSON.stringify(wk.entries));
-  t('cagnotte = frais reçus par le contrat Airdrop (7,5 %)', BigInt(wk.pot) === received - 2n * ASE * 75n / 1000n && BigInt(wk.pot) === (10n * 2n * ASE + 8n * 5n * ASE) * 75n / 1000n, wk.pot + ' / ' + received);
+  t('cagnotte = frais reçus par le contrat Airdrop (6 %)', BigInt(wk.pot) === received - (2n * ASE * 6n / 100n) && BigInt(wk.pot) === (10n * 2n * ASE + 8n * 5n * ASE) * 6n / 100n, wk.pot + ' / ' + received);
   t('3 tirages comptés (loto sam/dim + tombola du dimanche)', wk.games.length === 3);
   t('révélation avant la liste refusée', !w.revealO(1).success);
   t('un joueur ne peut pas envoyer la liste', !w.submit(1, wk.entries, wk.pot, P[0]).success);
@@ -123,17 +123,17 @@ sec('Semaine complète : loto + tombola → airdrop');
   let d = ref.airdropInitialDigest(1);
   for (const c of chunks(wk.entries)) d = ref.airdropNextDigest(d, c);
   t('empreinte recalculable', r.digest === d);
-  const exp = ref.airdropWinners(1, r.sO, r.sC, r.digest, wk.entries);
+  const pz = ref.airdropPrizesV2(wk.pot, r.tickets);
+  t('prix = référence (cagnotte de 3 ASE : pas de lot de 20, top 3 50/30/20)', JSON.stringify(r.prizes) === JSON.stringify(pz.map(String)) && pz.length === 3, JSON.stringify(r.prizes));
+  const exp = ref.airdropWinnersV2(1, r.sO, r.sC, r.digest, wk.entries, pz.length);
   t('gagnants = référence indépendante', JSON.stringify(r.win) === JSON.stringify(exp), JSON.stringify([r.win, exp]));
-  t('3 wallets différents', new Set(r.win.map((x) => x.b)).size === 3);
-  const pz = ref.airdropPrizes(wk.pot);
-  t('prix 50 / 30 / 20 %', JSON.stringify(r.prizes) === JSON.stringify(pz.map(String)));
   const gained = [P[0], P[1], P[2], P[3], P[4]].map((x, i) => w.chain.balanceOf(x) - before[i]);
-  t('prix envoyés directement aux gagnants', r.win.every((x, k) => gained[P.indexOf(x.b)] === pz[k]));
-  t('cagnotte versée ; reste seulement la part du loto du lundi (semaine suivante)', w.st().carry === '0' && w.chain.balanceOf(w.a.address) === 2n * ASE * 75n / 1000n);
+  const due = [0n, 0n, 0n, 0n, 0n]; r.win.forEach((x, k) => (due[P.indexOf(x.b)] += pz[k]));
+  t('prix envoyés directement aux gagnants', gained.every((g, i) => g === due[i]) && r.paid === r.win.length);
+  t('cagnotte versée ; reste seulement la part du loto du lundi (semaine suivante)', w.st().carry === '0' && w.st().owed === '0' && w.chain.balanceOf(w.a.address) === (2n * ASE * 6n / 100n));
   t('semaine suivante : départ = ce tirage', w.st().lastTs === r.drawTs && w.st().next === 2);
 
-  sec('Semaine 2 : 2 wallets seulement → 20 % reportés');
+  sec('Semaine 2 : 2 chances seulement → 20 % reportés');
   w.buyLoto(P[5], 2); w.buyRaffle(P[5], 1); w.buyRaffle(P[6], 1); w.buyRaffle(P[7], 1);
   for (let id = 4; id <= 12; id++) {
     const lr = w.loto.view('getRound', [id]); if (!lr || lr.drawTs > w.round(2).drawTs) break;
@@ -144,11 +144,12 @@ sec('Semaine complète : loto + tombola → airdrop');
   w.closeAirdrop(2);
   const wk2 = await w.week(2);
   t('semaine 2 prête : 3 wallets (loto + tombola cumulés)', wk2.ready && JSON.stringify(wk2.entries) === JSON.stringify([[P[1], 1], [P[5], 3], [P[6], 1], [P[7], 1]]), JSON.stringify(wk2));
-  const two = wk2.entries.slice(0, 2);
+  const two = [wk2.entries[0], wk2.entries[2]];   // 2 wallets × 1 chance
   t('liste de 2 wallets (cas d\'école)', w.submit(2, two, wk2.pot).success && w.revealO(2).success && w.revealC(2).success);
   const r2 = w.round(2);
-  t('2 gagnants', r2.win.length === 2);
-  t('le 3e prix (20 %) est reporté', w.st().carry === r2.prizes[2] && w.chain.balanceOf(w.a.address) === BigInt(r2.prizes[2]));
+  t('2 chances seulement : 2 prix', r2.win.length === 2 && r2.prizes.length === 2);
+  const lost = BigInt(r2.pot) + BigInt(r2.carryIn) - BigInt(r2.prizes[0]) - BigInt(r2.prizes[1]);
+  t('le 3e prix (20 %) est reporté', w.st().carry === lost.toString() && w.chain.balanceOf(w.a.address) === lost);
 }
 
 sec('Semaine sans participant : rien à tirer, cagnotte reportée');
@@ -162,10 +163,11 @@ sec('Semaine sans participant : rien à tirer, cagnotte reportée');
   w.closeAirdrop(2);
   w.submit(2, [[P[0], 3]], '0'); w.revealO(2);
   const b = w.chain.balanceOf(P[0]);
-  t('1 seul wallet : il gagne 50 % de la cagnotte reportée', w.revealC(2).success && w.chain.balanceOf(P[0]) - b === 5n * ASE);
-  t('le reste est reporté', w.st().carry === (5n * ASE).toString() && w.chain.balanceOf(w.a.address) === 5n * ASE);
+  t('1 wallet, 3 chances : il gagne les 3 prix (100 %)', w.revealC(2).success && w.chain.balanceOf(P[0]) - b === 10n * ASE);
+  t('rien n\'est reporté', w.st().carry === '0' && w.chain.balanceOf(w.a.address) === 0n);
+  w.a.call(ADMIN, 'fund', [], 10n * ASE);
   t('lowerCarry refusé à un joueur', !w.a.call(P[0], 'lowerCarry', ['0']).success);
-  t('lowerCarry ne peut que baisser', !w.a.call(ADMIN, 'lowerCarry', [(6n * ASE).toString()]).success && w.a.call(ADMIN, 'lowerCarry', [(4n * ASE).toString()]).success);
+  t('lowerCarry ne peut que baisser', !w.a.call(ADMIN, 'lowerCarry', [(11n * ASE).toString()]).success && w.a.call(ADMIN, 'lowerCarry', [(4n * ASE).toString()]).success);
 }
 
 sec('Tirage non fait en 6 h → annulé, la semaine est reprise au tirage suivant');
@@ -208,7 +210,7 @@ sec('Plusieurs semaines sans croupier : rattrapage');
 sec('Grosse liste : 1500 wallets');
 {
   const w = world({ games: false });
-  w.a.call(ADMIN, 'fund', [], 100n * ASE);
+  w.a.call(ADMIN, 'fund', [], 3000n * ASE);
   w.closeAirdrop(1);
   const entries = P.slice(0, 1500).map((b, i) => [b, 1 + (i % 140)]);
   let maxGas = 0;
@@ -222,7 +224,12 @@ sec('Grosse liste : 1500 wallets');
   const rc = w.revealC(1);
   t('tirage : gas ' + rc.gas + ' < 1 000 000', rc.success && rc.gas < 1_000_000, rc.error);
   const r = w.round(1);
-  t('= référence', JSON.stringify(r.win) === JSON.stringify(ref.airdropWinners(1, r.sO, r.sC, r.digest, entries)));
+  const pz = ref.airdropPrizesV2(3000n * ASE, r.tickets);
+  t('3 000 ASE : 75 lots de 20 ASE (50 %) + top 3 = 750 / 450 / 300', JSON.stringify(r.prizes) === JSON.stringify(pz.map(String)) && pz.length === 78 && pz[0] === 750n * ASE);
+  t('= référence', JSON.stringify(r.win) === JSON.stringify(ref.airdropWinnersV2(1, r.sO, r.sC, r.digest, entries, 78)));
+  t('40 prix envoyés au tirage', r.paid === 40 && BigInt(w.st().owed) === 38n * 20n * ASE);
+  t('payRest sur un tirage payé : refus avant ; ici OK', w.a.call(P[1999], 'payRest', [1]).success && w.round(1).paid === 78 && w.st().owed === '0');
+  t('plus rien à payer', !w.a.call(P[0], 'payRest', [1]).success && w.chain.balanceOf(w.a.address) === 0n);
   t('plus de 100 par morceau refusé', !world({ games: false }).a.call(OPER, 'submit', [1, 0, entries.slice(0, 101), false, '0']).success);
 }
 
@@ -263,7 +270,7 @@ sec('ASE Treasure : 1 fouille = 1 chance (grille trouvée dans la semaine)');
   const cold = B.cells.map((c, i) => [c.ans, i]).filter(([x]) => x !== 'T').map(([, i]) => i);
   T.call(P[0], 'dig', [1, cold[0]], PR); T.call(P[1], 'dig', [1, cold[1]], PR); T.call(P[0], 'dig', [1, cold[2]], PR);
   const view = async (a, m, args) => (a === T.address ? T : w.a).view(m, args);
-  const share = PR * 15n / 100n / 2n;
+  const share = PR * 15n / 100n * 6n / 15n;   // 6 %
   let cur = await buildWeek({ view, treasure: T.address, fromTs: 0, toTs: w.round(1).drawTs, now: Number(w.chain.timestampMs) });
   t('grille ouverte : fouilles déjà comptées, montant exact', !cur.ready && JSON.stringify(cur.entries) === JSON.stringify([[P[0], 2], [P[1], 1]]) && cur.pot === (3n * share).toString(), JSON.stringify(cur));
   T.call(P[2], 'dig', [1, B.treasure], PR);
@@ -273,7 +280,23 @@ sec('ASE Treasure : 1 fouille = 1 chance (grille trouvée dans la semaine)');
   w.closeAirdrop(1);
   const wk = await buildWeek({ view, treasure: T.address, fromTs: 0, toTs: w.round(1).drawTs, now: Number(w.chain.timestampMs) });
   t('liste : toutes les fouilles de la semaine', wk.ready && JSON.stringify(wk.entries) === JSON.stringify([[P[0], 2], [P[1], 1], [P[2], 1], [P[3], 1]]), JSON.stringify(wk.entries));
-  t('cagnotte = part Airdrop reçue (7,5 % de 5 fouilles)', wk.pot === (5n * share).toString() && BigInt(wk.pot) === w.chain.balanceOf(w.a.address) && wk.pot === T.view('getGrid', [1]).airdrop);
+  t('cagnotte = part Airdrop reçue (6 % de 5 fouilles)', wk.pot === (5n * share).toString() && BigInt(wk.pot) === w.chain.balanceOf(w.a.address) && wk.pot === T.view('getGrid', [1]).airdrop);
+}
+
+sec('Jours de tirage réglables et lots');
+{
+  const w = world({ games: false });
+  t('lundi + vendredi (34) à 20h', w.a.call(ADMIN, 'setConfig', [34, 20, 0, 360]).success);
+  const seq = [];
+  for (let k = 0; k < 3; k++) { const id = w.st().cur; seq.push(new Date(w.round(id).drawTs).toISOString()); w.closeAirdrop(id); w.submit(id, [], '0'); }
+  t('lun 12, ven 16, lun 19', JSON.stringify(seq) === JSON.stringify(['2026-10-12T18:00:00.000Z', '2026-10-16T18:00:00.000Z', '2026-10-19T18:00:00.000Z']), JSON.stringify(seq));
+  t('jours hors bornes refusés', !w.a.call(ADMIN, 'setConfig', [0, 20, 0, 360]).success && !w.a.call(ADMIN, 'setConfig', [128, 20, 0, 360]).success);
+  t('setLots refusé à un joueur', !w.a.call(P[0], 'setLots', [(50n * ASE).toString(), 10]).success);
+  const cur = w.st().cur;
+  t('setLots (50 ASE, 10 max) : tirage en cours inchangé', w.a.call(ADMIN, 'setLots', [(50n * ASE).toString(), 10]).success && w.round(cur).lot === (20n * ASE).toString());
+  w.closeAirdrop(cur); w.submit(cur, [], '0');
+  t('appliqué au tirage suivant', w.round(cur + 1).lot === (50n * ASE).toString() && w.round(cur + 1).maxLots === 10);
+  t('plus de 300 lots refusé', !w.a.call(ADMIN, 'setLots', [(1n * ASE).toString(), 301]).success);
 }
 
 console.log(`\n${ok} réussis, ${ko} échoués`);

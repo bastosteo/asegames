@@ -303,14 +303,18 @@ async function announce(id) {
     const total = BigInt(r.pot) + BigInt(r.carryIn);
     await alert(
       `🪂 ASE Airdrop n°${id} : cagnotte ${ase(total)} ASE, ${r.wallets} wallets, ${r.tickets} chances\n` +
-      (r.win.length ? r.win.map((w, k) => `${k + 1}${k ? 'e' : 'er'} : ${w.b.slice(0, 8)}…${w.b.slice(-4)} (${w.n} chances) → ${ase(r.prizes[k])} ASE`).join('\n') : 'Aucun participant.') +
+      (r.win.length ? r.win.slice(0, 3).map((w, k) => `${k + 1}${k ? 'e' : 'er'} : ${w.b.slice(0, 8)}…${w.b.slice(-4)}${w.n ? ` (${w.n} chances)` : ''} → ${ase(r.prizes[k])} ASE`).join('\n') +
+        (r.win.length > 3 ? `\n+ ${r.win.length - 3} lots de ${ase(r.prizes[3])} ASE` : '') : 'Aucun participant.') +
       `\nPrix envoyés automatiquement. Reporté : ${ase(r.carryOut)} ASE.`, 'drawn' + id, 1e12);
     return;
   }
   if (r.win) {   // ASE Raffle (tombola)
     await alert(
       `🎟️ Tombola n°${id} : ${r.tickets} tickets, ventes ${ase(r.sales)} ASE\n` +
-      r.win.map((w, k) => `${k + 1}er prix : ticket #${w.t + 1}, ${w.b.slice(0, 8)}…${w.b.slice(-4)} → ${ase(r.prizes[k])} ASE`).join('\n').replace('2er', '2e').replace('3er', '3e') +
+      (typeof r.win[0] === 'number'   // tombola v4 : tickets gagnants (top 3 + lots)
+        ? r.win.slice(0, 3).map((t, k) => `${['1er', '2e', '3e'][k]} prix : ticket #${t + 1} → ${ase(r.prizes[k])} ASE`).join('\n') +
+          (r.win.length > 3 ? `\n+ ${r.win.length - 3} lots de ${ase(r.prizes[3])} ASE (tickets ${r.win.slice(3).map((t) => '#' + (t + 1)).join(', ')})` : '')
+        : r.win.map((w, k) => `${k + 1}er prix : ticket #${w.t + 1}, ${w.b.slice(0, 8)}…${w.b.slice(-4)} → ${ase(r.prizes[k])} ASE`).join('\n').replace('2er', '2e').replace('3er', '3e')) +
       (BigInt(r.carryOut || '0') > 0n ? `\nPrix sans gagnant reportés à la tombola suivante : ${ase(r.carryOut)} ASE.` : '') +
       `\nCommission : ${ase(r.commission)} ASE. Les gagnants réclament leur prix sur le site.`, 'drawn' + id, 1e12);
     return;
@@ -421,6 +425,17 @@ async function tick(values) {
     if (info.status === 'closing' && (CFG.role === 'owner' || now - Number(info.drawTs) > 10 * 60000)) await send('poke', []);
     const st = await view('getState');
     if (st.next < st.cur) await airdropRound(st.next, now, values);
+    // Airdrop v2 : prix restants (au-delà des 40 envoyés au tirage) → payRest
+    if (CFG.role === 'owner' && st.next > 1) {
+      for (let id = st.next - 1; id >= Math.max(1, st.next - 3); id--) {
+        const r = await view('getRound', [id]);
+        for (let k = 0; r && r.status === 'done' && typeof r.paid === 'number' && r.paid < r.win.length && k < 10; k++) {
+          log(`Airdrop ${id} : envoi des prix restants (${r.win.length - r.paid})`);
+          if (!(await send('payRest', [id]).catch((e) => log(e.message)))) break;
+          Object.assign(r, await view('getRound', [id]));
+        }
+      }
+    }
     lastOk = Date.now();
     return;
   }

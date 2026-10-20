@@ -28,7 +28,7 @@ async function kickCroupier(env, grid) {
   const last = kicked.get(grid) || 0;
   if (Date.now() - last < 4 * 60000) return;   // au plus une fois toutes les 4 minutes par grille
   kicked.set(grid, Date.now());
-  const r = await fetch(`https://api.github.com/repos/${env.GH_REPO}/actions/workflows/croupier.yml/dispatches`, {
+  const r = await fetch(`https://api.github.com/repos/${env.GH_REPO}/actions/workflows/${env.GH_WORKFLOW || 'croupier.yml'}/dispatches`, {
     method: 'POST',
     headers: { authorization: `Bearer ${env.GH_TOKEN}`, accept: 'application/vnd.github+json', 'user-agent': 'asevegas-treasure', 'x-github-api-version': '2022-11-28' },
     body: JSON.stringify({ ref: env.GH_BRANCH || 'main' }),

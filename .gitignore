@@ -21,3 +21,6 @@ ses-check/
 .*-contrat
 .migre-*
 .old-*
+asegame-test/
+.test-*
+.cache-commissions.json

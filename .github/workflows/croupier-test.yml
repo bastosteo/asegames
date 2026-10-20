@@ -1,0 +1,120 @@
+# Croupiers du SITE DE TEST d'ASE Vegas (contrats de test séparés), toutes les 10 minutes.
+# Chaque passage : owner (fermeture, secret owner), collaborateur (secret collab),
+# puis owner encore (comptage, tirage, paiements). S'il n'y a rien à faire, il s'arrête en ~20 s.
+# Les secrets (graines) sont rangés dans Settings → Secrets and variables → Actions, jamais dans le code.
+name: Croupiers ASE Vegas TEST
+
+on:
+  schedule:
+    - cron: '5-59/10 * * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: croupiers-test
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  croupiers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CONTRACT: ${{ vars.TEST_CONTRACT }}
+      RPC_URL: ${{ vars.RPC_URL || 'https://testnet.asentum.com' }}
+      TELEGRAM_TOKEN: ''
+      TELEGRAM_CHAT_ID: ''
+      DATA_DIR: /tmp/croupier-test
+      ENV_FILE: /nonexistent
+      MAX_RUN_MS: '480000'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Installer
+        run: npm install --prefix croupier --no-audit --no-fund
+      - name: Croupier owner
+        if: ${{ vars.TEST_CONTRACT != '' }}
+        env:
+          ROLE: owner
+          CROUPIER_NAME: croupier-owner-test
+          SIGNER_SEED: ${{ secrets.TEST_OWNER_SIGNER_SEED }}
+          CHAIN_SEED: ${{ secrets.TEST_OWNER_CHAIN_SEED }}
+        run: node croupier/croupier.mjs once
+      - name: Croupier collaborateur
+        if: ${{ !cancelled() && vars.TEST_CONTRACT != '' }}
+        env:
+          ROLE: collab
+          CROUPIER_NAME: croupier-collab-test
+          SIGNER_SEED: ${{ secrets.TEST_COLLAB_SIGNER_SEED }}
+          CHAIN_SEED: ${{ secrets.TEST_COLLAB_CHAIN_SEED }}
+        run: node croupier/croupier.mjs once
+      - name: Croupier owner (comptage et paiements)
+        if: ${{ !cancelled() && vars.TEST_CONTRACT != '' }}
+        env:
+          ROLE: owner
+          CROUPIER_NAME: croupier-owner-test
+          SIGNER_SEED: ${{ secrets.TEST_OWNER_SIGNER_SEED }}
+          CHAIN_SEED: ${{ secrets.TEST_OWNER_CHAIN_SEED }}
+        run: node croupier/croupier.mjs once
+      # ---- ASE Raffle (tombola), une fois installée (variable RAFFLE_CONTRACT) ----
+      - name: Tombola owner
+        if: ${{ !cancelled() && vars.TEST_RAFFLE_CONTRACT != '' }}
+        env:
+          ROLE: owner
+          CROUPIER_NAME: tombola-owner-test
+          CONTRACT: ${{ vars.TEST_RAFFLE_CONTRACT }}
+          SIGNER_SEED: ${{ secrets.TEST_OWNER_SIGNER_SEED }}
+          CHAIN_SEED: ${{ secrets.TEST_RAFFLE_OWNER_CHAIN_SEED }}
+        run: node croupier/croupier.mjs once
+      - name: Tombola collaborateur
+        if: ${{ !cancelled() && vars.TEST_RAFFLE_CONTRACT != '' }}
+        env:
+          ROLE: collab
+          CROUPIER_NAME: tombola-collab-test
+          CONTRACT: ${{ vars.TEST_RAFFLE_CONTRACT }}
+          SIGNER_SEED: ${{ secrets.TEST_COLLAB_SIGNER_SEED }}
+          CHAIN_SEED: ${{ secrets.TEST_RAFFLE_COLLAB_CHAIN_SEED }}
+        run: node croupier/croupier.mjs once
+      # ---- ASE Treasure : ouvre les grilles, envoie la preuve du trésor, rembourse ----
+      # (les réponses aux fouilles, elles, sont données tout de suite par le site : /api/treasure)
+      - name: Treasure
+        if: ${{ !cancelled() && vars.TEST_TREASURE_CONTRACT != '' }}
+        env:
+          ROLE: owner
+          GAME: treasure
+          CROUPIER_NAME: treasure-test
+          CONTRACT: ${{ vars.TEST_TREASURE_CONTRACT }}
+          SIGNER_SEED: ${{ secrets.TEST_OWNER_SIGNER_SEED }}
+          TREASURE_SEED: ${{ secrets.TEST_TREASURE_SEED }}
+        run: node croupier/croupier.mjs once
+      # ---- ASE Airdrop (tirage hebdomadaire des frais), une fois installé (variable AIRDROP_CONTRACT) ----
+      - name: Airdrop owner (liste + secret owner)
+        if: ${{ !cancelled() && vars.TEST_AIRDROP_CONTRACT != '' }}
+        env:
+          ROLE: owner
+          GAME: airdrop
+          CROUPIER_NAME: airdrop-owner-test
+          CONTRACT: ${{ vars.TEST_AIRDROP_CONTRACT }}
+          LOTO_CONTRACT: ${{ vars.TEST_CONTRACT }}
+          RAFFLE_CONTRACT: ${{ vars.TEST_RAFFLE_CONTRACT }}
+          TREASURE_CONTRACT: ${{ vars.TEST_TREASURE_CONTRACT }}
+          SIGNER_SEED: ${{ secrets.TEST_OWNER_SIGNER_SEED }}
+          CHAIN_SEED: ${{ secrets.TEST_AIRDROP_OWNER_CHAIN_SEED }}
+        run: node croupier/croupier.mjs once
+      - name: Airdrop collaborateur
+        if: ${{ !cancelled() && vars.TEST_AIRDROP_CONTRACT != '' }}
+        env:
+          ROLE: collab
+          GAME: airdrop
+          AIRDROP_HOLD_MIN: '60'
+          CROUPIER_NAME: airdrop-collab-test
+          CONTRACT: ${{ vars.TEST_AIRDROP_CONTRACT }}
+          LOTO_CONTRACT: ${{ vars.TEST_CONTRACT }}
+          RAFFLE_CONTRACT: ${{ vars.TEST_RAFFLE_CONTRACT }}
+          TREASURE_CONTRACT: ${{ vars.TEST_TREASURE_CONTRACT }}
+          SIGNER_SEED: ${{ secrets.TEST_COLLAB_SIGNER_SEED }}
+          CHAIN_SEED: ${{ secrets.TEST_AIRDROP_COLLAB_CHAIN_SEED }}
+        run: node croupier/croupier.mjs once

@@ -87,7 +87,15 @@ async function loadWins() {
           const r = await view(RC, 'getRound', [id]);
           if (!r) continue;
           if (r.status === 'done' && Date.now() < Number(r.drawTs)) continue;   // dévoilé à l'heure du tirage
-          if (r.status === 'done') r.win.forEach((w, k) => { if (w.b === me && !r.claimed[k]) wins.push({ game: 'Raffle', label: `Raffle #${id}, ${['1st', '2nd', '3rd'][k]} prize${old}`, amount: r.prizes[k], c: RC, m: 'claim', a: [id, k] }); });
+          if (r.status === 'done' && typeof r.win[0] === 'number') {   // tombola v4 : tickets gagnants → achats
+            if (r.claimed.every(Boolean)) continue;
+            const ps = [];
+            for (let i = 0; i < r.buys; i += 400) ps.push(...(await view(RC, 'getPurchases', [id, i, Math.min(400, r.buys - i)])));
+            r.win.forEach((t, k) => {
+              const p = ps.find((x) => x.first <= t && t < x.first + x.n);
+              if (p && p.b === me && !r.claimed[k]) wins.push({ game: 'Raffle', label: `Raffle #${id}, ${k < 3 ? ['1st', '2nd', '3rd'][k] + ' prize' : 'lucky lot'}${old}`, amount: r.prizes[k], c: RC, m: 'claim', a: [id, k, p.idx] });
+            });
+          } else if (r.status === 'done') r.win.forEach((w, k) => { if (w.b === me && !r.claimed[k]) wins.push({ game: 'Raffle', label: `Raffle #${id}, ${['1st', '2nd', '3rd'][k]} prize${old}`, amount: r.prizes[k], c: RC, m: 'claim', a: [id, k] }); });
           if (r.status === 'cancelled' && r.buys) for (const p of await view(RC, 'getPurchases', [id, 0, Math.min(400, r.buys)])) {
             if (p.b === me && !p.paid) wins.push({ game: 'Raffle', label: `Refund, raffle #${id}${old}`, amount: (BigInt(r.price) * BigInt(p.n)).toString(), c: RC, m: 'settle', a: [id, p.idx, 1] });
           }
