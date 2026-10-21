@@ -8,7 +8,7 @@ const ASE = 10n ** 18n;
 const M = ref.MAXN;                          // 14 (v6) ; LOTO_MAXN=20 pour les anciennes versions
 const PRICE = 2n * ASE;                      // prix utilisé par les tests (world() le règle)
 const DEFAULT_PRICE = M === 20 ? 2n * ASE : ASE;   // prix par défaut du contrat testé
-const CAP = M === 20 ? 3000 : 1000;          // plafond de grilles par tirage par défaut
+const CAP = M === 20 ? 3000 : M === 15 ? 2000 : 1000;   // plafond de grilles par tirage par défaut
 
 let ok = 0, ko = 0, section = '';
 function t(name, cond, extra = '') {
@@ -34,7 +34,7 @@ function world({ start = Date.UTC(2026, 9, 10, 12, 0), raw = false } = {}) {
   const chO = ref.makeChain(200), chC = ref.makeChain(200);
   const r = c.call(ADMIN, 'init', [OWNER_PAY, COLLAB, COLLAB, chO[200], chC[200], DROP]);
   if (!r.success) throw new Error('init: ' + r.error);
-  if (!raw) { const k = c.view('getConfig'); if (k.price !== PRICE.toString()) c.call(ADMIN, 'setConfig', [PRICE.toString(), k.drawH, k.drawM, k.maxGrids, k.closeMin, k.revealMin]); }
+  if (!raw) { const k = c.view('getConfig'); if (M === 15) c.call(ADMIN, 'setConfig', [PRICE.toString(), k.drawH, k.drawM, 20, k.closeMin, k.revealMin, CAP, CAP]); else if (k.price !== PRICE.toString()) c.call(ADMIN, 'setConfig', [PRICE.toString(), k.drawH, k.drawM, k.maxGrids, k.closeMin, k.revealMin]); }   // v7 : 20 par achat, sans limite par wallet pour les anciens tests
   const w = {
     chain, c, chO, chC,
     st: () => c.view('getState'),
@@ -69,7 +69,7 @@ sec('Initialisation');
   const cfg = w.c.view('getConfig');
   t('admin = déployeur', cfg.admin === ADMIN);
   t('prix par défaut ' + DEFAULT_PRICE / ASE + ' ASE', cfg.price === DEFAULT_PRICE.toString());
-  t('plafond ' + CAP + ' grilles par tirage, 20 par achat', cfg.maxRound === CAP && cfg.maxGrids === 20);
+  t('plafond ' + CAP + ' grilles par tirage, ' + (M === 15 ? '15' : '20') + ' par achat', cfg.maxRound === CAP && cfg.maxGrids === (M === 15 ? 15 : 20) && (M !== 15 || cfg.maxWallet === 15));
   t('double init refusé', !w.c.call(ADMIN, 'init', [OWNER_PAY, COLLAB, COLLAB, w.chO[200], w.chC[200], DROP]).success);
   const r1 = w.round(1);
   t('tour 1 ouvert', r1.status === 'open');
@@ -334,7 +334,7 @@ sec('Accès admin refusé aux autres');
   t('setConfig sans plafond par tirage : inchangé', w.c.view('getConfig').maxRound === CAP);
   const CAP2 = M === 20 ? 5000 : 1200;
   t('setConfig avec plafond par tirage', w.c.call(ADMIN, 'setConfig', ['3000000000000000000', 20, 15, 10, 15, 90, CAP2]).success && w.c.view('getConfig').maxRound === CAP2);
-  if (M < 20) t('plafond par tirage > 1500 refusé (jamais toutes les combinaisons)', !w.c.call(ADMIN, 'setConfig', ['3000000000000000000', 20, 15, 10, 15, 90, 2002]).success);
+  if (M < 20) t('plafond par tirage trop haut refusé (jamais toutes les combinaisons)', !w.c.call(ADMIN, 'setConfig', ['3000000000000000000', 20, 15, 10, 15, 90, M === 15 ? 1000001 : 2002]).success);
   t('plafond par tirage < grilles par achat refusé', !w.c.call(ADMIN, 'setConfig', ['3000000000000000000', 20, 15, 10, 15, 90, 5]).success);
   t('setTipCollab refusé à l\'admin', !w.c.call(ADMIN, 'setTipCollab', ['b'.repeat(64)]).success);
   t('aucune fonction de retrait n\'existe', !Object.keys(w.c.api).some((k) => /withdraw|sweep|drain|rescue/i.test(k)));
@@ -587,6 +587,39 @@ sec('Prélèvement maison (v5) : jackpot non gagné > 70 ASE → 20 ASE au walle
     g.c.call(P[0], 'fund', [], 100n * ASE); g.buy(P[1], [ref.randomGrid()]); g.draw(1);
     t('désactivé : aucun prélèvement', g.round(1).skim === '0' && BigInt(g.st().jackpot) > 100n * ASE);
   }
+}
+
+if (M === 15) {
+  sec('v7 : 15 numéros, 15 grilles par wallet et par tirage');
+  const w = world({ raw: true });
+  w.c.call(ADMIN, 'setConfig', [PRICE.toString(), 21, 0, 15, 60, 120, 2000]);   // sans 8e argument : limite par wallet inchangée
+  const grids = (n) => Array.from({ length: n }, (_, k) => [1 + (k % 11), 2 + (k % 11), 3 + (k % 11), 4 + (k % 11), 15]);
+  t('numéro 15 accepté, 16 refusé', w.buy(P[0], [[1, 2, 3, 4, 15]]).success && !w.buy(P[0], [[1, 2, 3, 4, 16]]).success);
+  t('14 de plus (total 15) OK', w.buy(P[0], grids(14)).success && w.c.view('getWallet', [1, P[0]]) === 15);
+  const x = w.buy(P[0], grids(1));
+  t('16e grille refusée (15 max par wallet)', !x.success && /max 15 tickets per wallet/.test(x.error), x.error);
+  t('un autre wallet peut jouer', w.buy(P[1], grids(15)).success);
+  t('admin : limite par wallet à 20, tout de suite', w.c.call(ADMIN, 'setConfig', [PRICE.toString(), 21, 0, 15, 60, 120, 2000, 20]).success && w.buy(P[0], grids(5)).success && !w.buy(P[0], grids(1)).success);
+  t('limite par wallet hors bornes refusée', !w.c.call(ADMIN, 'setConfig', [PRICE.toString(), 21, 0, 15, 60, 120, 2000, 0]).success);
+  t('info : limite par wallet visible', w.c.view('info').maxWallet === 20);
+  const d = w.draw(1);
+  t('tirage OK, numéros dans 1..16', d.success && w.round(1).nums.every((n) => n >= 1 && n <= 15), d.error);
+  t('compteur remis à zéro au tirage suivant', w.c.view('getWallet', [2, P[0]]) === 0 && w.buy(P[0], grids(15)).success);
+
+  sec('v7 : nombre de numéros et plafond par tirage réglables');
+  const v = world({ raw: true });
+  const cfgA = (mr, wl, n) => [PRICE.toString(), 21, 0, 15, 60, 120, mr, wl, n];
+  t('plafond par tirage à 100 000 accepté (pas de vraie limite)', v.c.call(ADMIN, 'setConfig', cfgA(100000, 15)).success && v.c.view('getConfig').maxRound === 100000);
+  t('tour vide : passage à 20 numéros tout de suite', v.c.call(ADMIN, 'setConfig', cfgA(100000, 15, 20)).success && v.round(1).maxn === 20 && v.c.view('info').maxn === 20);
+  t('numéro 20 accepté', v.buy(P[0], [[1, 2, 3, 4, 20]]).success);
+  t('tour commencé : passage à 10 numéros pour le tirage suivant seulement', v.c.call(ADMIN, 'setConfig', cfgA(100000, 15, 10)).success && v.round(1).maxn === 20 && v.c.view('info').nextMaxn === 10 && v.buy(P[1], [[16, 17, 18, 19, 20]]).success);
+  const d1 = v.draw(1);
+  t('tirage n°1 sur 1..20', d1.success && v.round(1).nums.every((n) => n >= 1 && n <= 20), d1.error);
+  t('tirage n°2 en 1..10 : 11 refusé, 10 accepté', v.round(2).maxn === 10 && !v.buy(P[0], [[1, 2, 3, 4, 11]]).success && v.buy(P[0], [[1, 2, 3, 4, 10]]).success);
+  const d2 = v.draw(2);
+  t('tirage n°2 sur 1..10', d2.success && v.round(2).nums.every((n) => n >= 1 && n <= 10), d2.error);
+  t('5 numéros ou moins refusé, 100 refusé, 99 accepté', !v.c.call(ADMIN, 'setConfig', cfgA(100000, 15, 5)).success && !v.c.call(ADMIN, 'setConfig', cfgA(100000, 15, 100)).success && v.c.call(ADMIN, 'setConfig', cfgA(100000, 15, 99)).success);
+  t('sans 9e argument : nombre de numéros inchangé', v.c.call(ADMIN, 'setConfig', cfgA(100000, 15)).success && v.c.view('getConfig').maxn === 99);
 }
 
 console.log(`\n${ok} réussis, ${ko} échoués`);

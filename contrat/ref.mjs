@@ -2,8 +2,8 @@
 // Sert aux tests (recalcul croisé) et au script croupier.
 import { createHash, randomBytes } from 'node:crypto';
 
-// MAXN : 14 depuis le loto v6 (LOTO_MAXN=20 pour tester les anciennes versions).
-export const PICK = 5, MAXN = Number(process.env.LOTO_MAXN || 14);
+// MAXN : 16 depuis le loto v7 (LOTO_MAXN=14 ou 20 pour tester les anciennes versions).
+export const PICK = 5, MAXN = Number(process.env.LOTO_MAXN || 15);
 const NOBIAS = 256 - (256 % MAXN);
 export const sha = (bufOrText) => createHash('sha256').update(bufOrText).digest('hex');
 export const shaHex = (hex) => sha(Buffer.from(hex, 'hex'));

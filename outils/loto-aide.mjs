@@ -9,8 +9,13 @@ const RPC = (process.env.RPC_URL || 'https://testnet.asentum.com').replace(/\/$/
 const [cmd, a, b] = process.argv.slice(2);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function view(contract, method, args = []) {
-  const r = await fetch(RPC + '/view', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contract, method, args }) });
-  return r.json();
+  // le serveur du testnet répond parfois une page d'erreur (HTML) : on réessaie jusqu'à 6 fois
+  for (let i = 0; ; i++) {
+    try {
+      const r = await fetch(RPC + '/view', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contract, method, args }) });
+      return JSON.parse(await r.text());
+    } catch (e) { if (i >= 5) throw e; await sleep(5000); }
+  }
 }
 if (cmd === 'hex') console.log(toHex(a));
 else if (cmd === 'cfg') console.log(JSON.stringify((await view(a, 'getConfig')).returnValue));
@@ -18,7 +23,7 @@ else if (cmd === 'info') {
   const c = (await view(a, 'getConfig')).returnValue, s = (await view(a, 'getState')).returnValue;
   const r = (await view(a, 'getRound', [s.cur])).returnValue;
   console.log(JSON.stringify({ admin: c.admin, payOwner: c.payOwner, payCollab: c.payCollab, collabAdmin: c.collabAdmin, paused: c.paused,
-    tipO: s.tipO, tipC: s.tipC, owed: s.owed, jackpot: s.jackpot, enAttente: s.cur - s.next, cur: s.cur, grillesTourEnCours: r.grids }));
+    tipO: s.tipO, tipC: s.tipC, owed: s.owed, jackpot: s.jackpot, enAttente: s.cur - s.next, cur: s.cur, grillesTourEnCours: r.grids, roundMaxn: r.maxn }));
 } else if (cmd === 'tombola') {
   // tombola : tour en cours (tickets, tirage) et dernier tirage terminé
   const s = (await view(a, 'getState')).returnValue, r = (await view(a, 'getRound', [s.cur])).returnValue;

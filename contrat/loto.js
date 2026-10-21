@@ -2,7 +2,8 @@
 //  LOTO ASE — loto à numéros, pari mutuel, testnet Asentum
 // =====================================================================
 //  Règles :
-//   - Grille = 5 numéros distincts entre 1 et 14 (v6). Prix par défaut : 1 ASE.
+//   - Grille = 5 numéros distincts entre 1 et 15 (v7, 3 003 grilles). Prix par défaut : 1 ASE.
+//     15 grilles max par wallet et par tirage, 4 000 grilles max par tirage (réglables).
 //   - Un tirage par jour (21h00 heure de Paris par défaut, heure d'été
 //     gérée). Les ventes ferment 10 min avant ; le tour suivant s'ouvre.
 //   - Répartition des ventes d'un tour :
@@ -40,8 +41,9 @@
 // =====================================================================
 
 const PICK = 5;                 // numéros par grille
-const MAXN = 14;                // numéros possibles : 1..14 (2 002 grilles différentes)
-const NOBIAS = 256 - (256 % MAXN); // 252 = 18 × 14 : octets acceptés pour un tirage sans biais
+const MAXN = 15;                // numéros possibles par défaut : 1..15 (3 003 grilles) ; réglable par l'admin (setConfig)
+const MAXN_MIN = 6, MAXN_MAX = 99; // bornes techniques : 5 numéros distincts, et au plus 2 chiffres sur le site
+const MAX_ROUND_HARD = 1000000; // grilles par tirage : pas de vraie limite (réglage admin)
 const BPS = 10000n;             // base des pourcentages (10000 = 100 %)
 const SHARE_COMMISSION = 1500n; // 15 % de commission : 9 % équipe (75/25) + 6 % cagnotte ASE Airdrop
 const SHARE_DROP = 600n;       // dont 6 % pour l'ASE Airdrop
@@ -159,9 +161,10 @@ function chainOk(secret, tip) {
   return false;
 }
 
-// Numéros gagnants : 5 numéros distincts dans 1..MAXN, tirage uniforme
-// (on rejette les octets ≥ NOBIAS pour éviter tout biais).
-function drawNumbers(roundId, sO, sC, digest) {
+// Numéros gagnants : 5 numéros distincts dans 1..maxn (celui du tour), tirage uniforme
+// (on rejette les octets ≥ 256 - 256 % maxn pour éviter tout biais).
+function drawNumbers(roundId, sO, sC, digest, maxn) {
+  const N = maxn || MAXN, NOBIAS = 256 - (256 % N);
   let seed = sha256Text('LOTOASE|' + roundId + '|' + sO + '|' + sC + '|' + digest);
   const nums = [];
   while (nums.length < PICK) {
@@ -169,7 +172,7 @@ function drawNumbers(roundId, sO, sC, digest) {
     for (const b of bytes) {
       if (nums.length >= PICK) break;
       if (b >= NOBIAS) continue;
-      const n = (b % MAXN) + 1;
+      const n = (b % N) + 1;
       if (nums.indexOf(n) < 0) nums.push(n);
     }
     seed = sha256Bytes(hexToBytes(seed));
@@ -183,13 +186,13 @@ function matches(grid, nums) {
   return k;
 }
 
-// Vérifie une grille : 5 entiers distincts entre 1 et MAXN → triée.
-function cleanGrid(g) {
+// Vérifie une grille : 5 entiers distincts entre 1 et N → triée.
+function cleanGrid(g, N) {
   assert(Array.isArray(g) && g.length === PICK, 'a ticket = ' + PICK + ' numbers');
   const out = [];
   for (const x of g) {
     const n = Number(x);
-    assert(Number.isInteger(n) && n >= 1 && n <= MAXN, 'number out of range (1 to ' + MAXN + '): ' + x);
+    assert(Number.isInteger(n) && n >= 1 && n <= N, 'number out of range (1 to ' + N + '): ' + x);
     assert(out.indexOf(n) < 0, 'duplicate number: ' + n);
     out.push(n);
   }
@@ -253,7 +256,7 @@ function newRound(id, c, prevDrawTs) {
   const after = Math.max(prevDrawTs, nowMs() + offset);
   const drawTs = nextDrawAfter(after, c.drawH, c.drawM);
   const r = {
-    id, status: 'open', price: c.price,
+    id, status: 'open', price: c.price, maxn: c.maxn || MAXN,
     drawTs, closeTs: drawTs - offset, revealMin: c.revealMin,
     sales: '0', grids: 0, buys: 0,
     digest: sha256Text('LOTOASE-ROUND|' + id),
@@ -374,7 +377,8 @@ function batchRange(from, count, total) {
       admin: sender(), dropBps: 600,
       payOwner: addr(payOwner), payCollab: addr(payCollab), collabAdmin: addr(collabAdmin), payAirdrop: addr(payAirdrop),
       price: (10n ** 18n).toString(),        // 1 ASE
-      maxGrids: 20, maxRound: 1000,          // grilles max par achat / par tirage (2 002 combinaisons : jamais toutes)
+      maxGrids: 15, maxRound: 2000,          // grilles max par achat / par tirage (réglables)
+      maxWallet: 15,                         // grilles max par wallet et par tirage
       maxn: MAXN,                            // numéros 1..maxn (lu par le site)
       drawH: 21, drawM: 0,                   // 21h00 Paris
       closeMin: 10, revealMin: 120,          // fermeture 10 min avant ; alerte du croupier si pas révélé en 2 h
@@ -406,7 +410,10 @@ function batchRange(from, count, total) {
     assert(Array.isArray(grids) && grids.length >= 1, 'no ticket');
     assert(grids.length <= c.maxGrids && grids.length <= MAX_GRIDS_HARD, 'too many tickets (max ' + c.maxGrids + ')');
     assert(r.grids + grids.length <= c.maxRound, 'draw full (' + c.maxRound + ' tickets)');
-    const clean = grids.map(cleanGrid);
+    const wk = 'w:' + r.id + ':' + sender(), mine = jget(wk, 0);
+    assert(mine + grids.length <= (c.maxWallet || 15), 'max ' + (c.maxWallet || 15) + ' tickets per wallet and per draw (you have ' + mine + ')');
+    jset(wk, mine + grids.length);
+    const clean = grids.map((g) => cleanGrid(g, r.maxn || MAXN));
     const cost = big(r.price) * big(clean.length);
     assert(big(msg.value || 0) === cost, 'wrong amount, expected: ' + cost.toString() + ' wei');
     const sd = seed === undefined || seed === null ? '' : String(seed).toLowerCase();
@@ -462,7 +469,7 @@ function batchRange(from, count, total) {
     const sec = String(secret).toLowerCase();
     assert(isSecret(sec) && chainOk(sec, o ? s.tipO : s.tipC), 'invalid secret');
     if (o) { r.sO = sec; s.tipO = sec; }
-    else { r.sC = sec; s.tipC = sec; r.nums = drawNumbers(r.id, r.sO, sec, r.digest); r.status = 'tally'; }
+    else { r.sC = sec; s.tipC = sec; r.nums = drawNumbers(r.id, r.sO, sec, r.digest, r.maxn || MAXN); r.status = 'tally'; }
     putR(r);
     jset('st', s);
     emit('Reveal', { round: String(r.id), who, secret: sec });
@@ -527,20 +534,26 @@ function batchRange(from, count, total) {
   // Réglages du jeu en un seul appel (valeurs actuelles pour ce qui ne change pas).
   // S'appliquent au tour en cours s'il n'a encore aucune grille, sinon au suivant.
   // prix en wei, heure/minute du tirage (Paris), plafond de grilles par achat,
-  // fermeture des ventes (min avant le tirage), délai de révélation (min).
-  setConfig(price, drawH, drawM, maxGrids, closeMin, revealMin, maxRound) {
+  // fermeture des ventes (min avant le tirage), délai de révélation (min), plafond par
+  // tirage, plafond par wallet et par tirage (s'applique tout de suite), nombre de numéros
+  // (1..maxn : au tour en cours s'il est vide, sinon au suivant ; les grilles déjà achetées gardent le leur).
+  setConfig(price, drawH, drawM, maxGrids, closeMin, revealMin, maxRound, maxWallet, maxn) {
     noValue();
     const c = cfg(); onlyAdmin(c);
     const v = big(price), H = Number(drawH), M = Number(drawM), G = Number(maxGrids), A = Number(closeMin), B = Number(revealMin);
     const T = maxRound === undefined ? c.maxRound : Number(maxRound);
+    const Wl = maxWallet === undefined || maxWallet === null ? (c.maxWallet || 15) : Number(maxWallet);
+    const N = maxn === undefined || maxn === null ? (c.maxn || MAXN) : Number(maxn);
     const ok = (x, lo, hi) => Number.isInteger(x) && x >= lo && x <= hi;
     assert(v >= 10n ** 16n && v <= 10n ** 21n, 'price: 0.01 to 1000 ASE');
     assert(ok(H, 6, 23) && ok(M, 0, 59), 'time: 06:00 to 23:59');
     assert(ok(G, 1, MAX_GRIDS_HARD), 'tickets per purchase: 1 to ' + MAX_GRIDS_HARD);
     assert(ok(A, 2, 60), 'closing: 2 to 60 min');
     assert(ok(B, 30, 1440), 'reveal: 30 to 1440 min');
-    assert(ok(T, G, 1500), 'tickets per draw: ' + G + ' to 1500');   // < 2 002 combinaisons
-    Object.assign(c, { price: v.toString(), drawH: H, drawM: M, maxGrids: G, closeMin: A, revealMin: B, maxRound: T });
+    assert(ok(T, G, MAX_ROUND_HARD), 'tickets per draw: ' + G + ' to ' + MAX_ROUND_HARD);
+    assert(ok(N, MAXN_MIN, MAXN_MAX), 'numbers: 1 to ' + MAXN_MIN + ' … 1 to ' + MAXN_MAX);
+    assert(ok(Wl, 1, MAX_ROUND_HARD), 'tickets per wallet: 1 to ' + MAX_ROUND_HARD);
+    Object.assign(c, { price: v.toString(), drawH: H, drawM: M, maxGrids: G, closeMin: A, revealMin: B, maxRound: T, maxWallet: Wl, maxn: N });
     jset('cfg', c);
     // Si personne n'a encore joué le tour en cours, il prend les nouveaux
     // réglages tout de suite (horaire, prix, délais) ; sinon au tour suivant.
@@ -548,7 +561,7 @@ function batchRange(from, count, total) {
     const r = getR(s.cur);
     if (r.status === 'open' && r.grids === 0) newRound(r.id, c, 0);
     jset('st', s);
-    emit('Config', { key: 'game', value: JSON.stringify([c.price, H, M, G, A, B, T]) });
+    emit('Config', { key: 'game', value: JSON.stringify([c.price, H, M, G, A, B, T, Wl, N]) });
     return true;
   },
   // Ajout volontaire d'ASE au jackpot (promotion…).
@@ -617,6 +630,7 @@ function batchRange(from, count, total) {
   // ===================================================================
   //  LECTURES (gratuites)
   // ===================================================================
+  getWallet(roundId, who) { return jget('w:' + Number(roundId) + ':' + addr(who), 0); },
   getConfig() { return cfg(); },
   getState() { return st(); },
   getRound(roundId) { return jget('r:' + Number(roundId), null); },
@@ -645,7 +659,7 @@ function batchRange(from, count, total) {
     const jackpotNow = big(s.jackpot) + pending + (big(r.sales) * SHARE_JACKPOT) / BPS;
     return {
       now: String(t), paused: c.paused, round: r.id, status: t >= r.closeTs ? 'closing' : r.status,
-      drawTs: String(r.drawTs), closeTs: String(r.closeTs), price: r.price, maxGrids: c.maxGrids, maxRound: c.maxRound,
+      drawTs: String(r.drawTs), closeTs: String(r.closeTs), price: r.price, maxGrids: c.maxGrids, maxRound: c.maxRound, maxWallet: c.maxWallet || 15, maxn: r.maxn || MAXN, nextMaxn: c.maxn || MAXN,
       grids: r.grids, sales: r.sales, jackpotCarried: s.jackpot, jackpotEstimate: jackpotNow.toString(),
       nextToDraw: s.next, owed: s.owed, totals: s.tot,
     };

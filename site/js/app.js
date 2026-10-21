@@ -150,7 +150,7 @@ setInterval(tickCountdown, 1000);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Nombre de faces = numéros du loto (14 depuis le v6 ; 20 avant) : lu dans la configuration du contrat
-const FACES = () => (S.cfg && S.cfg.maxn) || 20;
+const FACES = () => (S.info && S.info.maxn) || (S.cfg && S.cfg.maxn) || 20;   // v7 : numéros du tirage en cours (réglables par l'admin)
 function rollD20() {
   const n = FACES(), lim = 256 - (256 % n), b = new Uint8Array(1);
   for (;;) { crypto.getRandomValues(b); if (b[0] < lim) return (b[0] % n) + 1; }
@@ -276,6 +276,7 @@ $$('[data-roll]').forEach((b) => (b.onclick = () => rollTickets(Number(b.dataset
 
 function currentPrice() { return S.info ? BigInt(S.info.status === 'closing' ? S.cfg.price : S.info.price) : 2n * L.WEI; }
 function renderCart() {
+  if (S.info && S.info.maxn) { const k = S.cart.length; S.cart = S.cart.filter((g) => g.every((x) => x >= 1 && x <= S.info.maxn)); if (S.cart.length !== k) store.set('loto.cart', S.cart); }
   const list = $('#cartList');
   list.innerHTML = S.cart.map((g, i) => `<li><span class="idx">${i + 1}</span><span class="balls tiny">${g.map((n) => ballHtml(n)).join('')}</span><button class="rm" data-rm="${i}" aria-label="Remove ticket ${i + 1}">×</button></li>`).join('');
   list.querySelectorAll('[data-rm]').forEach((b) => (b.onclick = () => { S.cart.splice(Number(b.dataset.rm), 1); store.set('loto.cart', S.cart); renderCart(); }));
@@ -286,10 +287,17 @@ function renderCart() {
   const btn = $('#playBtn');
   const max = S.cfg ? S.cfg.maxGrids : 20;
   const txs = Math.ceil(n / max);
+  // Limite par joueur et par tirage (Loto v7 : getConfig().maxWallet)
+  const wl = S.cfg && S.cfg.maxWallet, held = myHeld();
+  if (wl && S.wallet && held + n > wl) {
+    btn.textContent = `Limit: ${wl} tickets per player per draw`; btn.disabled = true;
+    $('#cartNote').textContent = `You already hold ${held} of ${wl} tickets for this draw: remove ${held + n - wl} from your cart.`; return;
+  }
   if (!S.wallet) { btn.textContent = 'Connect wallet to play'; btn.disabled = false; }
   else { btn.textContent = n ? `Play ${plural(n, 'ticket', 'tickets')} (${L.fmtAse(cost, cost % L.WEI === 0n ? 0 : 2)} ASE)` : 'Confirm my tickets'; btn.disabled = !n || S.busy || (S.info && S.info.paused); }
   // Étapes : 1 lancer → 3 confirmer dès qu'il y a des tickets dans le panier
   $$('#lotoSteps li').forEach((li) => { const k = Number(li.dataset.step); li.className = n ? (k === 3 ? 'active' : 'done') : (k === 1 ? 'active' : ''); });
+  if (wl && S.wallet) { $('#cartNote').textContent = `You hold ${held} of ${wl} tickets for this draw (max ${wl} per player).` + (txs > 1 ? ` ${txs} transactions to approve.` : ''); return; }
   $('#cartNote').textContent = txs > 1 ? `More than ${max} tickets: ${txs} transactions to approve, one after the other.` : 'One single transaction for the whole cart.';
 }
 
@@ -333,6 +341,11 @@ async function sendTx(doneLabel, method, args, value = 0n) {
 }
 
 // ------------------------------------------------------------- mes grilles
+// Tickets déjà achetés par le joueur pour le tirage en cours
+function myHeld() {
+  if (!S.wallet || !S.info) return 0;
+  return (S.purchases.get(S.info.round) || []).filter((p) => p.b === S.wallet.address).reduce((a, p) => a + p.g.length, 0);
+}
 function renderMine() {
   const box = $('#mineBody');
   if (!S.wallet) { box.innerHTML = '<p class="muted">Connect your wallet to see your tickets.</p>'; return; }
@@ -475,7 +488,7 @@ async function verifyRound(id) {
     // Les secrets ne sont plus affichés : on ne signale qu'une anomalie éventuelle.
     if (!o1 || !c1) step(false, 'Draw secrets', !o1 ? o2 : c2);
     // 3) Numéros
-    const nums = L.drawNumbers(id, r.sO, r.sC, d, FACES());
+    const nums = L.drawNumbers(id, r.sO, r.sC, d, r.maxn || (S.cfg && S.cfg.maxn) || 20);
     step(JSON.stringify(nums) === JSON.stringify(r.nums), 'Numbers drawn', `<span class="balls tiny" style="display:inline-flex;vertical-align:middle">${nums.map((n) => ballHtml(n, 'gold')).join('')}</span>`);
     // 4) Gagnants
     const cnt = [0, 0, 0];
@@ -524,10 +537,20 @@ function renderAdmin() {
   setIfIdle('#fTime [name=h]', S.cfg.drawH); setIfIdle('#fTime [name=m]', S.cfg.drawM);
   setIfIdle('#fMax [name=n]', S.cfg.maxGrids);
   setIfIdle('#fMax [name=t]', S.cfg.maxRound);
+  $$('#fMax .js-wl').forEach((e) => (e.hidden = !S.cfg.maxWallet)); $('#fMax [name=w]').required = $('#fMax [name=nb]').required = !!S.cfg.maxWallet; if (S.cfg.maxWallet) { setIfIdle('#fMax [name=w]', S.cfg.maxWallet); setIfIdle('#fMax [name=nb]', S.cfg.maxn); maxWarn(); }
   setIfIdle('#fTimings [name=close]', S.cfg.closeMin); setIfIdle('#fTimings [name=reveal]', S.cfg.revealMin);
   setIfIdle('#fPayouts [name=o]', L.toAse1(S.cfg.payOwner)); setIfIdle('#fPayouts [name=c]', L.toAse1(S.cfg.payCollab));
 }
 $$('.admin-box input').forEach((i) => i.addEventListener('input', () => (i.dataset.touched = '1')));
+// Avertissement admin : plafond par tirage ≥ nombre de grilles différentes
+function maxWarn() {
+  const n = Number($('#fMax [name=nb]').value) || FACES(), t = Number($('#fMax [name=t]').value) || 0;
+  let c = 1; for (let k = 0; k < 5; k++) c = (c * (n - k)) / (k + 1);
+  const w = $('#fMaxWarn'); if (!w) return;
+  w.textContent = `1 to ${n}: ${c.toLocaleString('en-US')} different tickets.` + (t >= c ? ' Warning: with this per-draw limit, someone could buy every combination and win the jackpot for sure.' : '');
+  w.classList.toggle('warn', t >= c);
+}
+['nb', 't'].forEach((k) => $('#fMax [name=' + k + ']').addEventListener('input', maxWarn));
 function adminForm(sel, fn) {
   $(sel).addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -540,10 +563,10 @@ function adminForm(sel, fn) {
 adminForm('#fPause', () => [S.cfg.paused ? 'Game resumed' : 'Game paused', 'setPaused', [!S.cfg.paused]]);
 // Le contrat reçoit tous les réglages du jeu en un seul appel : on renvoie
 // les valeurs actuelles avec seulement celle(s) modifiée(s).
-const gameArgs = (patch) => { const c = { ...S.cfg, ...patch }; return [String(c.price), c.drawH, c.drawM, c.maxGrids, c.closeMin, c.revealMin, c.maxRound]; };
+const gameArgs = (patch) => { const c = { ...S.cfg, ...patch }; return [String(c.price), c.drawH, c.drawM, c.maxGrids, c.closeMin, c.revealMin, c.maxRound].concat(c.maxWallet ? [c.maxWallet, c.maxn] : []); };
 adminForm('#fPrice', (f) => ['Price saved', 'setConfig', gameArgs({ price: L.parseAse(f.get('price')).toString() })]);
 adminForm('#fTime', (f) => ['Draw time saved', 'setConfig', gameArgs({ drawH: Number(f.get('h')), drawM: Number(f.get('m')) })]);
-adminForm('#fMax', (f) => ['Limits saved', 'setConfig', gameArgs({ maxGrids: Number(f.get('n')), maxRound: Number(f.get('t')) })]);
+adminForm('#fMax', (f) => ['Limits saved', 'setConfig', gameArgs({ maxGrids: Number(f.get('n')), maxRound: Number(f.get('t')), ...(S.cfg.maxWallet ? { maxWallet: Number(f.get('w')), maxn: Number(f.get('nb')) } : {}) })]);
 adminForm('#fTimings', (f) => ['Timings saved', 'setConfig', gameArgs({ closeMin: Number(f.get('close')), revealMin: Number(f.get('reveal')) })]);
 adminForm('#fPayouts', (f) => ['Wallets saved', 'setPayouts', [L.toHex(f.get('o')), L.toHex(f.get('c'))]]);
 
@@ -632,10 +655,22 @@ function renderRulesValues() {
   const amount = (x) => { const t = L.fmtAse(x, x % L.WEI === 0n ? 0 : 2); return (t.includes('.') ? t.replace(/0+$/, '').replace(/\.$/, '') : t) + ' ASE'; };   // 2.5 ASE (pas 2.50)
   $$('.js-g4').forEach((e) => (e.textContent = amount(p * 25n)));
   // Gains « typiques » (simulations, 5 numéros sur 14 : ~15 et ~2 grilles ; sur 20 : gains pleins)
-  const t14 = FACES() <= 14;
-  $$('.js-t4').forEach((e) => (e.textContent = amount(t14 ? p * 15n : p * 25n)));
-  $$('.js-t3').forEach((e) => (e.textContent = amount(t14 ? p * 2n : (p * 5n) / 2n)));
+  if (S.cfg && S.cfg.maxWallet) {
+    // v7 (nombre de numéros réglable) : gain moyen attendu sans gagnant du jackpot.
+    // Caisse fixe = 50 % des ventes, réduite si elle ne suffit pas, + bonus = moitié de la part jackpot (35 %).
+    const n = FACES(), C = (a, b) => { let c = 1; for (let k = 0; k < b; k++) c = (c * (a - k)) / (k + 1); return c; };
+    const p4 = (5 * (n - 5)) / C(n, 5), p3 = (10 * C(n - 5, 2)) / C(n, 5), dem = 25 * p4 + 2.5 * p3;
+    const f = Math.min(1, 0.5 / dem) * (1 + 0.175 / Math.min(dem, 0.5));
+    const x4 = Math.max(1, Math.round(25 * f)), x3 = Math.max(0.5, Math.round(2.5 * f * 2) / 2);
+    $$('.js-t4').forEach((e) => (e.textContent = amount(p * BigInt(x4))));
+    $$('.js-t3').forEach((e) => (e.textContent = amount((p * BigInt(Math.round(x3 * 2))) / 2n)));
+  } else {
+    const t14 = FACES() <= 14;
+    $$('.js-t4').forEach((e) => (e.textContent = amount(t14 ? p * 15n : p * 25n)));
+    $$('.js-t3').forEach((e) => (e.textContent = amount(t14 ? p * 2n : (p * 5n) / 2n)));
+  }
   // Numéros 1..maxn (14 depuis le v6) et nombre de grilles différentes C(maxn, 5)
+  if (S.cfg && S.cfg.maxWallet) { $$('.js-wlrule').forEach((e) => (e.hidden = false)); $$('.js-wlmax').forEach((e) => (e.textContent = S.cfg.maxWallet)); $$('.js-cap').forEach((e) => (e.textContent = Number(S.cfg.maxRound).toLocaleString('en-US'))); }
   { const n = FACES(); let c = 1; for (let k = 0; k < 5; k++) c = (c * (n - k)) / (k + 1); $$('.js-maxn').forEach((e) => (e.textContent = n)); $$('.js-combos').forEach((e) => (e.textContent = c.toLocaleString('en-US'))); }
   $$('.js-g3').forEach((e) => (e.textContent = amount((p * 5n) / 2n)));
   // Contrat avec règle de prélèvement (setSkim) : on le dit clairement, avec le réglage actuel.

@@ -333,3 +333,4 @@ section.last-draw .link-btn { margin-left: auto; }
   .lhero-stats { gap: 10px 22px; }
   .lhero-stats dd { font-size: 1.35rem; }
 }
+#fMaxWarn.warn { color: var(--warn); font-weight: 600; }

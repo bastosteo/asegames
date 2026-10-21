@@ -85,10 +85,10 @@ echo "[3/7] Airdrop de test (top 3 + lots de 20 ASE)…"
 A=$(deployer airdrop contrat/airdrop.deploy.js "[\"$OPER\",\"$COLLAB_ADMIN\",\"$(tipOf $T/airdrop-owner/owner-chain.json)\",\"$(tipOf $T/airdrop-collab/collab-chain.json)\"]")
 AH=$($AIDE hex "$A"); echo "      Airdrop de test : $A"
 
-echo "[4/7] Loto de test (5 sur 14, commission 9 % équipe / 6 % Airdrop)…"
+echo "[4/7] Loto de test (5 sur 15, 15 grilles par joueur, commission 9 % équipe / 6 % Airdrop)…"
 L=$(deployer loto contrat/loto.deploy.js "[\"$PAY_OWNER\",\"$PAY_COLLAB\",\"$COLLAB_ADMIN\",\"$(tipOf $T/loto-owner/owner-chain.json)\",\"$(tipOf $T/loto-collab/collab-chain.json)\",\"$AH\"]")
 echo "      Loto de test : $L"
-reglage "$L" setConfig "[\"$(get "$LC" price)\",$(get "$LC" drawH),$(get "$LC" drawM),$(get "$LC" maxGrids),$(get "$LC" closeMin),$(get "$LC" revealMin),1000]" "mêmes prix et horaires que le vrai Loto" closeMin "$(get "$LC" closeMin)"
+reglage "$L" setConfig "[\"$(get "$LC" price)\",$(get "$LC" drawH),$(get "$LC" drawM),$(get "$LC" maxGrids),$(get "$LC" closeMin),$(get "$LC" revealMin),2000,15,15]" "mêmes prix et horaires que le vrai Loto, 15 numéros, 2 000 grilles, 15 par joueur" closeMin "$(get "$LC" closeMin)"
 
 echo "[5/7] Raffle de test (dimanche, mardi, jeudi ; top 3 + lots de 100 ASE)…"
 F=$(deployer raffle contrat/tombola.deploy.js "[\"$PAY_OWNER\",\"$PAY_COLLAB\",\"$COLLAB_ADMIN\",\"$(tipOf $T/raffle-owner/owner-chain.json)\",\"$(tipOf $T/raffle-collab/collab-chain.json)\",\"$AH\"]")
