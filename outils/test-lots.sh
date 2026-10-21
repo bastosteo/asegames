@@ -22,7 +22,8 @@ setvar() { gh api -X PATCH "repos/$R/actions/variables/$1" -f name="$1" -f value
 # déploie + init (idempotent) ; $1 = nom du marqueur, $2 = fichier, $3 = args init (JSON)
 deployer() {
   local M=".test-lots-$1" N=""
-  [ -f "$M" ] && { cat "$M"; return; }
+  [ -s "$M" ] && [ -n "$(get "$($AIDE cfg "$(cat "$M")")" admin)" ] && { cat "$M"; return; }
+  rm -f "$M"
   [ -f "$M-contrat" ] && N=$(cat "$M-contrat")
   if [ -z "$N" ]; then
     oui "      ⚠️  Déployer $2 ($(wc -c < "$2") octets) depuis main ?" >&2 || exit 1
@@ -42,7 +43,11 @@ deployer() {
 }
 
 OA=$(cat .test-airdrop); OR=$(cat .test-raffle); L=$(cat .test-loto); G=$(cat .test-tresor)
-if [ -f .test-lots-fini ]; then echo "Déjà fait : Raffle de test $OR, Airdrop de test $OA."; echo "Site de test : https://asevegas-test.pages.dev"; exit 0; fi
+# Déjà fait seulement si le marqueur contient l'adresse de la Raffle de test actuelle (sinon : marqueur périmé, on l'ignore)
+if [ -s .test-lots-fini ] && [ "$(cat .test-lots-fini)" = "$OR" ]; then echo "Déjà fait : Raffle de test $OR, Airdrop de test $OA."; echo "Site de test : https://asevegas-test.pages.dev"; exit 0; fi
+rm -f .test-lots-fini
+echo "Raffle de test actuelle (ancienne version) : $OR"
+echo "Airdrop de test actuel (ancienne version) : $OA"
 
 echo "[1/4] Nouvel Airdrop de test…"
 AC=$($AIDE cfg "$OA"); AS=$($AIDE etat "$OA")
@@ -73,7 +78,7 @@ done
 
 echo "[4/4] Croupiers et site de test…"
 echo "$OA" >> .test-airdrop-ancien; echo "$OR" >> .test-raffle-ancien
-echo "$A" > .test-airdrop; echo "$F" > .test-raffle; touch .test-lots-fini
+echo "$A" > .test-airdrop; echo "$F" > .test-raffle; echo "$F" > .test-lots-fini
 setvar TEST_AIRDROP_CONTRACT "$A"; setvar TEST_RAFFLE_CONTRACT "$F"
 echo "      GitHub : TEST_AIRDROP_CONTRACT = $A, TEST_RAFFLE_CONTRACT = $F"
 bash outils/mettre-en-ligne-test.sh
