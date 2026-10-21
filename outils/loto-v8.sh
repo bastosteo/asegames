@@ -35,9 +35,11 @@ grep -q skim contrat/loto.deploy.js && { echo "ERREUR : contrat/loto.deploy.js c
 grep -q nextMaxn contrat/loto.deploy.js || { echo "ERREUR : contrat/loto.deploy.js n'est pas le Loto à 15 numéros (ancien zip ?). Rien n'a été envoyé."; exit 1; }
 
 echo "[1/5] Vérification puis pause du Loto actuel…"
+V=$($RB verifier "$OL" - -)   # tirage du soir terminé ? (même si l'ancien Loto est déjà en pause)
+HR=$($AIDE heures "$OL")   # juste après le tirage du soir, le prochain tirage est dans ~24 h
+if [ "${HR:-0}" -lt 20 ] && [ ! -f .v8-loto ] && [ ! -f .v8-loto-contrat ]; then echo "      ⏳ Le tirage du soir n'a pas encore eu lieu (prochain tirage dans ${HR} h). Rien n'a été envoyé : relance ce fichier après le tirage de 21 h."; exit 3; fi
+if [ "$V" != "OK" ] && [ ! -f .v8-loto ] && [ ! -f .v8-loto-contrat ]; then echo "      ⏳ ${V#ATTENTE	}. Rien n'a été envoyé : relance ce fichier après le tirage."; exit 3; fi
 if [ "$(get "$($AIDE cfg "$OL")" paused)" != "true" ]; then
-  V=$($RB verifier "$OL" - -)
-  if [ "$V" != "OK" ]; then echo "      ⏳ ${V#ATTENTE	}. Rien n'a été envoyé : relance ce fichier après le tirage."; exit 3; fi
   oui "      ⚠️  Envoyer setPaused [true] sur le Loto actuel depuis main ?" || { echo "      Arrêt demandé : rien n'a été envoyé."; exit 1; }
   asentum call "$OL" setPaused --from main --args '[true]'
   echo -n "      Attente de la confirmation… "; $AIDE attendre "$OL" pause
@@ -79,6 +81,16 @@ fi
 C=$($AIDE cfg "$N")
 echo "      Nouveau Loto : 5 numéros sur 15, 15 grilles max par joueur et par tirage, aucun prélèvement."
 
+# Nouveau Loto en pause tant que Milkie n'a pas mis à jour la quête (bouton « Resume game » du panneau Admin ensuite)
+if [ ! -f .v8-pause-fait ]; then
+  if [ "$(get "$($AIDE cfg "$N")" paused)" != "true" ]; then
+    if oui "      ⚠️  Mettre le nouveau Loto en pause (setPaused [true]) en attendant la mise à jour de Milkie ?"; then
+      asentum call "$N" setPaused --from main --args '[true]'
+      echo -n "      Attente de la confirmation… "; $AIDE attendre "$N" pause
+    fi
+  fi
+  touch .v8-pause-fait
+fi
 echo "[3/5] Jackpot de départ…"
 OJ=$(get "$LI" jackpot)
 SK=$($AIDE prelevement "$OL" 2>/dev/null || echo 0)
@@ -136,3 +148,6 @@ else echo "      Personne à rembourser."; fi
 echo
 echo "Nouveau Loto : $N (5 numéros sur 15, 2 ASE la grille, 15 grilles max par joueur et par tirage)"
 echo "Site : https://asevegas.com/loto/"
+echo
+echo "⏸️  Le nouveau Loto est EN PAUSE : envoie son adresse ($N) à Milkie."
+echo "   Quand Milkie a mis la quête à jour : asevegas.com/loto/ → panneau Admin → « Resume game »."

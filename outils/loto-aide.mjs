@@ -19,6 +19,7 @@ async function view(contract, method, args = []) {
 }
 if (cmd === 'hex') console.log(toHex(a));
 else if (cmd === 'cfg') console.log(JSON.stringify((await view(a, 'getConfig')).returnValue));
+else if (cmd === 'heures') { const i = (await view(a, 'info')).returnValue; console.log(Math.floor((Number(i.drawTs) - Number(i.now)) / 3600000)); }
 else if (cmd === 'etat') console.log(JSON.stringify((await view(a, 'getState')).returnValue));
 else if (cmd === 'info') {
   const c = (await view(a, 'getConfig')).returnValue, s = (await view(a, 'getState')).returnValue;
