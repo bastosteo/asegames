@@ -30,6 +30,7 @@ const BPS = 10000n;
 const SPLIT = [5000n, 3000n];   // top 3 : 1er 50 %, 2e 30 %, 3e = le reste (20 %)
 const LOT_SHARE = 5000n;        // les lots ne prennent jamais plus de 50 % de la cagnotte
 const MAX_LOTS = 300;           // plafond absolu du nombre de lots
+const MIN_LOT = 10n ** 16n;     // dernier lot (le reste) : au moins 0,01 ASE, sinon il va au top 3
 const PAY_NOW = 40, PAY_BATCH = 60;   // prix envoyés au tirage, puis par appel de payRest
 const DAY = 86400000;
 const HOUR = 3600000;
@@ -240,13 +241,22 @@ function entries(r) {
 
 // Prix : [1er, 2e, 3e, lot, lot…] pour une cagnotte "total" et n chances.
 function prizesOf(r, total) {
-  const L = big(r.lot || '0'), nTop = Math.min(3, r.tickets);
-  let n = L > 0n ? Number((total * LOT_SHARE) / BPS / L) : 0;
-  n = Math.min(n, r.maxLots || 0, MAX_LOTS, r.tickets - nTop);
-  const top = total - L * big(n), p1 = (top * SPLIT[0]) / BPS, p2 = (top * SPLIT[1]) / BPS;
-  const pr = [p1, p2, top - p1 - p2].slice(0, nTop);
-  for (let k = 0; k < n; k++) pr.push(L);
-  return pr;
+  const L = big(r.lot || '0'), nTop = Math.min(3, r.tickets), lots = [];
+  // Lots : 50 % de la cagnotte max, en lots pleins puis un dernier lot avec le reste
+  // (ex. 17 ASE pour des lots de 20 : un seul lot de 17 ; 80 ASE : 4 lots de 20), sans dépasser maxLots lots.
+  if (L > 0n) {
+    const cap = Math.min(r.maxLots || 0, MAX_LOTS, r.tickets - nTop);
+    let budget = (total * LOT_SHARE) / BPS;
+    // un lot ne dépasse jamais le 3e prix (20 % de ce qui reste au top 3) : lot × 6 ≤ cagnotte - lots
+    let rest = total;
+    while (lots.length < cap && budget >= L && rest >= L * 6n) { lots.push(L); budget -= L; rest -= L; }
+    const x = budget < rest / 6n ? budget : rest / 6n;
+    if (lots.length < cap && x >= MIN_LOT) lots.push(x);
+  }
+  let top = total;
+  for (const x of lots) top -= x;
+  const p1 = (top * SPLIT[0]) / BPS, p2 = (top * SPLIT[1]) / BPS;
+  return [p1, p2, top - p1 - p2].slice(0, nTop).concat(lots);
 }
 
 // n chances différentes, puis leurs wallets (un seul passage sur la liste).

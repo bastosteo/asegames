@@ -130,17 +130,17 @@ sec('Cagnotte moyenne : 6 400 ASE → lots limités à 40 %');
   while (n < 1506) { const k = Math.min(10, 1506 - n); w.buy(P[i++], k); n += k; }
   const d = w.draw(1);
   const { r } = checkDraw(w, 1, '1 506 tickets');
-  t('25 lots (2 500 ≤ 40 % de 6 400)', d.success && r.prizes.length === 28, r.prizes.length);
+  t('25 lots de 100 + 1 dernier lot avec le reste (40 % de 6 400 = 2 560 → 60 ASE)', d.success && r.prizes.length === 29 && r.prizes.slice(3, 28).every((x) => x === LOT.toString()) && BigInt(r.prizes[28]) > 59n * ASE && BigInt(r.prizes[28]) < 61n * ASE, r.prizes.length + ' ' + r.prizes[28]);
 }
 
-sec('Petite cagnotte : 3 000 ASE → 12 lots + 900 / 540 / 360');
+sec('Petite cagnotte : 3 000 ASE → 12 lots (+ le petit reste) + 900 / 540 / 360');
 {
   const w = world();
   let n = 0, i = 0;
   while (n < 706) { const k = Math.min(10, 706 - n); w.buy(P[i++], k); n += k; }
   w.draw(1);
   const { r } = checkDraw(w, 1, '706 tickets');
-  t('12 lots', r.prizes.length === 15);
+  t('12 lots de 100 + un dernier lot avec le reste (< 1 ASE)', r.prizes.length === 16 && BigInt(r.prizes[15]) < ASE, r.prizes.length);
 }
 
 sec('Peu de tickets');
@@ -149,7 +149,7 @@ sec('Peu de tickets');
   w.buy(P[0], 10);
   w.draw(1);
   const { r } = checkDraw(w, 1, '10 tickets / 1 wallet');
-  t('42,5 ASE de cagnotte : 0 lot, 3 prix gagnés par le même wallet', r.prizes.length === 3 && r.carryOut === '0');
+  t('42,5 ASE de cagnotte : 1 petit lot (pas plus que le 3e prix), 4 prix gagnés par le même wallet', r.prizes.length === 4 && BigInt(r.prizes[3]) <= BigInt(r.prizes[2]) && r.carryOut === '0', JSON.stringify(r.prizes));
   const w2 = world();
   w2.buy(P[0], 2);
   w2.draw(1);
@@ -161,7 +161,7 @@ sec('Peu de tickets');
   w2.buy(P[1], 5);
   w2.draw(2);
   const y = checkDraw(w2, 2, '5 tickets + report');
-  t('petite cagnotte (< 250 ASE) : aucun lot, 3 prix ; lot de la tombola 2 inchangé', y.r.prizes.length === 3 && y.r.lot === LOT.toString());
+  t('petite cagnotte : lots jamais plus gros que le 3e prix ; lot de la tombola 2 inchangé', y.r.prizes.slice(3).every((x) => BigInt(x) <= BigInt(y.r.prizes[2])) && y.r.lot === LOT.toString(), JSON.stringify(y.r.prizes));
   t('nouveau lot (1 ASE) appliqué à la tombola 3', w2.round(3).lot === ASE.toString());
 }
 

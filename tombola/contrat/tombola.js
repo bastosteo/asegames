@@ -34,6 +34,7 @@ const OWNER_CUT = 7500n;        // 75 % de la commission pour l'owner
 const SPLIT = [5000n, 3000n];   // top 3 : 1er 50 %, 2e 30 %, 3e = le reste (20 %)
 const LOT_SHARE = 4000n;        // les lots ne prennent jamais plus de 40 % de la cagnotte
 const MAX_LOTS = 200;           // plafond absolu du nombre de lots
+const MIN_LOT = 10n ** 16n;     // dernier lot (le reste) : au moins 0,01 ASE, sinon il va au top 3
 const DAY = 86400000;
 const HOUR = 3600000;
 const MAX_CHAIN_SKIP = 1;      // un secret = exactement le maillon précédent (le collaborateur ne peut pas choisir)
@@ -247,14 +248,27 @@ function sync(c, s) {
 // Prix d'une tombola : [1er, 2e, 3e, lot, lot, …] et le report.
 // Lots : jusqu'à maxLots × lot, sans dépasser 40 % de la cagnotte ; le top 3
 // prend tout le reste. Moins de tickets que de prix → prix sans ticket reportés.
+// Lots : 40 % de la cagnotte max, en lots pleins puis un dernier lot avec le reste
+// (ex. 450 ASE pour des lots de 100 : 100, 100, 100, 100 puis 50), sans dépasser maxLots lots.
+function lotsOf(pool, lot, maxLots, tickets) {
+  const out = [];
+  if (lot <= 0n) return out;
+  const cap = Math.min(maxLots, MAX_LOTS, tickets - Math.min(3, tickets));
+  let budget = (pool * LOT_SHARE) / BPS;
+  // un lot ne dépasse jamais le 3e prix (20 % de ce qui reste au top 3) : lot × 6 ≤ cagnotte - lots
+  let rest = pool;
+  while (out.length < cap && budget >= lot && rest >= lot * 6n) { out.push(lot); budget -= lot; rest -= lot; }
+  const x = budget < rest / 6n ? budget : rest / 6n;
+  if (out.length < cap && x >= MIN_LOT) out.push(x);
+  return out;
+}
 function prizesOf(r) {
-  const pool = big(r.carryIn) + big(r.sales) - big(r.commission), lot = big(r.lot);
+  const pool = big(r.carryIn) + big(r.sales) - big(r.commission), lots = lotsOf(pool, big(r.lot), r.maxLots, r.tickets);
   const nTop = Math.min(3, r.tickets);
-  let nLots = lot > 0n ? Number((pool * LOT_SHARE) / BPS / lot) : 0;
-  nLots = Math.min(nLots, r.maxLots, MAX_LOTS, r.tickets - nTop);
-  const top = pool - lot * big(nLots), p1 = (top * SPLIT[0]) / BPS, p2 = (top * SPLIT[1]) / BPS;
-  const pr = [p1, p2, top - p1 - p2].slice(0, nTop);
-  for (let k = 0; k < nLots; k++) pr.push(lot);
+  let top = pool;
+  for (const x of lots) top -= x;
+  const p1 = (top * SPLIT[0]) / BPS, p2 = (top * SPLIT[1]) / BPS;
+  const pr = [p1, p2, top - p1 - p2].slice(0, nTop).concat(lots);
   let paid = 0n;
   for (const x of pr) paid += x;
   return [pr, pool - paid];

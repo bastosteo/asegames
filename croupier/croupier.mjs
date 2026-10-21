@@ -81,6 +81,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const sha = (t) => createHash('sha256').update(t).digest('hex');
 const shaHex = (h) => sha(Buffer.from(h, 'hex'));
 const ase = (wei) => (Number(BigInt(wei) / 10n ** 14n) / 10000).toLocaleString('fr-FR', { maximumFractionDigits: 4 });
+// « 4 lots de 100 ASE + 1 lot de 50 ASE » : lots pleins (= le plus gros) puis le dernier avec le reste
+const lotsTxt = (lots) => { const L0 = lots.length ? BigInt(lots[0]) : 0n, full = lots.filter((x) => BigInt(x) === L0).length, last = lots.find((x) => BigInt(x) !== L0); return `${full} lot${full > 1 ? 's' : ''} de ${ase(L0)} ASE` + (last !== undefined ? ` + 1 lot de ${ase(last)} ASE` : ''); };
 function log(...a) { console.log(new Date().toISOString(), `[${LABEL}]`, ...a); }
 
 // Adresse ase1… → 0x… (bech32, vérifié). Le RPC /view attend du 0x.
@@ -136,20 +138,30 @@ async function alert(text, key = text, everyMs = 30 * 60000) {
 }
 
 // --- Lecture de la chaîne (RPC) ---------------------------------------
+// Le testnet renvoie parfois une page d'erreur (HTML) : les lectures sont réessayées (4 fois, pause croissante).
+async function retry(fn) {
+  for (let i = 0; ; i++) {
+    try { return await fn(); } catch (e) { if (i >= 3 || /view .* : /.test(e.message)) throw e; await new Promise((ok) => setTimeout(ok, 2000 * (i + 1))); }
+  }
+}
 async function rpcGet(path) {
-  const r = await fetch(CFG.rpc + path, { signal: AbortSignal.timeout(20000) });
-  if (!r.ok) throw new Error(`RPC ${path} → HTTP ${r.status}`);
-  return r.json();
+  return retry(async () => {
+    const r = await fetch(CFG.rpc + path, { signal: AbortSignal.timeout(20000) });
+    if (!r.ok) throw new Error(`RPC ${path} → HTTP ${r.status}`);
+    return JSON.parse(await r.text());
+  });
 }
 let CONTRACT_HEX = '';
 async function view(method, args = []) { return viewAt(CONTRACT_HEX, method, args); }
 async function viewAt(contract, method, args = []) {
-  const r = await fetch(CFG.rpc + '/view', {
-    method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ contract, method, args }), signal: AbortSignal.timeout(20000),
+  const j = await retry(async () => {
+    const r = await fetch(CFG.rpc + '/view', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ contract, method, args }), signal: AbortSignal.timeout(20000),
+    });
+    if (!r.ok) throw new Error(`view ${method} → HTTP ${r.status}`);
+    return JSON.parse(await r.text());
   });
-  if (!r.ok) throw new Error(`view ${method} → HTTP ${r.status}`);
-  const j = await r.json();
   if (!j.ok) throw new Error(`view ${method} : ${j.reason || 'échec'}`);
   return j.returnValue;
 }
@@ -304,7 +316,7 @@ async function announce(id) {
     await alert(
       `🪂 ASE Airdrop n°${id} : cagnotte ${ase(total)} ASE, ${r.wallets} wallets, ${r.tickets} chances\n` +
       (r.win.length ? r.win.slice(0, 3).map((w, k) => `${k + 1}${k ? 'e' : 'er'} : ${w.b.slice(0, 8)}…${w.b.slice(-4)}${w.n ? ` (${w.n} chances)` : ''} → ${ase(r.prizes[k])} ASE`).join('\n') +
-        (r.win.length > 3 ? `\n+ ${r.win.length - 3} lots de ${ase(r.prizes[3])} ASE` : '') : 'Aucun participant.') +
+        (r.win.length > 3 ? `\n+ ${lotsTxt(r.prizes.slice(3))}` : '') : 'Aucun participant.') +
       `\nPrix envoyés automatiquement. Reporté : ${ase(r.carryOut)} ASE.`, 'drawn' + id, 1e12);
     return;
   }
@@ -313,7 +325,7 @@ async function announce(id) {
       `🎟️ Tombola n°${id} : ${r.tickets} tickets, ventes ${ase(r.sales)} ASE\n` +
       (typeof r.win[0] === 'number'   // tombola v4 : tickets gagnants (top 3 + lots)
         ? r.win.slice(0, 3).map((t, k) => `${['1er', '2e', '3e'][k]} prix : ticket #${t + 1} → ${ase(r.prizes[k])} ASE`).join('\n') +
-          (r.win.length > 3 ? `\n+ ${r.win.length - 3} lots de ${ase(r.prizes[3])} ASE (tickets ${r.win.slice(3).map((t) => '#' + (t + 1)).join(', ')})` : '')
+          (r.win.length > 3 ? `\n+ ${lotsTxt(r.prizes.slice(3))} (tickets ${r.win.slice(3).map((t) => '#' + (t + 1)).join(', ')})` : '')
         : r.win.map((w, k) => `${k + 1}er prix : ticket #${w.t + 1}, ${w.b.slice(0, 8)}…${w.b.slice(-4)} → ${ase(r.prizes[k])} ASE`).join('\n').replace('2er', '2e').replace('3er', '3e')) +
       (BigInt(r.carryOut || '0') > 0n ? `\nPrix sans gagnant reportés à la tombola suivante : ${ase(r.carryOut)} ASE.` : '') +
       `\nCommission : ${ase(r.commission)} ASE. Les gagnants réclament leur prix sur le site.`, 'drawn' + id, 1e12);

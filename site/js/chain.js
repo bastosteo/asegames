@@ -10,14 +10,19 @@ export class Rpc {
   get url() { return this.urls[this.i]; }
   async req(path, init) {
     let last;
-    for (let k = 0; k < this.urls.length; k++) {
-      const u = this.urls[(this.i + k) % this.urls.length];
-      try {
-        const r = await fetch(u + path, { ...init, signal: AbortSignal.timeout(15000) });
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        this.i = (this.i + k) % this.urls.length;
-        return await r.json();
-      } catch (e) { last = e; }
+    // Le testnet renvoie parfois une page d'erreur (HTML) : on essaie chaque serveur, 3 tours, avec une petite pause.
+    for (let tour = 0; tour < 3; tour++) {
+      if (tour) await new Promise((ok) => setTimeout(ok, 1500 * tour));
+      for (let k = 0; k < this.urls.length; k++) {
+        const u = this.urls[(this.i + k) % this.urls.length];
+        try {
+          const r = await fetch(u + path, { ...init, signal: AbortSignal.timeout(15000) });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          const j = JSON.parse(await r.text());
+          this.i = (this.i + k) % this.urls.length;
+          return j;
+        } catch (e) { last = e; }
+      }
     }
     throw new Error('The Asentum network is not responding (' + (last?.message || '?') + ')');
   }

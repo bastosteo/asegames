@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Nouveau Loto v7 : par défaut 5 numéros sur 15, 1 ASE, 2 000 grilles max par tirage, 15 par joueur ;
+# Nouveau Loto v7 : par défaut 5 numéros sur 15, 2 ASE, 2 000 grilles max par tirage, 15 par joueur ;
 # nombre de numéros, plafond par tirage et par joueur modifiables à tout moment dans le panneau Admin.
 # Commission 9 % équipe / 6 % Airdrop,
 # SANS fonction de prélèvement. Lancé par "Nouveau-Loto-15.bat", APRÈS le tirage du soir.
@@ -20,7 +20,7 @@ RB="node outils/rembourser.mjs"
 oui() { local r; read -r -p "$1 (o/n) " r; [[ "$r" =~ ^[oOyY] ]]; }
 get() { node -e "const v=JSON.parse(process.argv[1]);console.log(v==null||v['$2']==null?'':v['$2'])" "$1"; }
 ase() { node -e "const s=BigInt(process.argv[1]).toString().padStart(19,'0');console.log((s.slice(0,-18)+'.'+s.slice(-18)).replace(/\.?0+$/,''))" "$1"; }
-P_LOTO=1000000000000000000
+P_LOTO=2000000000000000000
 
 npm install --prefix croupier --no-audit --no-fund --silent
 for f in .loto-v4-fait .airdrop-fait; do [ -f "$f" ] || { echo "ERREUR : fichier $f introuvable."; exit 1; }; done
@@ -67,10 +67,10 @@ if [ -z "$(get "$($AIDE cfg "$N")" admin)" ]; then
 else echo "      Déjà initialisé."; fi
 echo "$N" > .v8-loto; rm -f .v8-loto-contrat
 C=$($AIDE cfg "$N")
-if [ "$(get "$C" price)" = "$P_LOTO" ] && [ "$(get "$C" closeMin)" = "$(get "$LC" closeMin)" ] && [ "$(get "$C" drawH)" = "$(get "$LC" drawH)" ]; then echo "      Déjà réglé (1 ASE, mêmes horaires)."
+if [ "$(get "$C" price)" = "$P_LOTO" ] && [ "$(get "$C" closeMin)" = "$(get "$LC" closeMin)" ] && [ "$(get "$C" drawH)" = "$(get "$LC" drawH)" ]; then echo "      Déjà réglé (2 ASE, mêmes horaires)."
 else
   A="[\"$P_LOTO\",$(get "$LC" drawH),$(get "$LC" drawM),15,$(get "$LC" closeMin),$(get "$LC" revealMin),2000,15,15]"
-  echo "      setConfig $A   (1 ASE la grille, 2 000 grilles max par tirage, 15 par joueur, numéros 1 à 15 ; mêmes horaires que l'ancien Loto)"
+  echo "      setConfig $A   (2 ASE la grille, 2 000 grilles max par tirage, 15 par joueur, numéros 1 à 15 ; mêmes horaires que l'ancien Loto)"
   oui "      ⚠️  Envoyer setConfig sur le nouveau Loto depuis main ?" || exit 1
   asentum call "$N" setConfig --from main --args "$A"
   echo -n "      Attente de la confirmation…"
@@ -134,5 +134,5 @@ if [ -s remboursements-loto.txt ]; then
   done 3< remboursements-loto.txt
 else echo "      Personne à rembourser."; fi
 echo
-echo "Nouveau Loto : $N (5 numéros sur 15, 1 ASE la grille, 15 grilles max par joueur et par tirage)"
+echo "Nouveau Loto : $N (5 numéros sur 15, 2 ASE la grille, 15 grilles max par joueur et par tirage)"
 echo "Site : https://asevegas.com/loto/"

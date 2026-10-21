@@ -26,19 +26,23 @@ const utcDay = (ms) => new Date(Number(ms)).toLocaleDateString('en-GB', { timeZo
 const utcWeekday = (ms) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date(Number(ms)).getUTCDay()];
 const plural = (n, one, many) => `${Number(n).toLocaleString('en-GB')} ${n === 1 ? one : many}`;
 const ase = (w, d) => L.fmtAse(BigInt(w), d ?? (BigInt(w) % L.WEI === 0n ? 0 : 2));
+// Lots : « 4 lucky lots of 100 ASE + 1 lot of 50 ASE » (lots pleins puis un dernier lot avec le reste)
+function lotsText(lots, lot) {
+  const L0 = BigInt(lot || 0), full = lots.filter((x) => BigInt(x) === L0).length, last = lots.find((x) => BigInt(x) !== L0);
+  return (full ? `${full} lucky ${full > 1 ? 'lots' : 'lot'} of ${ase(L0)} ASE` : '') + (last !== undefined ? `${full ? ' + ' : ''}1 lucky lot of ${ase(last)} ASE` : '');
+}
 const RANK = ['1st', '2nd', '3rd'];
 const rankName = new Proxy(RANK, { get: (a, k) => (k in a ? a[k] : 'lucky lot') });
 const split = (total) => { const T = BigInt(total), p1 = T / 2n, p2 = (T * 3n) / 10n; return [p1, p2, T - p1 - p2]; };
 // Airdrop v2 : jusqu'à maxLots lots (≤ 50 % de la cagnotte, ≤ chances − 3), le top 3 prend tout le reste.
 const isV2 = () => !!S.cfg && S.cfg.drawDays !== undefined;
 function prizesV2(total, chances, lot, maxLots) {
-  const T = BigInt(total), Lw = BigInt(lot || 0), nTop = Math.min(3, chances);
-  let n = Lw > 0n ? Number((T * 5000n) / 10000n / Lw) : 0;
-  n = Math.max(0, Math.min(n, Number(maxLots || 0), 300, chances - nTop));
-  const top = T - Lw * BigInt(n), p1 = top / 2n, p2 = (top * 3n) / 10n;
-  return [p1, p2, top - p1 - p2].slice(0, nTop).concat(Array(n).fill(Lw));
+  const T = BigInt(total);
+  const Lw = BigInt(lot || 0), nTop = Math.min(3, chances), lots = [];
+  if (Lw > 0n) { const cap = Math.max(0, Math.min(Number(maxLots || 0), 300, chances - nTop)); let b = (T * 5000n) / 10000n; let r = T; while (lots.length < cap && b >= Lw && r >= Lw * 6n) { lots.push(Lw); b -= Lw; r -= Lw; } const x = b < r / 6n ? b : r / 6n; if (lots.length < cap && x >= 10n ** 16n) lots.push(x); }   // un lot ≤ 3e prix
+  const top = lots.reduce((a, x) => a - x, T), p1 = top / 2n, p2 = (top * 3n) / 10n;
+  return [p1, p2, top - p1 - p2].slice(0, nTop).concat(lots);
 }
-const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const daysText = (mask) => { const d = DAYS.filter((_, k) => (mask >> k) & 1); return d.length === 7 ? 'every day' : d.length > 1 ? d.slice(0, -1).join(', ') + ' and ' + d.at(-1) : d[0]; };
 const myKs = (r) => (r.win || []).map((w, k) => (w.b === S.me ? k : -1)).filter((k) => k >= 0);
 const pct = (a, b) => (b ? (a * 100 / b).toLocaleString('en-GB', { maximumFractionDigits: a * 100 / b < 1 ? 2 : 1 }) : '0') + '%';
@@ -112,7 +116,7 @@ function renderHero() {
   const pr = v2 ? prizesV2(total, Math.max(nCh, 3 + Number(i.maxLots || 0)), i.lot, i.maxLots) : split(total);
   [0, 1, 2].forEach((k) => ($('#prize' + (k + 1)).textContent = ase(pr[k] || 0n) + ' ASE'));
   ['1st', '2nd', '3rd'].forEach((n, k) => { const e = $('#plabel' + (k + 1)); if (e) e.textContent = v2 ? n : `${n}, ${[50, 30, 20][k]}%`; });
-  const ll = $('#lotsLine'); if (ll) { ll.hidden = !v2; const n = pr.length - 3; if (v2) ll.textContent = n > 0 ? `+ ${n} lucky ${n > 1 ? 'lots' : 'lot'} of ${ase(i.lot)} ASE` : `+ lucky lots of ${ase(i.lot)} ASE as the pot grows`; }
+  const ll = $('#lotsLine'); if (ll) { ll.hidden = !v2; const n = pr.length - 3; if (v2) ll.textContent = n > 0 ? `+ ${lotsText(pr.slice(3), i.lot)}` : `+ lucky lots of ${ase(i.lot)} ASE as the pot grows`; }
   const cut = Number(i.drawTs) - CUTOFF_MS;
   $('#estNote').textContent = `Exact amount: it is already in the airdrop contract. Tickets count until ${utcWeekday(cut)} at ${utcTime(cut)} (when Raffle sales close).`;
   const pending = [...S.rounds.values()].find((r) => r.id < i.round && (r.status === 'closed' || r.status === 'listed'));
@@ -252,7 +256,7 @@ async function verify(id) {
     step(c1, 'Collaborator secret', `<code>${r.sC}</code><br>${c2}`);
     if (r.lot !== undefined) {   // v2 : top 3 + lots
       const pz = prizesV2(BigInt(r.pot) + BigInt(r.carryIn), r.tickets, r.lot, r.maxLots);
-      step(pz.length === r.prizes.length && pz.every((x, k) => x.toString() === r.prizes[k]), 'Prizes', `${pz.length > 3 ? pz.length - 3 + ' lucky lots of ' + ase(r.lot) + ' ASE (at most 50% of the pot), then ' : ''}the top 3 share the rest 50 / 30 / 20%: ${pz.slice(0, 3).map((x) => ase(x)).join(' / ')} ASE`);
+      step(pz.length === r.prizes.length && pz.every((x, k) => x.toString() === r.prizes[k]), 'Prizes', `${pz.length > 3 ? lotsText(pz.slice(3), r.lot) + ' (at most 50% of the pot), then ' : ''}the top 3 share the rest 50 / 30 / 20%: ${pz.slice(0, 3).map((x) => ase(x)).join(' / ')} ASE`);
       const w = drawWinnersV2(id, r.sO, r.sC, d, stored, pz.length);
       step(JSON.stringify(w) === JSON.stringify(r.win), 'Winners', w.slice(0, 3).map((x, k) => `${rankName[k]}: ${esc(L.shortAddr(x.b))}`).join(', ') + (w.length > 3 ? ` + ${w.length - 3} lucky lots` : ''));
     } else {

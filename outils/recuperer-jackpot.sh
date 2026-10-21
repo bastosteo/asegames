@@ -15,13 +15,18 @@ ase() { node -e "const s=BigInt(process.argv[1]).toString().padStart(19,'0');con
 L=$(cat .loto-v4-fait)
 C=$($AIDE cfg "$L"); I=$($AIDE info "$L")
 [ -n "$(get "$C" skimAt)" ] || { echo "ERREUR : ce Loto n'a pas la règle de prélèvement."; exit 1; }
-J=$(get "$I" jackpot)
+J0=$(get "$I" jackpot)
+# + 17 % des ventes du tirage de ce soir : sans gagnant à 5 bons, le report vaut toujours jackpot + 17,5 % des ventes
+# (85 % des ventes - au plus 67,5 % de gains) : on récupère donc presque tout, le contrat garde une petite marge.
+G=$(get "$I" grillesTourEnCours); PR=$(get "$C" price)
+J=$(node -e "const [j,g,p]=process.argv.slice(1).map(BigInt);console.log((j+g*p*17n/100n).toString())" "$J0" "${G:-0}" "$PR")
 echo "Loto actuel : $L"
-echo "Jackpot actuel : $(ase "$J") ASE   (règle actuelle : au-dessus de $(ase "$(get "$C" skimAt)"), $(ase "$(get "$C" skimAmt)") ASE)"
-[ "$J" = "0" ] && { echo "Jackpot vide : rien à récupérer."; exit 0; }
+echo "Jackpot reporté : $(ase "$J0") ASE ; grilles vendues ce soir : ${G:-0} → à récupérer : $(ase "$J") ASE (jackpot + 17 % des ventes du soir)"
+echo "Règle actuelle : (seuil : au-dessus de $(ase "$(get "$C" skimAt)"), $(ase "$(get "$C" skimAmt)") ASE)"
+[ "$J" = "0" ] && { echo "Rien à récupérer."; exit 0; }
 if [ "$(get "$C" skimAt)" = "$J" ] && [ "$(get "$C" skimAmt)" = "$J" ]; then echo "Règle déjà posée : $(ase "$J") ASE seront récupérés au tirage de ce soir."
 else
-  echo "Nouvelle règle : au-dessus de $(ase "$J") ASE de report, $(ase "$J") ASE vont dans ton wallet de commission."
+  echo "Nouvelle règle : au-dessus de $(ase "$J") ASE de report, $(ase "$J") ASE vont dans ton wallet de commission (si personne n'a les 5 bons numéros)."
   echo "(au tirage de ce soir, s'il y a au moins 1 grille vendue et personne à 5 bons)"
   read -r -p "⚠️  Envoyer setSkim [\"$J\",\"$J\"] sur le Loto depuis main ? (o/n) " r
   [[ "$r" =~ ^[oOyY] ]] || { echo "Rien n'a été envoyé."; exit 0; }

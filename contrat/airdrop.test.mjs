@@ -124,7 +124,7 @@ sec('Semaine complète : loto + tombola → airdrop');
   for (const c of chunks(wk.entries)) d = ref.airdropNextDigest(d, c);
   t('empreinte recalculable', r.digest === d);
   const pz = ref.airdropPrizesV2(wk.pot, r.tickets);
-  t('prix = référence (cagnotte de 3 ASE : pas de lot de 20, top 3 50/30/20)', JSON.stringify(r.prizes) === JSON.stringify(pz.map(String)) && pz.length === 3, JSON.stringify(r.prizes));
+  t('prix = référence (cagnotte de 3 ASE : top 3 + 1 petit lot avec le reste, pas plus que le 3e)', JSON.stringify(r.prizes) === JSON.stringify(pz.map(String)) && pz.length === 4 && pz[3] <= pz[2], JSON.stringify(r.prizes));
   const exp = ref.airdropWinnersV2(1, r.sO, r.sC, r.digest, wk.entries, pz.length);
   t('gagnants = référence indépendante', JSON.stringify(r.win) === JSON.stringify(exp), JSON.stringify([r.win, exp]));
   const gained = [P[0], P[1], P[2], P[3], P[4]].map((x, i) => w.chain.balanceOf(x) - before[i]);

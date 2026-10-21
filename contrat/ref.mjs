@@ -134,12 +134,15 @@ export function airdropPrizes(total) {
 
 // --------------------------- TOMBOLA v4 (3 tirages / semaine, lots) ---------------------------
 // Prix : jusqu'à maxLots lots (≤ 40 % de la cagnotte, ≤ tickets − 3), le top 3 prend tout le reste 50/30/20.
+// Top 3 (50/30/20 % du reste) + lots pleins puis un dernier lot avec le reste du budget des lots (≥ 0,01 ASE).
+function lotsRef(P, L, share, maxLots, tickets) {
+  const nTop = Math.min(3, tickets), cap = Math.max(0, Math.min(maxLots, tickets - nTop)), lots = [];
+  if (L > 0n) { let b = (P * share) / 10000n; let r = P; while (lots.length < cap && b >= L && r >= L * 6n) { lots.push(L); b -= L; r -= L; } const x = b < r / 6n ? b : r / 6n; if (lots.length < cap && x >= 10n ** 16n) lots.push(x); }   // un lot ≤ 3e prix
+  const top = lots.reduce((a, x) => a - x, P), p1 = top / 2n, p2 = (top * 3n) / 10n;
+  return [p1, p2, top - p1 - p2].slice(0, nTop).concat(lots);
+}
 export function rafflePrizesV4(pool, tickets, lot = 100n * 10n ** 18n, maxLots = 27) {
-  const P = BigInt(pool), L = BigInt(lot), nTop = Math.min(3, tickets);
-  let nLots = L > 0n ? Number((P * 4000n) / 10000n / L) : 0;
-  nLots = Math.min(nLots, maxLots, 200, tickets - nTop);
-  const top = P - L * BigInt(nLots), p1 = top / 2n, p2 = (top * 3n) / 10n;
-  const pr = [p1, p2, top - p1 - p2].slice(0, nTop).concat(Array(nLots).fill(L));
+  const P = BigInt(pool), pr = lotsRef(P, BigInt(lot), 4000n, Math.min(maxLots, 200), tickets);
   return { prizes: pr, carry: P - pr.reduce((a, x) => a + x, 0n) };
 }
 export function raffleTicketsV4(id, sO, sC, digest, total, n) {
@@ -154,11 +157,7 @@ export function raffleTicketsV4(id, sO, sC, digest, total, n) {
 
 // --------------------------- AIRDROP v2 (top 3 + lots) ---------------------------
 export function airdropPrizesV2(total, tickets, lot = 20n * 10n ** 18n, maxLots = 100) {
-  const T = BigInt(total), L = BigInt(lot), nTop = Math.min(3, tickets);
-  let n = L > 0n ? Number((T * 5000n) / 10000n / L) : 0;
-  n = Math.min(n, maxLots, 300, tickets - nTop);
-  const top = T - L * BigInt(n), p1 = top / 2n, p2 = (top * 3n) / 10n;
-  return [p1, p2, top - p1 - p2].slice(0, nTop).concat(Array(n).fill(L));
+  return lotsRef(BigInt(total), BigInt(lot), 5000n, Math.min(maxLots, 300), tickets);
 }
 // entries : [[adresse, tickets], …] dans l'ordre ; renvoie [{ b, t }] (chances différentes)
 export function airdropWinnersV2(id, sO, sC, digest, entries, n) {

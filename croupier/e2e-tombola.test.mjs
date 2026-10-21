@@ -55,7 +55,7 @@ const q1 = await once(envO);
 t('passage owner : fermeture + secret owner', q1.code === 0 && !!C.view('getRound', [2]).sO, q1.out.slice(-300));
 const q2 = await once(envC);
 const r = C.view('getRound', [2]);
-t('passage collab : 3 gagnants tirés', q2.code === 0 && r.status === 'done' && r.win.length === 3, q2.out.slice(-300));
+t('passage collab : gagnants tirés (top 3 + petit lot)', q2.code === 0 && r.status === 'done' && r.win.length === r.prizes.length && r.win.length >= 3, q2.out.slice(-300));
 const all = C.view('getPurchases', [2, 0, 400]);
 t('tickets gagnants = référence indépendante', JSON.stringify(r.win) === JSON.stringify(ref.raffleTicketsV4(2, r.sO, r.sC, r.digest, r.tickets, r.prizes.length)));
 { const C1 = BigInt(w1.commission) + BigInt(r.commission), D = BigInt(w1.airdrop) + BigInt(r.airdrop);

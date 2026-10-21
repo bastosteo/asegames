@@ -74,7 +74,7 @@ t('cagnotte = frais de la semaine (sans le loto du lundi)', BigInt(r1.pot) === (
 const bal = players.map((p) => mock.chain.balanceOf(p));
 const q2 = await once(envC);
 const r = A.view('getRound', [1]);
-t('passage collab : 3 gagnants, prix envoyés', q2.code === 0 && r.status === 'done' && r.win.length === 3, q2.out.slice(-300));
+t('passage collab : gagnants (top 3 + petit lot), prix envoyés', q2.code === 0 && r.status === 'done' && r.win.length === r.prizes.length && r.win.length >= 3, q2.out.slice(-300));
 t('gagnants = référence indépendante', JSON.stringify(r.win) === JSON.stringify(ref.airdropWinnersV2(1, r.sO, r.sC, r.digest, A.view('getEntries', [1, 0]), r.prizes.length)));
 { const due = new Map(); r.win.forEach((w, k) => due.set(w.b, (due.get(w.b) || 0n) + BigInt(r.prizes[k])));
   t('chaque gagnant a reçu ses prix', [...due].every(([b, v]) => mock.chain.balanceOf(b) - bal[players.indexOf(b)] === v) && r.paid === r.win.length); }

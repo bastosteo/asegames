@@ -27,6 +27,11 @@ const utcDay = (ms) => new Date(Number(ms)).toLocaleDateString('en-GB', { timeZo
 const utcWeekday = (ms) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date(Number(ms)).getUTCDay()];
 const plural = (n, one, many) => `${Number(n).toLocaleString('en-GB')} ${n === 1 ? one : many}`;
 const ase = (w, d) => L.fmtAse(BigInt(w), d ?? (BigInt(w) % L.WEI === 0n ? 0 : 2));
+// Lots : « 4 lucky lots of 100 ASE + 1 lot of 50 ASE » (lots pleins puis un dernier lot avec le reste)
+function lotsText(lots, lot) {
+  const L0 = BigInt(lot || 0), full = lots.filter((x) => BigInt(x) === L0).length, last = lots.find((x) => BigInt(x) !== L0);
+  return (full ? `${full} lucky ${full > 1 ? 'lots' : 'lot'} of ${ase(L0)} ASE` : '') + (last !== undefined ? `${full ? ' + ' : ''}1 lucky lot of ${ase(last)} ASE` : '');
+}
 const tno = (t) => '#' + String(t + 1).padStart(4, '0');
 const RANK = ['1st', '2nd', '3rd'];
 const rankName = (k) => RANK[k] || 'lucky lot';
@@ -36,11 +41,11 @@ const isV4 = () => !!S.cfg && S.cfg.drawDays !== undefined;
 const prizesOfPool = (pool, winners = 3) => { const P = BigInt(pool), p1 = P / 2n, p2 = (P * 3n) / 10n; return [p1, p2, P - p1 - p2].map((x, k) => (k < winners ? x : 0n)); };
 // v4 : jusqu'à maxLots lots (≤ 40 % de la cagnotte, ≤ tickets − 3), le top 3 prend tout le reste 50/30/20.
 function prizesV4(pool, tickets, lot, maxLots) {
-  const P = BigInt(pool), Lw = BigInt(lot || 0), nTop = Math.min(3, tickets);
-  let n = Lw > 0n ? Number((P * 4000n) / 10000n / Lw) : 0;
-  n = Math.max(0, Math.min(n, maxLots, 200, tickets - nTop));
-  const top = P - Lw * BigInt(n), p1 = top / 2n, p2 = (top * 3n) / 10n;
-  return [p1, p2, top - p1 - p2].slice(0, nTop).concat(Array(n).fill(Lw));
+  const P = BigInt(pool);
+  const Lw = BigInt(lot || 0), nTop = Math.min(3, tickets), lots = [];
+  if (Lw > 0n) { const cap = Math.max(0, Math.min(Number(maxLots || 0), 200, tickets - nTop)); let b = (P * 4000n) / 10000n; let r = P; while (lots.length < cap && b >= Lw && r >= Lw * 6n) { lots.push(Lw); b -= Lw; r -= Lw; } const x = b < r / 6n ? b : r / 6n; if (lots.length < cap && x >= 10n ** 16n) lots.push(x); }   // un lot ≤ 3e prix
+  const top = lots.reduce((a, x) => a - x, P), p1 = top / 2n, p2 = (top * 3n) / 10n;
+  return [p1, p2, top - p1 - p2].slice(0, nTop).concat(lots);
 }
 // Gagnants d'une tombola tirée : [{ t, i, b }] (v4 : retrouvés depuis les achats).
 function winsOf(r) {
@@ -114,7 +119,7 @@ function renderHero() {
   ['1st', '2nd', '3rd'].forEach((n, k) => ($('#plabel' + (k + 1)).textContent = v4 ? n : `${n} · ${[50, 30, 20][k]}%`));
   const lots = pr.length - 3;
   $('#lotsLine').hidden = !v4;
-  if (v4) $('#lotsLine').textContent = lots > 0 ? `+ ${lots} lucky ${lots > 1 ? 'lots' : 'lot'} of ${ase(i.lot)} ASE` : `+ lucky lots of ${ase(i.lot)} ASE as the pot grows`;
+  if (v4) $('#lotsLine').textContent = lots > 0 ? `+ ${lotsText(pr.slice(3), i.lot)}` : `+ lucky lots of ${ase(i.lot)} ASE as the pot grows`;
   $('#drawWhen').textContent = `Raffle #${i.round}, draw ${utcDay(i.drawTs)} at ${utcTime(i.drawTs)}`;
   const carry = BigInt(i.carryIn || '0');
   $('#rolled').hidden = carry <= 0n;
@@ -377,7 +382,7 @@ async function verify(id) {
     step(c1, 'Collaborator secret', `<code>${r.sC}</code><br>${c2}`);
     if (typeof r.win[0] === 'number') {   // v4
       const pz = prizesV4(poolOf(r), r.tickets, r.lot, r.maxLots);
-      step(pz.length === r.prizes.length && pz.every((x, k) => x.toString() === r.prizes[k]), 'Prizes', `${pz.length - 3 > 0 ? pz.length - 3 + ' lucky lots of ' + ase(r.lot) + ' ASE (at most 40% of the pot), then ' : ''}the top 3 share the rest 50 / 30 / 20%: ${pz.slice(0, 3).map((x) => ase(x)).join(' / ')} ASE`);
+      step(pz.length === r.prizes.length && pz.every((x, k) => x.toString() === r.prizes[k]), 'Prizes', `${pz.length - 3 > 0 ? lotsText(pz.slice(3), r.lot) + ' (at most 40% of the pot), then ' : ''}the top 3 share the rest 50 / 30 / 20%: ${pz.slice(0, 3).map((x) => ase(x)).join(' / ')} ASE`);
       const tk = drawTicketsV4(id, r.sO, r.sC, d, r.tickets, r.prizes.length);
       step(JSON.stringify(tk) === JSON.stringify(r.win), 'Winning tickets', tk.slice(0, 3).map((x, k) => `${rankName(k)}: ${tno(x)}`).join(', ') + (tk.length > 3 ? `, lots: ${tk.slice(3).map(tno).join(' ')}` : ''));
     } else {

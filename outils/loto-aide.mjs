@@ -19,6 +19,7 @@ async function view(contract, method, args = []) {
 }
 if (cmd === 'hex') console.log(toHex(a));
 else if (cmd === 'cfg') console.log(JSON.stringify((await view(a, 'getConfig')).returnValue));
+else if (cmd === 'etat') console.log(JSON.stringify((await view(a, 'getState')).returnValue));
 else if (cmd === 'info') {
   const c = (await view(a, 'getConfig')).returnValue, s = (await view(a, 'getState')).returnValue;
   const r = (await view(a, 'getRound', [s.cur])).returnValue;
