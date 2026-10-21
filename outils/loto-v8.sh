@@ -140,8 +140,8 @@ if [ -s remboursements-loto.txt ]; then
     if grep -qx "loto:$ADDR" remboursements-faits.txt; then echo "      $ADDR : déjà remboursé."; continue; fi
     echo "      $ADDR ← $AMT ASE  ($DETAIL)"
     if oui "      ⚠️  Envoyer $AMT ASE depuis main à $ADDR ?"; then
-      asentum send --from main --to "$ADDR" --amount "$AMT"
-      echo "loto:$ADDR" >> remboursements-faits.txt; sleep 3
+      for essai in 1 2 3; do asentum send --from main --to "$ADDR" --amount "$AMT" && break; [ $essai = 3 ] && exit 1; echo "      (nouvel essai dans 15 s…)"; sleep 15; done
+      echo "loto:$ADDR" >> remboursements-faits.txt; echo "      (attente du bloc suivant…)"; sleep 15
     else echo "      Pas envoyé (relance ce fichier pour le proposer à nouveau)."; fi
   done 3< remboursements-loto.txt
 else echo "      Personne à rembourser."; fi
