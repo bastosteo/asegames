@@ -43,6 +43,9 @@ deployer() {
 }
 
 OA=$(cat .test-airdrop); OR=$(cat .test-raffle); L=$(cat .test-loto); G=$(cat .test-tresor)
+# Marqueurs périmés (adresse égale à la Raffle / l'Airdrop de test actuels, ou ancienne version) : on repart de zéro
+if [ ! -f .test-lots-v2 ]; then rm -f .test-lots-fini .test-lots-raffle .test-lots-airdrop .test-lots-raffle-contrat .test-lots-airdrop-contrat; touch .test-lots-v2; fi
+for m in .test-lots-raffle .test-lots-airdrop; do [ -f "$m" ] && { [ "$(cat "$m")" = "$OR" ] || [ "$(cat "$m")" = "$OA" ]; } && rm -f "$m" .test-lots-fini; done
 # Déjà fait seulement si le marqueur contient l'adresse de la Raffle de test actuelle (sinon : marqueur périmé, on l'ignore)
 if [ -s .test-lots-fini ] && [ "$(cat .test-lots-fini)" = "$OR" ]; then echo "Déjà fait : Raffle de test $OR, Airdrop de test $OA."; echo "Site de test : https://asevegas-test.pages.dev"; exit 0; fi
 rm -f .test-lots-fini
