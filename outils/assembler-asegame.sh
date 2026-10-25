@@ -27,6 +27,8 @@ rm -f asegame/loto/js/lotomath.test.mjs
 [ -f .loto-v4-fait ] && sed -i "s|CONTRACT: '[^']*'|CONTRACT: '$(cat .loto-v4-fait)'|" asegame/loto/js/config.js
 [ -f .tombola-v3-fait ] && sed -i "s|CONTRACT: '[^']*'|CONTRACT: '$(cat .tombola-v3-fait)'|" asegame/raffle/js/config.js
 [ -f .tresor-v2-fait ] && sed -i "s|CONTRACT: '[^']*'|CONTRACT: '$(cat .tresor-v2-fait)'|" asegame/treasure/js/config.js
+# Trésor v3 (liste de wallets bannis)
+[ -f .tresor-v3-fait ] && sed -i "s|CONTRACT: '[^']*'|CONTRACT: '$(cat .tresor-v3-fait)'|" asegame/treasure/js/config.js
 [ -f .loto-ancien ] && sed -i "s|OLD: '[^']*'|OLD: '$(cat .loto-ancien)'|" asegame/loto/js/config.js
 [ -f .raffle-ancienne ] && sed -i "s|OLD: '[^']*'|OLD: '$(cat .raffle-ancienne)'|" asegame/raffle/js/config.js
 [ -f .old-loto ] && sed -i "s|OLD_LOTO: '[^']*'|OLD_LOTO: '$(cat .old-loto)'|" asegame/airdrop/js/config.js

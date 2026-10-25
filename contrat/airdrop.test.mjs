@@ -281,6 +281,13 @@ sec('ASE Treasure : 1 fouille = 1 chance (grille trouvée dans la semaine)');
   const wk = await buildWeek({ view, treasure: T.address, fromTs: 0, toTs: w.round(1).drawTs, now: Number(w.chain.timestampMs) });
   t('liste : toutes les fouilles de la semaine', wk.ready && JSON.stringify(wk.entries) === JSON.stringify([[P[0], 2], [P[1], 1], [P[2], 1], [P[3], 1]]), JSON.stringify(wk.entries));
   t('cagnotte = part Airdrop reçue (6 % de 5 fouilles)', wk.pot === (5n * share).toString() && BigInt(wk.pot) === w.chain.balanceOf(w.a.address) && wk.pot === T.view('getGrid', [1]).airdrop);
+  // Bannissement : un wallet banni avant l'heure du tirage est retiré de la liste, la cagnotte ne change pas.
+  t('ban : l\'admin bannit P[0]', T.call(ADMIN, 'setBan', [[P[0]], true]).success);
+  const wb = await buildWeek({ view, treasure: T.address, fromTs: 0, toTs: Number(w.chain.timestampMs) + 1, now: Number(w.chain.timestampMs) + 2 });
+  t('ban : P[0] retiré, les autres gardent leurs chances', !wb.entries.some(([a]) => a === P[0]) && wb.entries.some(([a]) => a === P[1]) && JSON.stringify(wb.excluded) === JSON.stringify([P[0]]), JSON.stringify(wb));
+  t('ban : cagnotte inchangée (revient aux autres)', wb.pot === wk.pot);
+  const old = await buildWeek({ view, treasure: T.address, fromTs: 0, toTs: w.round(1).drawTs, now: Number(w.chain.timestampMs) });
+  t('ban : un tirage antérieur au ban garde sa liste (vérifiable)', JSON.stringify(old.entries) === JSON.stringify(wk.entries) && old.excluded.length === 0, JSON.stringify(old));
 }
 
 sec('Jours de tirage réglables et lots');

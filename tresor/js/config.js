@@ -3,7 +3,7 @@
 // =====================================================================
 export default {
   // Adresse du contrat ASE Treasure. Vide → MODE DÉMO (ou ?demo dans l'adresse).
-  CONTRACT: '',
+  CONTRACT: 'ase1syq98uqqphcjhggep78a54hpetkw9mtkxf4zw3',
   RPC: ['https://testnet.asentum.com', 'https://explorer.asentum.com/rpc'],
   EXPLORER: 'https://explorer.asentum.com',
   TELEGRAM_API: 'https://wallet.asentum.com',

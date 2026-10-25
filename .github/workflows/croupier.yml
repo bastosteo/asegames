@@ -88,6 +88,24 @@ jobs:
           SIGNER_SEED: ${{ secrets.OWNER_SIGNER_SEED }}
           TREASURE_SEED: ${{ secrets.TREASURE_SEED }}
         run: node croupier/croupier.mjs once
+      # ---- Sentinelle ASE Treasure : repère les nouveaux wallets des tricheurs, alerte Telegram (ne bannit rien) ----
+      # Sa mémoire (alertes déjà envoyées) est gardée d'un passage à l'autre dans le cache GitHub.
+      - name: Sentinelle (mémoire)
+        if: ${{ !cancelled() && vars.TREASURE_CONTRACT != '' }}
+        uses: actions/cache@v4
+        with:
+          path: croupier/data-sentinelle
+          key: sentinelle-${{ github.run_id }}
+          restore-keys: sentinelle-
+      - name: Sentinelle
+        if: ${{ !cancelled() && vars.TREASURE_CONTRACT != '' }}
+        continue-on-error: true
+        env:
+          CONTRACT: ${{ vars.TREASURE_CONTRACT }}
+          OLD_TREASURE: ${{ vars.OLD_TREASURE }}
+          SENTINELLE_ADRESSES: ${{ vars.SENTINELLE_ADRESSES }}
+          DATA_DIR: croupier/data-sentinelle
+        run: node croupier/sentinelle.mjs once
       # ---- ASE Airdrop (tirage hebdomadaire des frais), une fois installé (variable AIRDROP_CONTRACT) ----
       - name: Airdrop owner (liste + secret owner)
         if: ${{ !cancelled() && vars.AIRDROP_CONTRACT != '' }}

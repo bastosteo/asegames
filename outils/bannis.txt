@@ -1,0 +1,8 @@
+# Wallets bannis d'ASE Vegas à l'installation du trésor v3 (une adresse par ligne).
+# Ensuite : onglet Admin du trésor sur le site, avec le wallet admin.
+# Scarofsky #84 et les 4 wallets de son bot (enquête du 25/10/2026).
+ase1qp9cmkk06mtjjezqsrhrqqslz3evea5hahmlgv
+ase1rq5erp345fdh88nack6hq99tqv084u2nmxa6v7
+ase1405ujf62lhcwu5686dky400y846uja4lvw6fhq
+ase1dl5f3x54ulfm2c00ghltduh956wa3nh8gfjgaa
+ase1rdrc9lkqa24g3fde54w35rfpsz4e4vw7v94zmz

@@ -50,7 +50,38 @@ async function restore() {
     } else if (s && s.kind === 'telegram') { const w = new TelegramWallet(LOTO.TELEGRAM_API, 'ASE Vegas'); if (await w.restore(s.session)) V.wallet = w; }
   } catch {}
   renderWalletBtn();
+  await checkBan();
   await loadWins();
+}
+
+// ------------------------------------------------------------- wallets bannis
+// La liste des bannis vit dans le contrat ASE Treasure (setBan, admin). Un wallet
+// banni là est bloqué sur tout ASE Vegas : écran plein qui empêche de jouer, sur
+// chaque page (ce module est chargé partout). Il est aussi retiré des tirages
+// ASE Airdrop (airdrop/js/liste.mjs).
+let banOf = '';
+async function checkBan() {
+  const me = V.wallet && V.wallet.address;
+  let banned = false;
+  if (me && TREASURE.CONTRACT) {
+    try { banned = (await rpc.view(TREASURE.CONTRACT, 'isBanned', [me])) === true; } catch {}   // ancien contrat sans liste : personne n'est banni
+  }
+  const box = $('#asevegas-ban');
+  if (!banned) { if (box) box.remove(); banOf = ''; return; }
+  if (box && banOf === me) return;
+  banOf = me;
+  if (box) box.remove();
+  const el = document.createElement('div');
+  el.id = 'asevegas-ban';
+  el.setAttribute('role', 'alertdialog');
+  el.setAttribute('aria-modal', 'true');
+  el.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:16px;background:rgba(0,0,0,.92);color:#fff;font-family:var(--body,system-ui);text-align:center';
+  el.innerHTML = `<div style="max-width:440px"><h2 style="font-family:var(--display,system-ui);margin:0 0 12px">Wallet banned</h2>
+    <p style="margin:0 0 8px">${esc(L.toAse1(me))}</p>
+    <p style="margin:0 0 20px;color:#bbb">This wallet has been banned from ASE Vegas for breaking the game rules. It can no longer play, and it is excluded from the ASE Airdrop draws.</p>
+    <button type="button" id="asevegas-ban-out" style="padding:10px 18px;border:1px solid #555;background:none;color:#fff;cursor:pointer">Disconnect this wallet</button></div>`;
+  document.body.append(el);
+  el.querySelector('#asevegas-ban-out').onclick = () => { store.del('loto.wallet'); location.reload(); };
 }
 
 // ------------------------------------------------------------- gains à réclamer
@@ -241,6 +272,7 @@ export function startVegas({ walletButton = false } = {}) {
   // Le wallet a changé sur cette page ou un autre onglet : on relit
   setInterval(restore, 3000);
   setInterval(loadWins, 60000);
+  setInterval(checkBan, 60000);   // banni pendant qu'il joue : bloqué dans la minute
   document.addEventListener('asevegas:refresh-wins', loadWins);
 }
 export const myWins = () => ({ wins: V.wins, total: total(), wallet: V.wallet });
