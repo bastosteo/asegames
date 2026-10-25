@@ -21,7 +21,7 @@ when() { node -e "console.log(new Date(Number(process.argv[1])).toLocaleString('
 npm install --prefix croupier --no-audit --no-fund --silent
 for f in .tombola-v3-fait .airdrop-fait; do [ -f "$f" ] || { echo "ERREUR : fichier $f introuvable."; exit 1; }; done
 command -v gh >/dev/null && gh auth status >/dev/null 2>&1 || { echo "ERREUR : GitHub non connecté (lance Installer-croupiers-GitHub.bat)."; exit 1; }
-grep -q drawDays contrat/tombola.deploy.js || { echo "ERREUR : contrat/tombola.deploy.js n'est pas la tombola v4 (ancien zip ?). Rien n'a été envoyé."; exit 1; }
+grep -q drawDays contrat/tombola.deploy.js && grep -q '\*6n' contrat/tombola.deploy.js || { echo "ERREUR : contrat/tombola.deploy.js n'est pas la tombola v4 (ancien zip ?). Rien n'a été envoyé."; exit 1; }
 R="$(gh api user --jq .login)/asegames"
 [ -f .v7-ancienne-raffle ] || cp .tombola-v3-fait .v7-ancienne-raffle
 OR=$(cat .v7-ancienne-raffle)
@@ -30,7 +30,8 @@ if [ -n "$(get "$($AIDE cfg "$(cat .tombola-v3-fait)")" drawDays)" ]; then echo 
 
 echo "[1/4] Vérification puis pause de l'ancienne tombola…"
 OC=$($AIDE cfg "$OR"); T=$($AIDE tombola "$OR")
-if [ "$(get "$OC" paused)" != "true" ]; then
+# Toujours vérifier que le tirage de dimanche est fait (même si l'ancienne tombola est déjà en pause)
+if [ ! -f .v7-raffle ] && [ ! -f .v7-raffle-contrat ]; then
   V=$($RB verifier - "$OR" -)
   if [ "$V" != "OK" ]; then echo "      ⏳ ${V#ATTENTE	}. Rien n'a été envoyé : relance ce fichier après le tirage."; exit 3; fi
   NOW=$(get "$T" now); LAST=$(get "$T" lastDone)   # heure de la chaîne
@@ -39,6 +40,8 @@ if [ "$(get "$OC" paused)" != "true" ]; then
     echo "      Lance ce fichier dimanche soir JUSTE APRÈS le tirage (sinon il faudrait rembourser toute la tombola). Rien n'a été envoyé."
     exit 3
   fi
+fi
+if [ "$(get "$OC" paused)" != "true" ]; then
   oui "      ⚠️  Envoyer setPaused [true] sur l'ancienne tombola depuis main ?" || { echo "      Arrêt demandé : rien n'a été envoyé."; exit 1; }
   asentum call "$OR" setPaused --from main --args '[true]'
   echo -n "      Attente de la confirmation… "; $AIDE attendre "$OR" pause
@@ -77,6 +80,16 @@ else
   echo -n "      Attente de la confirmation…"
   for i in $(seq 1 36); do sleep 5; [ "$(get "$($AIDE cfg "$N")" closeMin)" = "$(get "$OC" closeMin)" ] && { echo " ok"; break; }; echo -n "."; done
 fi
+# Nouvelle tombola en pause tant que Milkie n'a pas mis à jour la quête (bouton « Resume » du panneau Admin ensuite)
+if [ ! -f .v7-raffle-pause-fait ]; then
+  if [ "$(get "$($AIDE cfg "$N")" paused)" != "true" ]; then
+    if oui "      ⚠️  Mettre la nouvelle tombola en pause (setPaused [true]) en attendant la mise à jour de Milkie ?"; then
+      asentum call "$N" setPaused --from main --args '[true]'
+      echo -n "      Attente de la confirmation… "; $AIDE attendre "$N" pause
+    fi
+  fi
+  touch .v7-raffle-pause-fait
+fi
 T=$($AIDE tombola "$N")
 echo "      Nouvelle tombola : 1er tirage $(when "$(get "$T" drawTs)"), top 3 + jusqu'à 27 lots de 100 ASE."
 
@@ -101,12 +114,13 @@ if [ -s remboursements-raffle-v4.txt ]; then
     if grep -qx "raffle4:$ADDR" remboursements-faits.txt; then echo "      $ADDR : déjà remboursé."; continue; fi
     echo "      $ADDR ← $AMT ASE  ($DETAIL)"
     if oui "      ⚠️  Envoyer $AMT ASE depuis main à $ADDR ?"; then
-      asentum send --from main --to "$ADDR" --amount "$AMT"
-      echo "raffle4:$ADDR" >> remboursements-faits.txt; sleep 3
+      for essai in 1 2 3; do asentum send --from main --to "$ADDR" --amount "$AMT" && break; [ $essai = 3 ] && exit 1; echo "      (nouvel essai dans 15 s…)"; sleep 15; done
+      echo "raffle4:$ADDR" >> remboursements-faits.txt; echo "      (attente du bloc suivant…)"; sleep 15
     else echo "      Pas envoyé (relance ce fichier pour le proposer à nouveau)."; fi
   done 3< remboursements-raffle-v4.txt
 else echo "      Personne à rembourser."; fi
 echo
 echo "Nouvelle tombola : $N"
-echo "⚠️  Envoie cette adresse à Asentum (ticket support) pour que les quêtes « Raffle » pointent dessus."
+echo "⏸️  La nouvelle tombola est EN PAUSE : envoie son adresse ($N) à Milkie."
+echo "   Quand Milkie a mis la quête à jour : asevegas.com/raffle/ → panneau Admin → « Resume »."
 echo "Site : https://asevegas.com/raffle/"
