@@ -1,9 +1,10 @@
 // =====================================================================
-//  RÉGLAGES — Hippodrome ASE Vegas (rempli par le script de déploiement)
+//  RÉGLAGES — Hippodrome ASE Vegas v3 (rempli par le script de déploiement)
 // =====================================================================
 export default {
-  // Adresse du contrat Hippodrome. Vide → MODE DÉMO (ou ?demo dans l'adresse).
-  CONTRACT: '',
+  // Contrats v3 : ÉCURIE (chevaux des joueurs) et PARIS (paris des spectateurs). Vides → MODE DÉMO.
+  ECURIE: '',
+  PARIS: '',
   RPC: ['https://testnet.asentum.com', 'https://explorer.asentum.com/rpc'],
   EXPLORER: 'https://explorer.asentum.com',
   TELEGRAM_API: 'https://wallet.asentum.com',

@@ -109,3 +109,58 @@ export function racePlan(rand, order, fell) {
   if (fell >= 0) T[fell] = 21 + next();
   return { T, shape, fallAt };
 }
+
+// =====================================================================
+//  v3 : chevaux des joueurs (contrat Écurie). Les chevaux de la maison ont
+//  les n° 1 000 000 + k (k = rang dans HORSES ci-dessus).
+// =====================================================================
+export const HOUSE0 = 1000000;
+export const CLASSES = ['Outsider', 'Hopeful', 'Standard', 'Challenger', 'Challenger+', 'Elite'];
+export const isHouse = (id) => Number(id) >= HOUSE0;
+const PALETTE = ['#4dd8ff', '#7dffb0', '#ff9f5a', '#ffc94d', '#ff5d73', '#8f8fff', '#c77dff', '#ff7ac8', '#4dffd2', '#f2f2f2', '#ff4d4d', '#7a9cff', '#b8ff4d', '#4da6ff', '#ffd24d', '#ff8f4d', '#9dff8f', '#d0b3ff'];
+export const colorOf = (id) => isHouse(id) ? HORSES[Number(id) - HOUSE0][2] : PALETTE[(Number(id) * 7) % PALETTE.length];
+export const prefOf3 = (id) => isHouse(id) ? prefOf(Number(id) - HOUSE0) : Number(id) % 4;
+
+// État d'un cheval de joueur à un instant donné (ms). cfg = réglages du contrat Écurie.
+export function horseState(h, cfg, nowMs, raceAtMs = nowMs) {
+  const win = Number(cfg.feedWin), fd = (h.fd || []).map(Number), tr = (h.tr || []).map(Number);
+  const lastFed = Math.max(Number(h.b), ...fd);
+  return {
+    hungry: nowMs - lastFed > win,
+    bloated: fd.filter((t) => t > nowMs - win).length >= Number(cfg.bloatAt),
+    trained: tr.length > 0,
+    over: tr.filter((t) => t + win > raceAtMs).length >= Number(cfg.overTrain),
+    injured: Number(h.inj) > nowMs, injUntil: Number(h.inj),
+    fedIn: lastFed + win - nowMs,                    // ms avant d'avoir faim (négatif : a faim)
+  };
+}
+// Poids (chance relative, ‰) d'un partant
+export function weight3(h, cfg, terrain, nowMs, raceAtMs) {
+  if (isHouse(h.id)) return Number(cfg.houseW) + (prefOf3(h.id) === terrain ? Number(cfg.terrB) : 0);
+  const s = horseState(h, cfg, nowMs, raceAtMs);
+  const w = Number(cfg.clsW[h.c]) + (s.trained ? Number(cfg.trainB) : 0) - (s.hungry ? Number(cfg.hunger) : 0)
+    - (s.bloated ? Number(cfg.bloat) : 0) + (prefOf3(h.id) === terrain ? Number(cfg.terrB) : 0);
+  return Math.max(60, w);
+}
+// Note sur 10 affichée (190 ‰ → 9,0 ; 150 → 5,0)
+export const noteOf = (w) => Math.max(0, Math.min(10, (w - 100) / 10));
+export function fall3(h, cfg, terrain, nowMs, raceAtMs) {
+  let f = Number(cfg.fallPpm) * (prefOf3(h.id) === terrain ? 0.6 : 1.4);
+  if (!isHouse(h.id) && horseState(h, cfg, nowMs, raceAtMs).over) f += Number(cfg.overFall);
+  return Math.min(50000, Math.round(f));
+}
+// Partants de la course (croupier) : les inscrits + des chevaux de la maison, couloirs mélangés.
+// entries : chevaux des joueurs (objets du contrat). rand() → [0, 1[
+export function makeSetup3(entries, cfg, rand, nowMs, raceAtMs) {
+  const terrain = Math.floor(rand() * 4);
+  const runners = entries.map((h) => ({ ...h, id: String(h.id) }));
+  const pool = HORSES.map((_, k) => k);
+  while (runners.length < 6) runners.push({ id: String(HOUSE0 + pool.splice(Math.floor(rand() * pool.length), 1)[0]) });
+  for (let i = 5; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [runners[i], runners[j]] = [runners[j], runners[i]]; }
+  return {
+    horses: runners.map((h) => Number(h.id)), terrain,
+    w: runners.map((h) => weight3(h, cfg, terrain, nowMs, raceAtMs)),
+    f: runners.map((h) => fall3(h, cfg, terrain, nowMs, raceAtMs)),
+  };
+}
+export const RACE_HOUR = 19;

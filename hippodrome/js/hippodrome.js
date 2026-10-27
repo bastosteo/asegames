@@ -9,7 +9,7 @@ import { GLTFLoader } from '../vendor/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from '../vendor/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from '../vendor/jsm/RoomEnvironment.js';
 import CONFIG from './config.js';
-import { HORSES, JOCKEYS, TERRAINS, TERRAIN_ICONS, statsOf, scoreOf, racePlan, prefOf } from './stable.mjs';
+import { HORSES, JOCKEYS, TERRAINS, TERRAIN_ICONS, statsOf, racePlan, HOUSE0, CLASSES, isHouse, colorOf, prefOf3, horseState, noteOf } from './stable.mjs';
 import { Rpc, ExtensionWallet, TelegramWallet } from '../../loto/js/chain.js';
 import * as L from '../../loto/js/lotomath.js';
 import { startVegas } from '../../vegas.js';
@@ -503,13 +503,32 @@ function drawMap(live) {
 
 // ───────── Données de la chaîne ─────────
 const S = { rpc: null, contract: '', demo: false, wallet: null, savedWallet: null, balance: null, cfg: null, info: null, fetchedAt: 0,
-  cur: null, hist: new Map(), runners: [], view: 'paddock', type: 'W', picks: [], busy: false, myBets: [], played: new Set(), replay: null };
+  cur: null, hist: new Map(), E: null, hcache: new Map(), mine: [], eprize: new Map(), runners: [], view: 'paddock', type: 'W', picks: [], busy: false, myBets: [], played: new Set(), replay: null };
 const chainNow = () => (S.info ? Number(S.info.now) + (Date.now() - S.fetchedAt) : Date.now());
 const winFrac = () => 1 - Number(S.cfg?.commissionBps ?? 1500) / 10000;
 const parisTime = (ms) => new Date(Number(ms)).toLocaleTimeString('en-GB', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' });
 const parisDay = (ms) => new Date(Number(ms)).toLocaleDateString('en-GB', { timeZone: 'Europe/Paris', weekday: 'short', day: 'numeric', month: 'short' });
 const mmss = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(s / 3600); return (h ? h + 'h ' : '') + String(Math.floor(s / 60) % 60).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
 async function view(method, args = []) { const v = await S.rpc.view(S.contract, method, args); return typeof v === 'string' ? JSON.parse(v) : v; }
+async function eview(method, args = []) { const v = await S.rpc.view(CONFIG.ECURIE || 'ECURIE', method, args); return typeof v === 'string' ? JSON.parse(v) : v; }
+// v3 : un partant est un cheval de joueur (contrat Écurie) ou de la maison (n° ≥ 1 000 000)
+const SILKS = ['losanges', 'rayures', 'étoile', 'éclair', 'chevrons', 'damier', 'cercles', 'flèche', 'bandes', 'croix', 'pois', 'triangles'];
+const isMe = (o) => !!(S.wallet && o && S.wallet.address.toLowerCase() === String(o).toLowerCase());
+const ownerName = (o) => isMe(o) ? 'You' : L.shortAddr(o);
+function hinfo(id) {
+  id = Number(id);
+  if (isHouse(id)) { const k = id - HOUSE0, X = HORSES[k] || HORSES[0]; return { name: X[0], stable: X[1] + ' (house)', color: X[2], silk: X[3], jockey: JOCKEYS[k % 18], coat: COATS[k % 6], house: true }; }
+  const h = S.hcache.get(id);
+  return { name: h ? h.n : 'Horse #' + id, stable: h ? ownerName(h.o) : 'Owner', owner: h?.o, color: colorOf(id), silk: SILKS[id % 12], jockey: JOCKEYS[(id * 5) % 18], coat: COATS[id % 6], house: false, h, cls: h ? CLASSES[h.c] : '' };
+}
+// chevaux des joueurs (fiche lue sur l'Écurie). fresh : à relire même si déjà connus
+async function loadHorses(ids, fresh = new Set()) {
+  for (const id of ids) {
+    const n = Number(id);
+    if (isHouse(n) || (S.hcache.has(n) && !fresh.has(n))) continue;
+    try { const h = await eview('horse', [String(n)]); if (h) S.hcache.set(n, h); } catch {}
+  }
+}
 
 // Courses passées (mémorisées : une course terminée ne change plus)
 async function history(curId) {
@@ -528,9 +547,11 @@ function runnersOf(r) {
   if (!r || !Array.isArray(r.horses) || r.horses.length !== 6) return [];
   const W = r.w.reduce((a, b) => a + b, 0), past = histBefore(Number(r.id));
   return r.horses.map((id, k) => {
-    const s = statsOf(id, past), chance = r.w[k] / W;
-    return { id, num: k + 1, lane: k, name: HORSES[id][0], stable: HORSES[id][1], color: HORSES[id][2], silk: HORSES[id][3], jockey: JOCKEYS[id], coat: COATS[id % 6],
-      last: s.last, form: s.form, energy: s.energy, pref: s.pref, terrain: r.terrain, chance, cote: Math.max(1.05, winFrac() / chance), note: Math.min(9.8, 3 + scoreOf(s, r.terrain) * 0.75), quote: QUOTES[id % QUOTES.length] };
+    const I = hinfo(id), chance = r.w[k] / W, h = I.h, at = Number(r.closeAt);
+    const last = I.house ? statsOf(id, past).last : h ? h.l.slice().reverse().map((p) => p || 'F') : [];
+    const st = h && S.E ? horseState(h, S.E.cfg, at - Number(S.E.cfg.entryLead), at) : null;
+    return { id, num: k + 1, lane: k, ...I, last, pref: prefOf3(id), terrain: r.terrain, chance, w: r.w[k], st,
+      cote: Math.max(1.05, winFrac() / chance), note: noteOf(r.w[k]), quote: QUOTES[id % QUOTES.length] };
   });
 }
 
@@ -540,11 +561,16 @@ async function refresh() {
     const curId = Number(S.info.current);
     await history(curId);
     S.cur = S.info.race;
+    S.E = await eview('info');
+    const ids = new Set(), fresh = new Set((S.cur.horses || []).map(Number));
+    for (const r of [S.cur, ...S.hist.values()]) (r.horses || []).forEach((x) => ids.add(Number(x)));
+    if (S.wallet) { S.mine = await eview('stable', [S.wallet.address]).catch(() => S.mine); S.mine.forEach((h) => S.hcache.set(Number(h.id), h)); }
+    await loadHorses(ids, fresh);
     if (S.wallet) { S.balance = await S.rpc.balance(S.wallet.address).catch(() => S.balance); await loadMyBets(curId); }
     const show = S.cur.horses ? S.cur : lastDone();
     S.runners = runnersOf(show);
     if (S.runners.length && ready && S.view === 'paddock' && !S.replay) { await setRunners(S.runners); fillPaddock(); select(Math.min(curSel, 5)); }
-    renderHeader(); renderBet(); renderMine(); renderResults();
+    renderHeader(); renderBet(); renderMine(); renderResults(); renderStable(); renderAdmin();
     maybeAutoReplay();
   } catch (e) { $('#status').textContent = 'Network busy, retrying…'; console.warn(e); }
 }
@@ -555,12 +581,14 @@ function renderHeader() {
   const r = S.cur; if (!r) return;
   const opening = r.status === 'pending';
   $('#raceNo').textContent = `Race #${r.id}`;
-  $('#raceTime').textContent = r.closeAt !== '0' ? `${parisDay(r.closeAt)} · ${parisTime(r.closeAt)} (Paris)` : 'Time to be set';
+  const er = S.E?.race, at = r.closeAt !== '0' ? r.closeAt : er && er.at !== '0' ? er.at : '0';
+  $('#raceTime').textContent = at !== '0' ? `${parisDay(at)} · ${parisTime(at)} (Paris)` : 'Time to be set';
+  $('#entriesChip').textContent = er ? `Owners: ${er.en.length}/6` : 'Owners –';
   $('#terrainChip').textContent = r.horses ? `Going: ${TERRAINS[r.terrain]} ${TERRAIN_ICONS[r.terrain]}` : 'Going: –';
   $('#potChip').textContent = `Pot ${ase(BigInt(r.staked || 0) + BigInt(r.carry || 0))} ASE`;
   $('#betsChip').textContent = `${r.nbets || 0} bet${r.nbets === '1' ? '' : 's'}`;
   $('#pausedBanner').hidden = !S.cfg.paused;
-  $('#paddockNote').textContent = opening ? 'The next race is being prepared: here are the runners of the last race.' : '';
+  $('#paddockNote').textContent = opening ? 'Entries are open for the next race (see My stable). Here are the runners of the last race.' : '';
   tickStatus();
 }
 function tickStatus() {
@@ -569,7 +597,8 @@ function tickStatus() {
   if (S.cfg.paused) { el.textContent = 'Paused'; el.className = 'chip red'; return; }
   if (r.status === 'open' && now < Number(r.closeAt)) { el.textContent = `Bets close in ${mmss(Number(r.closeAt) - now)}`; el.className = 'chip gold'; }
   else if (r.status === 'open') { el.textContent = 'They\'re off! Draw in progress…'; el.className = 'chip red'; }
-  else { el.textContent = 'Next race being prepared'; el.className = 'chip'; }
+  else if (S.E && S.E.race.st === 'entry' && S.E.race.at !== '0' && now < Number(S.E.race.at) - Number(S.E.cfg.entryLead)) { el.textContent = `Entries close in ${mmss(Number(S.E.race.at) - Number(S.E.cfg.entryLead) - now)}`; el.className = 'chip'; }
+  else { el.textContent = 'Runners being announced…'; el.className = 'chip'; }
 }
 
 // ───────── Paddock ─────────
@@ -589,14 +618,14 @@ function select(i) {
   curSel = i; sel.value = i;
   $$('.runner').forEach((b) => b.setAttribute('aria-current', +b.dataset.i === i));
   $('#pNum').textContent = h.num; $('#pNum').style.background = h.color; $('#pName').textContent = h.name;
-  $('#pSub').textContent = `${h.stable} stable · jockey ${h.jockey} · ${h.coat[0].toLowerCase()} coat`;
-  $('#ring').style.setProperty('--p', Math.round(h.chance * 100 * 2.2)); $('#note').textContent = h.note.toFixed(1);
-  $('#chance').textContent = `${(h.chance * 100).toFixed(1)} %`; $('#cote').textContent = `×${h.cote.toFixed(2)}`;
-  $('#rows').innerHTML = `<dt>Stable</dt><dd class="plain"><b>🏠 ${esc(h.stable)}</b></dd><span class="v small">${HORSES.filter((x) => x[1] === h.stable).map((x) => esc(x[0])).join(' · ')}</span>
-    <dt>Form</dt><dd>${icons(h.form, '❤️')}</dd><span class="v">${h.form.toFixed(1)} / 5</span>
-    <dt>Energy</dt><dd>${icons(h.energy, '⚡')}</dd><span class="v">${h.energy} / 5</span>
+  $('#pSub').textContent = `${h.house ? h.stable : 'Owner: ' + h.stable} · jockey ${h.jockey} · ${h.coat[0].toLowerCase()} coat`;
+  $('#ring').style.setProperty('--p', Math.round(h.note * 10)); $('#note').textContent = h.note.toFixed(1);
+  $('#chance').textContent = h.house ? 'House horse' : h.cls; $('#cote').textContent = `×${h.cote.toFixed(2)}`;
+  const st = h.st, cond = !st ? '<span class="muted">Always fit</span>' : [st.hungry ? '<span class="bad">Hungry</span>' : '<span class="good">Fed</span>', st.bloated ? '<span class="bad">Bloated</span>' : '', st.trained ? '<span class="good">Trained</span>' : '', st.over ? '<span class="bad">Overtrained ⚠</span>' : ''].filter(Boolean).join(' · ');
+  $('#rows').innerHTML = `<dt>${h.house ? 'Stable' : 'Owner'}</dt><dd class="plain"><b>🏠 ${esc(h.stable)}</b></dd><span class="v small">${h.h ? `${h.h.r} race${h.h.r === 1 ? '' : 's'} · ${h.h.w} win${h.h.w === 1 ? '' : 's'}` : 'fills the empty stalls'}</span>
+    <dt>Condition</dt><dd class="plain">${cond}</dd><span class="v"></span>
     <dt>Favourite going</dt><dd class="plain">${TERRAIN_ICONS[h.pref]} ${TERRAINS[h.pref]}</dd><span class="v ${h.pref === h.terrain ? 'good' : ''}">${h.pref === h.terrain ? 'that\'s today!' : 'not today'}</span>`;
-  $('#last').innerHTML = h.last.length ? h.last.map((p) => `<span class="${p === 1 ? 'p1' : ''}">${p}</span>`).join('') : '<em class="muted small">First race</em>';
+  $('#last').innerHTML = h.last.length ? h.last.map((p) => `<span class="${p === 1 ? 'p1' : p === 'F' ? 'bad' : ''}">${p}</span>`).join('') : '<em class="muted small">First race</em>';
   $('#quote').textContent = `« ${h.quote} » — ${h.jockey}`;
   if (ready && mode === 'paddock' && horses[i]) { horses.forEach((hh, k) => setVisible(hh, k === i)); posePaddock(horses[i]); }
 }
@@ -660,12 +689,12 @@ $('#placeBet').onclick = async () => {
   const r = S.cur, stake = L.parseAse(String($('#stake').value));
   if (await sendTx('bet', [String(r.id), S.type, S.picks.slice()], stake)) { toast(`Bet placed on race #${r.id} ✓`, 'ok'); S.picks = []; await refresh(); }
 };
-async function sendTx(method, args, value = 0n) {
+async function sendTx(method, args, value = 0n, to = S.contract) {
   if (S.busy) return false;
   S.busy = true; renderBet();
   const t1 = toast(S.wallet.kind === 'telegram' ? 'Approve the transaction in Telegram…' : 'Approve the transaction in your wallet…', '', 0);
   try {
-    const hash = await S.wallet.call(S.contract, method, args, value);
+    const hash = await S.wallet.call(to, method, args, value);
     t1.textContent = 'Transaction sent, waiting for confirmation…';
     const rc = await S.rpc.waitReceipt(hash);
     if (!rc.success) throw new Error(rc.error || 'rejected by the contract');
@@ -674,7 +703,9 @@ async function sendTx(method, args, value = 0n) {
   finally { t1.remove(); S.busy = false; renderBet(); }
 }
 const ERR = { 'paris fermés': 'Bets are closed for this race.', 'course complète': 'This race is full (maximum number of bets reached).', 'banni': 'This wallet is banned from ASE Vegas.',
-  'réservé VEGAS': 'This game is reserved for VEGAS holders.', 'pause': 'The game is paused.', 'hors limites': 'Stake outside the allowed range.', 'pas la course en cours': 'This race has already started.' };
+  'réservé VEGAS': 'This game is reserved for VEGAS holders.', 'pause': 'The game is paused.', 'hors limites': 'Stake outside the allowed range.', 'pas la course en cours': 'This race has already started.',
+  'inscriptions fermées': 'Entries are closed for this race.', 'déjà inscrit': 'This horse is already entered.', 'blessé': 'This horse is injured and must rest.',
+  'pas ton cheval': 'This is not your horse.', 'max ': 'You already have the maximum number of horses.', 'nom': 'Name: 1 to 20 characters, no < > " \' ` \\.', 'prix': 'Wrong amount: refresh the page and try again.', 'admin': 'Only the admin can do this.' };
 const errText = (m) => { for (const k in ERR) if (m.includes(k)) return ERR[k]; return m; };
 
 // ───────── Mes paris ─────────
@@ -694,7 +725,7 @@ function renderMine() {
   if (!S.myBets.length) { box.innerHTML = '<p class="muted">No bet yet. Pick a race type and your horses above.</p>'; return; }
   const refundable = new Set();
   box.innerHTML = '<div class="mybets">' + S.myBets.map((b) => {
-    const r = b.race, names = b.s.map((l) => r.horses ? `${l + 1} ${HORSES[r.horses[l]][0]}` : `#${l + 1}`).join(b.t === 'W' || b.t === 'CO' || b.t === 'TO' ? ' → ' : ' + ');
+    const r = b.race, names = b.s.map((l) => r.horses ? `${l + 1} ${hinfo(r.horses[l]).name}` : `#${l + 1}`).join(b.t === 'W' || b.t === 'CO' || b.t === 'TO' ? ' → ' : ' + ');
     let st = '<span class="muted">Waiting for the race</span>';
     if (r.status === 'done') st = BigInt(b.paid) > 0n ? `<span class="good">Won ${ase(b.paid)} ASE ✓ (paid)</span>` : '<span class="muted">Lost</span>';
     else if (r.status === 'cancelled') { if (b.refunded) st = '<span class="muted">Refunded</span>'; else { st = `<button class="btn btn-small" data-refund="${r.id}">Get my ${ase(b.stake)} ASE back</button>`; refundable.add(r.id); } }
@@ -709,8 +740,8 @@ function renderResults() {
   const done = [...S.hist.values()].filter((r) => r.status === 'done' || r.status === 'cancelled').sort((a, b) => b.id - a.id).slice(0, 8);
   $('#resultsBody').innerHTML = done.length ? done.map((r) => {
     if (r.status === 'cancelled') return `<div class="res"><span class="mb-r">#${r.id}</span><span class="muted">Cancelled · all bets refundable</span></div>`;
-    const podium = r.order.slice(0, 3).map((l, k) => `<span class="n" style="background:${HORSES[r.horses[l]][2]}" title="${esc(HORSES[r.horses[l]][0])}">${l + 1}</span>${k === 0 ? `<b>${esc(HORSES[r.horses[l]][0])}</b>` : ''}`).join('');
-    const fell = r.fell >= 0 ? ` · <span class="bad">🤕 ${esc(HORSES[r.horses[r.fell]][0])} fell</span>` : '';
+    const podium = r.order.slice(0, 3).map((l, k) => { const I = hinfo(r.horses[l]); return `<span class="n" style="background:${I.color}" title="${esc(I.name)}">${l + 1}</span>${k === 0 ? `<b>${esc(I.name)}</b>${I.house ? '' : ` <small class="muted">(${esc(I.stable)})</small>`}` : ''}`; }).join('');
+    const fell = r.fell >= 0 ? ` · <span class="bad">🤕 ${esc(hinfo(r.horses[r.fell]).name)} fell</span>` : '';
     return `<div class="res"><span class="mb-r">#${r.id}</span><span class="podium">${podium}${fell}<br><small class="muted">${parisDay(r.closeAt)} ${parisTime(r.closeAt)} · pot ${ase(BigInt(r.staked) + BigInt(r.carry))} ASE · ${r.winners || 0} winning bet(s)</small></span><button class="btn btn-small" data-replay="${r.id}">▶ Replay</button></div>`;
   }).join('') : '<p class="muted">No race yet: the first one starts at the time shown above.</p>';
   $$('[data-replay]').forEach((b) => b.onclick = () => { startReplay(S.hist.get(+b.dataset.replay)); window.scrollTo({ top: 0, behavior: 'smooth' }); });
@@ -749,12 +780,17 @@ function showResult() {
   const r = race, src = r.src, w = horses[r.order[0]];
   const row = (h, pl, sub, right) => `<div class="row ${pl === '✖' ? 'out' : ''}"><span class="pl">${pl}</span><span class="n" style="background:${h.color}">${h.num}</span><span>${esc(h.name)}<br><span class="gap">${sub}</span></span><span class="c">${right}</span></div>`;
   $('#result').innerHTML = r.order.map((i, k) => row(horses[i], k + 1, `${esc(horses[i].stable)} · ${k ? '+' + (horses[i].T - w.T).toFixed(2) + ' s' : w.T.toFixed(2) + ' s'}`, '×' + horses[i].cote.toFixed(1))).join('')
-    + (r.faller >= 0 ? row(horses[r.faller], '✖', 'fell · resting 3 days', '—') : '');
+    + (r.faller >= 0 ? row(horses[r.faller], '✖', 'fell', '—') : '');
   const t3 = r.order.slice(0, 3).map((i) => horses[i].num).join('-');
   $('#payNote').textContent = `Winner: #${w.num} ${w.name}. Trifecta: ${t3}. Pot ${ase(BigInt(src.staked) + BigInt(src.carry))} ASE, ${src.winners || 0} winning bet(s), ${ase(src.paidOut || 0)} ASE paid automatically to the winners.`
-    + (r.faller >= 0 ? ` ${horses[r.faller].name} fell: bets on this horse are lost and it rests for 3 days.` : '')
+    + (r.faller >= 0 ? ` ${horses[r.faller].name} fell: bets on this horse are lost${w.house ? '' : ' and it is injured for a few days'}.` : '')
     + (BigInt(src.carriedOut || 0) > 0n ? ` No winning bet: ${ase(src.carriedOut)} ASE go to the next race's pot.` : '');
   $('#resultCard').hidden = false;
+  if (src.info && !S.demo) eview('race', [String(src.info)]).then((er) => {
+    const W0 = er.win != null ? hinfo(er.win) : null;
+    if (er.prize) $('#payNote').textContent += ` Owners' pot: ${ase(er.prize)} ASE paid to ${W0 && !W0.house ? W0.stable === 'You' ? 'you' : W0.stable : 'the owner'}.`;
+    else if (W0 && W0.house) $('#payNote').textContent += ' A house horse won: the owners\' pot is carried over to the next race.';
+  }).catch(() => {});
   if (S.wallet) refresh();
 }
 function say(t) { $('#comment').textContent = t; }
@@ -769,7 +805,7 @@ async function syncWallet() {
     if (s?.kind === 'extension') { for (let i = 0; i < 10 && !ExtensionWallet.available(); i++) await sleep(200); if (ExtensionWallet.available()) { const w = new ExtensionWallet(); if (await w.restore()) S.wallet = w; } }
     else if (s?.kind === 'telegram') { const w = new TelegramWallet(CONFIG.TELEGRAM_API, CONFIG.DAPP_NAME); if (await w.restore(s.session)) S.wallet = w; }
   } catch {}
-  if (S.info) { if (S.wallet) await loadMyBets(Number(S.info.current)); renderBet(); renderMine(); }
+  if (S.info) { if (S.wallet) await loadMyBets(Number(S.info.current)); refresh(); }
 }
 
 // ───────── Onglets du bas ─────────
@@ -777,25 +813,6 @@ $$('.tabs [data-tab]').forEach((b) => b.onclick = () => {
   $$('.tabs [data-tab]').forEach((x) => x.setAttribute('aria-selected', x === b));
   $$('.hpanel').forEach((p) => (p.hidden = p.id !== 'tab-' + b.dataset.tab));
 });
-
-// ───────── Mode démo (pas de contrat) : une fausse chaîne dans le navigateur ─────────
-async function demoRpc() {
-  const { makeSetup } = await import('./stable.mjs');
-  const now0 = Date.now(), races = [];
-  for (let id = 1; id <= 6; id++) {
-    const st = makeSetup(races.slice().reverse(), Math.random, 500), W = st.w.reduce((a, b) => a + b, 0), left = [0, 1, 2, 3, 4, 5], order = [];
-    while (left.length) { let x = Math.random() * left.reduce((a, l) => a + st.w[l], 0), k = 0; while (k < left.length - 1 && (x -= st.w[left[k]]) >= 0) k++; order.push(left.splice(k, 1)[0]); }
-    const fell = id === 4 ? order[3] : -1; if (fell >= 0) { order.splice(order.indexOf(fell), 1); order.push(fell); }
-    const t = now0 - (7 - id) * 3600000;
-    races.push({ id, status: 'done', ...st, order, fell, closeAt: String(t), startAt: String(t + 360000), rand: Math.random().toString(16).slice(2) + 'a1b2c3', staked: String(BigInt(40 + id * 7) * 10n ** 18n), carry: '0', nbets: String(12 + id), winners: String(3 + (id % 3)), paidOut: String(BigInt(34 + id * 6) * 10n ** 18n) });
-    void W;
-  }
-  const cfg = { paused: false, commissionBps: '1500', timeoutMs: '3600000', types: { W: true, CO: true, CD: true, TO: true, TD: true },
-    stakes: { W: ['2000000000000000000', '10000000000000000000'], CO: ['1000000000000000000', '5000000000000000000'], CD: ['1000000000000000000', '5000000000000000000'], TO: ['1000000000000000000', '5000000000000000000'], TD: ['1000000000000000000', '5000000000000000000'] } };
-  const cur = { id: 7, status: 'open', ...makeSetup(races.slice().reverse(), Math.random, 500), closeAt: String(now0 + 23 * 60000), staked: String(26n * 10n ** 18n), carry: '0', nbets: '9', rules: { types: cfg.types, stakes: cfg.stakes } };
-  return { view: async (_c, m, a) => m === 'info' ? JSON.stringify({ cfg, current: '7', race: cur, now: String(Date.now()) }) : m === 'race' ? JSON.stringify(races[Number(a[0]) - 1]) : '[]',
-    balance: async () => 0n, waitReceipt: async () => ({ success: true }) };
-}
 
 // ───────── Démarrage ─────────
 function resize() {
@@ -827,12 +844,14 @@ function loop() {
 }
 let race = null;
 (async function start() {
-  S.demo = !CONFIG.CONTRACT || new URLSearchParams(location.search).has('demo');
+  S.demo = !CONFIG.PARIS || new URLSearchParams(location.search).has('demo');
   $('#demoBar').hidden = !S.demo;
-  S.contract = CONFIG.CONTRACT;
+  S.contract = CONFIG.PARIS;
   S.rpc = S.demo ? await demoRpc() : new Rpc(CONFIG.RPC);
+  if (S.demo) S.wallet = { kind: 'demo', address: S.rpc.demoMe };
   if (!S.demo) { startVegas({ walletButton: true }); setInterval(syncWallet, 2000); await syncWallet(); }
   if (S.contract) { const a1 = S.contract.startsWith('ase1') ? S.contract : L.toAse1(S.contract); $('#contractLink').href = `${CONFIG.EXPLORER}/address/${a1}`; $('#contractLink').textContent = a1; }
+  if (CONFIG.ECURIE) { const e1 = CONFIG.ECURIE.startsWith('ase1') ? CONFIG.ECURIE : L.toAse1(CONFIG.ECURIE); $('#ecuLink').href = `${CONFIG.EXPLORER}/address/${e1}`; $('#ecuLink').textContent = e1; }
   resize(); loop();
   try { await prepareModel(); } catch (e) { $('#loading').textContent = 'The 3D could not load: ' + e.message; return; }
   ready = true;
@@ -845,3 +864,184 @@ let race = null;
 })();
 let lastOpen = null;
 function renderBetTimer() { const r = S.cur; const open = !!(r && r.status === 'open' && chainNow() < Number(r.closeAt)); if (open !== lastOpen) { lastOpen = open; renderBet(); } }
+
+// ───────── v3 : Mon écurie (acheter, nourrir, entraîner, inscrire) ─────────
+S.buyCls = 2; S.hname = '';
+const ECU = () => CONFIG.ECURIE;
+async function act(method, args, value, ok) {
+  if (S.demo) return toast('Demo mode: nothing is sent. Open the test site to play for real.');
+  if (!S.wallet) return $('#walletBtn')?.click();
+  if (await sendTx(method, args, value, ECU())) { toast(ok, 'ok'); await refresh(); }
+}
+function noteNow(h, c) {
+  const s = horseState(h, c, chainNow());
+  return noteOf(Math.max(60, Number(c.clsW[h.c]) + (s.trained ? +c.trainB : 0) - (s.hungry ? +c.hunger : 0) - (s.bloated ? +c.bloat : 0)));
+}
+function horseCard(h, c, er, entriesOpen, now) {
+  const at = er.at !== '0' ? Number(er.at) : now, s = horseState(h, c, now, at), id = Number(h.id), entered = er.en.some((e) => e.h === h.id);
+  const win = Number(c.feedWin), fed24 = h.fd.filter((t) => Number(t) > now - win).length, tr24 = h.tr.filter((t) => Number(t) > now - win).length;
+  const badges = [s.injured ? `<span class="bad">🤕 Injured until ${parisDay(s.injUntil)} ${parisTime(s.injUntil)}</span>` : '',
+    s.hungry ? '<span class="bad">🍽️ Hungry: feed it!</span>' : `<span class="good">🥕 Fed · hungry in ${mmss(s.fedIn)}</span>`,
+    s.bloated ? '<span class="bad">🎈 Bloated: fed too often</span>' : '',
+    s.trained ? '<span class="good">💪 Trained: boost for its next race</span>' : '',
+    s.over ? '<span class="bad">⚠️ Overtrained: injury risk</span>' : ''].filter(Boolean).join('');
+  const note = noteNow(h, c);
+  const why = s.injured ? 'injured' : er.en.length >= 6 ? 'race full' : !entriesOpen ? 'entries closed' : '';
+  const enter = entered ? '<button class="btn btn-small" disabled>✓ Entered</button>'
+    : `<button class="btn btn-small btn-primary" data-enter="${id}" ${why ? 'disabled' : ''}>${why ? 'Enter race (' + why + ')' : 'Enter race · ' + ase(c.entry) + ' ASE'}</button>`;
+  const warn = [!s.hungry && fed24 >= Number(c.bloatAt) - 1 ? 'Already fed in the last 24 h: another meal makes it bloated (slower).' : '',
+    tr24 >= Number(c.overTrain) - 1 ? 'Already trained in the last 24 h: training again risks an injury.' : ''].filter(Boolean).join(' ');
+  return `<div class="hcard"><div class="hc-top"><span class="n big" style="background:${colorOf(id)}">🐎</span>
+      <div class="hc-id"><b>${esc(h.n)}</b><div class="small muted">${CLASSES[h.c]} · ${h.r} race${h.r === 1 ? '' : 's'} · ${h.w} win${h.w === 1 ? '' : 's'}${BigInt(h.won || 0) > 0n ? ' · won ' + ase(h.won) + ' ASE' : ''}</div></div>
+      <div class="ring sm" style="--p:${Math.round(note * 10)}"><b>${note.toFixed(1)}</b></div></div>
+    <div class="badges">${badges}</div>
+    <div class="last">${h.l.length ? h.l.slice().reverse().map((p) => `<span class="${p === 1 ? 'p1' : p === 0 ? 'bad' : ''}">${p || 'F'}</span>`).join('') : '<em class="muted small">No race yet</em>'}</div>
+    <div class="hc-act"><button class="btn btn-small" data-feed="${id}">🥕 Feed · ${ase(c.feed)} ASE</button><button class="btn btn-small" data-train="${id}" ${s.injured ? 'disabled' : ''}>💪 Train · ${ase(c.train)} ASE</button>${enter}</div>
+    ${warn ? `<p class="small muted">${warn}</p>` : ''}</div>`;
+}
+function renderStable() {
+  const box = $('#stableBody'); if (!box || !S.E) return;
+  if (box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;   // on ne coupe pas la saisie
+  const c = S.E.cfg, er = S.E.race, now = chainNow();
+  const entryEnd = er.at !== '0' ? Number(er.at) - Number(c.entryLead) : 0;
+  const entriesOpen = er.st === 'entry' && !er.set && (!entryEnd || now < entryEnd) && !c.paused;
+  const pot = BigInt(er.pot) + BigInt(S.E.carry || 0), cut = Number(c.cutBps) / 100;
+  const names = er.en.map((e) => { const I = hinfo(e.h); return `<span class="pill"><span class="dot" style="background:${I.color}"></span>${esc(I.name)} <small class="muted">${esc(I.stable)}</small></span>`; }).join('');
+  let html = `<div class="racebox"><div><div class="sec">Owners' race #${er.id}</div><b>${er.at !== '0' ? parisDay(er.at) + ' · ' + parisTime(er.at) + ' (Paris)' : 'Time to be set'}</b>
+      <p class="small muted">${entriesOpen ? (entryEnd ? `Entries open until ${parisTime(entryEnd)} (Paris)` : 'Entries open') : 'Entries closed'} · entry ${ase(c.entry)} ASE per horse · the owner of the winner takes ${100 - cut}% of the owners' pot. Empty stalls get house horses.</p></div>
+      <div class="rb-r"><b>${ase(pot)} ASE</b><span class="small muted">owners' pot · ${er.en.length}/6 entered</span></div></div>
+    ${names ? `<div class="pills">${names}</div>` : ''}`;
+  if (!S.wallet) { box.innerHTML = html + '<p class="muted">Connect your wallet to buy a horse, feed it, train it and enter it in the race.</p>'; return; }
+  html += '<div class="mystable">' + (S.mine.length ? S.mine.map((h) => horseCard(h, c, er, entriesOpen, now)).join('') : '<p class="muted">You have no horse yet: buy your first one below.</p>') + '</div>';
+  if (S.mine.length < Number(c.maxHorses)) {
+    html += `<div class="card buy"><div class="sec">Buy a horse · ${S.mine.length}/${c.maxHorses}</div>
+      <div class="classes">${CLASSES.map((n, k) => `<button type="button" class="tchip cls" data-cls="${k}" aria-pressed="${S.buyCls === k}"><b>${n}</b><span>${ase(c.prices[k])} ASE · rating ${noteOf(Number(c.clsW[k])).toFixed(1)}</span></button>`).join('')}</div>
+      <label class="stake">Name <input id="hname" maxlength="20" placeholder="e.g. Thunder" value="${esc(S.hname)}"></label>
+      <button class="btn btn-primary btn-wide" id="buyBtn" type="button">Buy a${/^[AEIOU]/.test(CLASSES[S.buyCls]) ? 'n' : ''} ${CLASSES[S.buyCls]} · ${ase(c.prices[S.buyCls])} ASE</button>
+      <p class="small muted">The price sets the class: a better class starts with a better rating. Then care makes the difference: one meal a day, a training before the race, but never too much of either.</p></div>`;
+  } else html += `<p class="small muted">You own ${S.mine.length}/${c.maxHorses} horses (maximum).</p>`;
+  box.innerHTML = html;
+  $$('[data-feed]').forEach((b) => b.onclick = () => act('feed', [b.dataset.feed], BigInt(c.feed), 'Fed ✓'));
+  $$('[data-train]').forEach((b) => b.onclick = () => act('train', [b.dataset.train], BigInt(c.train), 'Trained ✓ (boost for the next race)'));
+  $$('[data-enter]').forEach((b) => b.onclick = () => act('enter', [b.dataset.enter], BigInt(c.entry), `Entered in race #${er.id} ✓`));
+  $$('[data-cls]').forEach((b) => b.onclick = () => { S.buyCls = +b.dataset.cls; renderStable(); });
+  const inp = $('#hname'); if (inp) inp.oninput = () => { S.hname = inp.value; };
+  const bb = $('#buyBtn'); if (bb) bb.onclick = () => {
+    const nm = S.hname.trim(); if (!nm) { toast('Give your horse a name first.', 'err'); inp?.focus(); return; }
+    act('buy', [String(S.buyCls), nm], BigInt(c.prices[S.buyCls]), `${nm} is yours ✓`).then(() => { S.hname = ''; });
+  };
+}
+
+// ───────── v3 : onglet Admin (tous les réglages des 2 contrats) ─────────
+const AF = [   // [clé, libellé, unité, vers l'écran, vers le contrat]
+  ['maxHorses', 'Max horses per player', '', (v) => v, (v) => String(Math.round(+v))],
+  ['feed', 'Feed price', 'ASE', (v) => ase(v, 4), (v) => L.parseAse(String(v)).toString()],
+  ['train', 'Training price', 'ASE', (v) => ase(v, 4), (v) => L.parseAse(String(v)).toString()],
+  ['entry', 'Race entry', 'ASE', (v) => ase(v, 4), (v) => L.parseAse(String(v)).toString()],
+  ['cutBps', 'House cut of the owners\' pot', '%', (v) => v / 100, (v) => String(Math.round(v * 100))],
+  ['houseWin', 'If a house horse wins', 'carry | owner', (v) => v, (v) => String(v).trim()],
+  ['hour', 'Race time', 'h (Paris)', (v) => v, (v) => String(Math.round(+v))],
+  ['entryLead', 'Entries close before the race', 'min', (v) => v / 60000, (v) => String(Math.round(v * 60000))],
+  ['hunger', 'Hunger malus', '‰ of chance', (v) => v, (v) => String(Math.round(+v))],
+  ['bloat', 'Bloated malus', '‰', (v) => v, (v) => String(Math.round(+v))],
+  ['trainB', 'Training boost', '‰', (v) => v, (v) => String(Math.round(+v))],
+  ['terrB', 'Favourite going bonus', '‰', (v) => v, (v) => String(Math.round(+v))],
+  ['houseW', 'House horses chance', '‰', (v) => v, (v) => String(Math.round(+v))],
+  ['feedWin', 'One meal every', 'h', (v) => v / 3600000, (v) => String(Math.round(v * 3600000))],
+  ['bloatAt', 'Bloated after', 'meals in that time', (v) => v, (v) => String(Math.round(+v))],
+  ['overTrain', 'Overtrained after', 'trainings in that time', (v) => v, (v) => String(Math.round(+v))],
+  ['injPct', 'Injury risk when overtrained', '%', (v) => v, (v) => String(Math.round(+v))],
+  ['injDays', 'Injury rest', 'days', (v) => v, (v) => String(Math.round(+v))],
+  ['fallPpm', 'Fall risk (base)', '%', (v) => v / 10000, (v) => String(Math.round(v * 10000))],
+  ['overFall', 'Extra fall risk when overtrained', '%', (v) => v / 10000, (v) => String(Math.round(v * 10000))],
+  ['bond', 'Croupier bond (stable)', 'ASE', (v) => ase(v, 4), (v) => L.parseAse(String(v)).toString()],
+];
+function renderAdmin() {
+  const tab = $('#tabAdmin'), box = $('#adminBody'); if (!tab || !S.E || !S.cfg) return;
+  const isA = S.demo || isMe(S.E.cfg.admin) || isMe(S.cfg.admin);
+  tab.hidden = !isA; if (!isA || box.contains(document.activeElement)) return;
+  const c = S.E.cfg, p = S.cfg, paused = c.paused || p.paused;
+  const row = (k, label, val, unit) => `<label class="af"><span>${label}</span><input data-v="${k}" value="${esc(val)}"><small class="muted">${unit}</small><button class="btn btn-small" data-save="${k}" type="button">Save</button></label>`;
+  box.innerHTML = `<p class="small muted">Stable admin: ${L.shortAddr(c.admin)}${isMe(c.admin) ? ' (you)' : ''} · bets admin: ${L.shortAddr(p.admin)}${isMe(p.admin) ? ' (you)' : ''}. Each Save is one transaction, approved in your wallet. Changes apply from the next race.</p>
+    <div class="adm-state"><b>${paused ? '<span class="bad">⏸ Paused</span>' : '<span class="good">▶ Running</span>'}</b>
+      <button class="btn btn-small" data-pause="${paused ? 0 : 1}" type="button">${paused ? '▶ Resume the Hippodrome' : '⏸ Pause the Hippodrome'}</button></div>
+    <div class="sec">Horses and owners' race</div>
+    <div class="af6"><span>Horse prices (ASE)</span><div>${CLASSES.map((n, k) => `<label>${n}<input data-price="${k}" value="${ase(c.prices[k], 4)}"></label>`).join('')}</div><button class="btn btn-small" data-save="prices" type="button">Save</button></div>
+    <div class="af6"><span>Base chance (‰ : 190 = 19 %)</span><div>${CLASSES.map((n, k) => `<label>${n}<input data-cw="${k}" value="${c.clsW[k]}"></label>`).join('')}</div><button class="btn btn-small" data-save="clsW" type="button">Save</button></div>
+    ${AF.map(([k, label, unit, show]) => row(k, label, show(c[k]), unit)).join('')}
+    <div class="sec">Spectator bets</div>
+    ${row('p.commission', 'House commission', p.commissionBps / 100, '%')}
+    ${TYPE_ORDER.map((t) => `<label class="af"><span>${BET_TYPES[t][0]} stake</span><span class="mm"><input data-smin="${t}" value="${ase(p.stakes[t][0], 4)}"> to <input data-smax="${t}" value="${ase(p.stakes[t][1], 4)}"></span><small class="muted">ASE</small><button class="btn btn-small" data-save="p.stakes.${t}" type="button">Save</button></label>`).join('')}
+    ${row('p.maxBets', 'Max bets per race', p.maxBets, '')}
+    <div class="sec">Banned wallets</div>
+    <textarea id="banList" rows="3" placeholder="ase1… or 0x…, one per line (60 max)"></textarea>
+    <div class="two"><button class="btn btn-small" data-ban="1" type="button">Ban</button><button class="btn btn-small" data-ban="0" type="button">Unban</button></div>`;
+  const tx = async (to, method, args, ok) => {
+    if (S.demo) { toast('Demo mode: nothing is sent.'); return false; }
+    const rc = await sendTx(method, args, 0n, to); if (rc) toast(ok, 'ok'); return !!rc;
+  };
+  const val = (k) => box.querySelector(`[data-v="${k}"]`).value;
+  [...box.querySelectorAll('[data-save]')].forEach((b) => b.onclick = async () => {
+    const k = b.dataset.save;
+    try {
+      if (k === 'prices') await tx(ECU(), 'set', ['prices', JSON.stringify(CLASSES.map((_, i) => L.parseAse(box.querySelector(`[data-price="${i}"]`).value).toString()))], 'Prices saved ✓');
+      else if (k === 'clsW') await tx(ECU(), 'set', ['clsW', JSON.stringify(CLASSES.map((_, i) => Math.round(+box.querySelector(`[data-cw="${i}"]`).value)))], 'Base chances saved ✓');
+      else if (k === 'p.commission') await tx(S.contract, 'set', ['commission', JSON.stringify({ bps: Math.round(val(k) * 100), owner: p.split.owner, collab: p.split.collab, airdrop: p.split.airdrop })], 'Commission saved ✓');
+      else if (k === 'p.maxBets') await tx(S.contract, 'set', ['maxBets', String(Math.round(+val(k)))], 'Saved ✓');
+      else if (k.startsWith('p.stakes.')) { const t = k.slice(9); await tx(S.contract, 'set', ['stakes', JSON.stringify({ t, min: L.parseAse(box.querySelector(`[data-smin="${t}"]`).value).toString(), max: L.parseAse(box.querySelector(`[data-smax="${t}"]`).value).toString() })], 'Stakes saved ✓'); }
+      else { const f = AF.find((x) => x[0] === k); await tx(ECU(), 'set', [k, f[4](val(k))], `${f[1]} saved ✓`); }
+    } catch (e) { toast(cleanError(e), 'err'); }
+    document.activeElement?.blur(); refresh();
+  });
+  [...box.querySelectorAll('[data-pause]')].forEach((b) => b.onclick = async () => {
+    const on = b.dataset.pause === '1';
+    if (await tx(ECU(), 'set', ['paused', String(on)], on ? 'Stable paused ✓' : 'Stable running ✓')) await tx(S.contract, 'setPaused', [on], on ? 'Bets paused ✓' : 'Bets running ✓');
+    refresh();
+  });
+  [...box.querySelectorAll('[data-ban]')].forEach((b) => b.onclick = async () => {
+    let list; try { list = $('#banList').value.split(/[\s,;]+/).filter(Boolean).map((a) => L.toHex(a)); } catch { return toast('Invalid address in the list.', 'err'); }
+    if (!list.length) return;
+    const on = b.dataset.ban === '1';
+    if (await tx(ECU(), 'ban', [list, on], on ? 'Banned from the stable ✓' : 'Unbanned ✓')) await tx(S.contract, 'setList', ['ban', list, on], on ? 'Banned from the bets ✓' : 'Unbanned ✓');
+  });
+}
+
+// ───────── Mode démo v3 : fausse Écurie + faux Paris dans le navigateur ─────────
+async function demoRpc() {
+  const { makeSetup3 } = await import('./stable.mjs');
+  const now0 = Date.now(), H = 3600000, DAY = 24 * H, ME = '0x' + 'de'.repeat(20), E18 = 10n ** 18n;
+  const A = (n) => (BigInt(n) * E18).toString();
+  const ecfg = { admin: ME, owner: ME, cA: '0x' + 'ca'.repeat(20), cB: '0x' + 'cb'.repeat(20), prices: [A(10), A(12), A(15), A(20), A(25), A(35)], clsW: [150, 155, 160, 170, 175, 190],
+    maxHorses: 3, feed: A(1), train: A(2), entry: A(5), cutBps: 1000, houseWin: 'carry', hunger: 20, bloat: 15, trainB: 10, terrB: 5, houseW: 165,
+    feedWin: DAY, bloatAt: 2, overTrain: 2, injPct: 40, injDays: 3, fallPpm: 1500, overFall: 20000, hour: 19, entryLead: H, bond: A(1), timeoutMs: H, paused: false };
+  const o2 = '0x' + '7a'.repeat(20), o3 = '0x' + '3c'.repeat(20);
+  const hz = [
+    { id: '1', o: ME, n: 'Thunder', c: 5, b: String(now0 - 9 * DAY), fd: [String(now0 - 5 * H)], tr: [String(now0 - 3 * H)], inj: '0', r: 6, w: 2, l: [3, 1, 2, 4, 1], won: A(51) },
+    { id: '2', o: ME, n: 'Little Bolt', c: 0, b: String(now0 - 4 * DAY), fd: [String(now0 - 30 * H)], tr: [], inj: '0', r: 3, w: 0, l: [5, 4, 6], won: '0' },
+    { id: '3', o: o2, n: 'Moon Dancer', c: 3, b: String(now0 - 6 * DAY), fd: [String(now0 - 2 * H)], tr: [String(now0 - 4 * H)], inj: '0', r: 4, w: 1, l: [2, 1, 3, 5], won: A(27) },
+    { id: '4', o: o3, n: 'Copper Kid', c: 2, b: String(now0 - 5 * DAY), fd: [String(now0 - 20 * H), String(now0 - 6 * H)], tr: [], inj: '0', r: 2, w: 0, l: [4, 2], won: '0' },
+  ];
+  const bets = (r) => ({ nbets: '9', staked: String(31n * E18), carry: '0', rules: { types: pcfg.types, stakes: pcfg.stakes } });
+  const pcfg = { admin: ME, paused: false, commissionBps: '1500', split: { owner: 10000, collab: 0, airdrop: 0 }, maxBets: '150', timeoutMs: String(H), types: { W: true, CO: true, CD: true, TO: true, TD: true },
+    stakes: { W: [A(2), A(10)], CO: [A(1), A(5)], CD: [A(1), A(5)], TO: [A(1), A(5)], TD: [A(1), A(5)] } };
+  const races = [];
+  for (let id = 1; id <= 5; id++) {
+    const st = makeSetup3(id % 2 ? [hz[0], hz[2]] : [hz[2], hz[3]], ecfg, Math.random, now0, now0), left = [0, 1, 2, 3, 4, 5], order = [];
+    while (left.length) { let x = Math.random() * left.reduce((a, l) => a + st.w[l], 0), k = 0; while (k < left.length - 1 && (x -= st.w[left[k]]) >= 0) k++; order.push(left.splice(k, 1)[0]); }
+    const fell = id === 3 ? order[3] : -1; if (fell >= 0) { order.splice(order.indexOf(fell), 1); order.push(fell); }
+    const t = now0 - (6 - id) * DAY - 5 * H;
+    races.push({ id, status: 'done', ...st, info: String(id), order, fell, closeAt: String(t), startAt: String(t + 60000), rand: Math.random().toString(16).slice(2) + 'a1b2c3', ...bets(), winners: '3', paidOut: String(26n * E18) });
+  }
+  const at = now0 + 50 * 60000;
+  const pcur = { id: 6, status: 'open', ...makeSetup3([hz[0], hz[2], hz[3]], ecfg, Math.random, now0, at), info: '6', closeAt: String(at), ...bets() };
+  const ecur = { id: '6', st: 'open', at: String(at), en: [{ h: '1', o: ME }, { h: '3', o: o2 }, { h: '4', o: o3 }], pot: A(15), set: { horses: pcur.horses } };
+  return { view: async (c, m, a) => {
+    if (c === (CONFIG.ECURIE || 'ECURIE')) {
+      if (m === 'info') return JSON.stringify({ cfg: ecfg, current: '6', race: ecur, carry: A(0), horses: '4', now: String(Date.now()) });
+      if (m === 'horse') return JSON.stringify(hz.find((h) => h.id === String(a[0])) || null);
+      if (m === 'stable') return JSON.stringify(hz.filter((h) => h.o === ME));
+      if (m === 'race') return JSON.stringify({ win: races[Number(a[0]) - 1]?.horses[races[Number(a[0]) - 1].order[0]], prize: A(27) });
+    }
+    return m === 'info' ? JSON.stringify({ cfg: pcfg, current: '6', race: pcur, now: String(Date.now()) }) : m === 'race' ? JSON.stringify(races[Number(a[0]) - 1]) : '[]';
+  }, balance: async () => 0n, waitReceipt: async () => ({ success: true }), demoMe: ME };
+}
