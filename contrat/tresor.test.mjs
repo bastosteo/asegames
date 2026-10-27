@@ -143,31 +143,5 @@ sec('Admin');
   t('init une seule fois', !w.c.call(ADMIN, 'init', [OPER, OWN, COL, DROP]).success);
 }
 
-sec('Bannissement');
-{
-  const w = world(); const [, b] = w.open(1); const cs = colds(b);
-  t('un joueur ne peut pas bannir', !w.c.call(P[0], 'setBan', [[P[1]], true]).success);
-  t('l\'opérateur non plus', !w.c.call(OPER, 'setBan', [[P[1]], true]).success);
-  t('fouille possible avant le ban', w.dig(P[1], 1, cs[0]).success);
-  const r = w.c.call(ADMIN, 'setBan', [[P[1], P[2].toUpperCase().replace('0X', '0x')], true]);
-  t('l\'admin bannit 2 wallets', r.success && w.c.view('isBanned', [P[1]]) === true && w.c.view('isBanned', [P[2]]) === true, r.error);
-  t('événement Ban', (r.events || []).some((e) => e.name === 'Ban'));
-  t('liste des bannis, avec l\'heure du ban', JSON.stringify(w.c.view('getBans').map((x) => x.a)) === JSON.stringify([P[1], P[2]]) && w.c.view('getBans').every((x) => x.ts > 0));
-  const d = w.dig(P[1], 1, cs[1]);
-  t('un banni ne peut plus fouiller', !d.success && /banned/.test(d.error), d.error);
-  t('ni sur la grille suivante', (() => { w.dig(P[3], 1, b.treasure); w.claim(1, b); w.open(2); return !w.dig(P[2], 2, colds(board(SEED, 2))[0]).success; })());
-  t('les autres joueurs fouillent normalement', w.dig(P[4], 2, colds(board(SEED, 2))[1]).success);
-  t('le prix d\'une fouille refusée n\'est pas encaissé', w.g(2).digs === 1);
-  t('bannir deux fois ne double pas la liste', w.c.call(ADMIN, 'setBan', [P[1], true]).success && w.c.view('getBans').length === 2);
-  t('liste "0x…,0x…" acceptée', w.c.call(ADMIN, 'setBan', [P[5] + ',' + P[6], 'true']).success && w.c.view('getBans').length === 4);
-  t('débannir', w.c.call(ADMIN, 'setBan', [[P[1]], false]).success && w.c.view('isBanned', [P[1]]) === false && !w.c.view('getBans').some((x) => x.a === P[1]) && w.c.view('getBans').length === 3);
-  t('un débanni refouille', w.dig(P[1], 2, colds(board(SEED, 2))[2]).success);
-  t('adresse invalide refusée', !w.c.call(ADMIN, 'setBan', [['ase1xyz'], true]).success);
-  t('41 wallets d\'un coup refusés', !w.c.call(ADMIN, 'setBan', [P.slice(10, 51), true]).success);
-  const big = w.c.call(ADMIN, 'setBan', [P.slice(10, 50), true]);
-  t('40 wallets d\'un coup (gas ' + big.gas + ')', big.success && big.gas < 1_000_000, big.error);
-  t('lecture isBanned sans ban', w.c.view('isBanned', [P[99]]) === false);
-}
-
 console.log(`\n${ok} réussis, ${ko} échoués`);
 process.exit(ko ? 1 : 0);

@@ -1,0 +1,51 @@
+# Croupiers de l'HIPPODROME du site de test (asevegas-test.pages.dev), toutes les 10 minutes.
+# Croupier A puis B (révélation des graines → tirage et paiements), puis A et B encore
+# (enveloppes de la course suivante, avec les partants calculés après le résultat).
+# S'il n'y a rien à faire, chaque étape s'arrête en quelques secondes.
+# Secrets : TEST_HIPPO_A_SIGNER, TEST_HIPPO_B_SIGNER (comptes qui paient caution + gas),
+#           TEST_HIPPO_A_SEED, TEST_HIPPO_B_SEED (graines des enveloppes). Variable : TEST_HIPPO_CONTRACT.
+name: Hippodrome TEST
+
+on:
+  schedule:
+    - cron: '1-59/10 * * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: hippodrome-test
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  croupiers:
+    if: ${{ vars.TEST_HIPPO_CONTRACT != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CONTRACT: ${{ vars.TEST_HIPPO_CONTRACT }}
+      RPC_URL: ${{ vars.RPC_URL || 'https://testnet.asentum.com' }}
+      HOURS: ${{ vars.TEST_HIPPO_HOURS || '18,19,20,21,22' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Installer
+        run: npm install --prefix croupier --no-audit --no-fund
+      - name: Croupier A
+        env: { ROLE: A, SIGNER_SEED: '${{ secrets.TEST_HIPPO_A_SIGNER }}', HIPPO_SEED: '${{ secrets.TEST_HIPPO_A_SEED }}' }
+        run: node croupier/hippodrome.mjs once
+      - name: Croupier B
+        if: ${{ !cancelled() }}
+        env: { ROLE: B, SIGNER_SEED: '${{ secrets.TEST_HIPPO_B_SIGNER }}', HIPPO_SEED: '${{ secrets.TEST_HIPPO_B_SEED }}' }
+        run: node croupier/hippodrome.mjs once
+      - name: Croupier A (course suivante)
+        if: ${{ !cancelled() }}
+        env: { ROLE: A, SIGNER_SEED: '${{ secrets.TEST_HIPPO_A_SIGNER }}', HIPPO_SEED: '${{ secrets.TEST_HIPPO_A_SEED }}' }
+        run: node croupier/hippodrome.mjs once
+      - name: Croupier B (course suivante)
+        if: ${{ !cancelled() }}
+        env: { ROLE: B, SIGNER_SEED: '${{ secrets.TEST_HIPPO_B_SIGNER }}', HIPPO_SEED: '${{ secrets.TEST_HIPPO_B_SEED }}' }
+        run: node croupier/hippodrome.mjs once

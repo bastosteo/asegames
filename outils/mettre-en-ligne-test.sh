@@ -12,6 +12,7 @@ rm -rf asegame-test && cp -r asegame asegame-test
 D=asegame-test
 setc() { sed -i "s|CONTRACT: '[^']*'|CONTRACT: '$2'|; s|OLD: '[^']*'|OLD: ''|" "$D/$1/js/config.js"; }
 setc loto "$(cat .test-loto)"; setc raffle "$(cat .test-raffle)"; setc treasure "$(cat .test-tresor)"; setc airdrop "$(cat .test-airdrop)"
+[ -f .test-hippodrome ] && bash outils/hippodrome-site-test.sh "$D"
 sed -i "s|OLD_LOTO: '[^']*'|OLD_LOTO: ''|; s|OLD_RAFFLE: '[^']*'|OLD_RAFFLE: ''|; s|OLD_TREASURE: '[^']*'|OLD_TREASURE: ''|" "$D/airdrop/js/config.js"
 # Bandeau « site de test » sur toutes les pages, et pas d'indexation par les moteurs de recherche
 BANNER='<div style="position:sticky;top:0;z-index:9999;background:#ff2d55;color:#fff;font:700 13px/1.4 system-ui,sans-serif;text-align:center;padding:6px 10px">TEST SITE: new game versions under test, separate from asevegas.com. Testnet ASE only.</div>'

@@ -56,10 +56,19 @@ let cache = {};
 try { if (existsSync(CACHE)) cache = JSON.parse(readFileSync(CACHE, 'utf8')); } catch { cache = {}; }
 const saveCache = () => { try { writeFileSync(CACHE, JSON.stringify(cache)); } catch {} };
 
-// Lit tous les tours d'un jeu : [{ id, r, items: [[t, qty]] }]
+// Adresse du contrat EN LIGNE d'un jeu, lue sur le vrai site (asevegas.com) : toujours la bonne,
+// quel que soit le dossier d'où le contrat a été déployé. '' si le site ne répond pas.
+async function liveContract(game) {
+  try {
+    const t = await (await fetch(`https://asevegas.com/${game}/js/config.js`, { signal: AbortSignal.timeout(15000) })).text();
+    return (t.match(/CONTRACT:\s*'(ase1[0-9a-z]{38})'/) || [])[1] || '';
+  } catch { return ''; }
+}
+// Lit tous les tours d'un jeu (contrat en ligne sur asevegas.com, sinon celui du fichier .xxx-fait)
 async function loadGame(g) {
-  if (!existsSync(g.marker)) return null;
-  const contract = readFileSync(g.marker, 'utf8').trim();
+  let contract = await liveContract(g.key);
+  if (!contract) { if (!existsSync(g.marker)) return null; contract = readFileSync(g.marker, 'utf8').trim().split(/[\s,]+/)[0]; }
+  console.log(`  ${g.name} : ${contract}`);
   const st = await view(contract, 'getState');
   const bps = Number(((await view(contract, 'getConfig').catch(() => null)) || {}).dropBps || 750);
   const rounds = [];

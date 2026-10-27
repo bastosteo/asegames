@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-game="hippodrome">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASE Hippodrome</title>
+<meta name="description" content="ASE Hippodrome: 5 horse races a day on the Asentum testnet. Pick your horse, place your bet, watch the race in 3D. Pool betting, drawn on chain by two croupiers.">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23F6C25C'/%3E%3Cpath d='M9 22c2-6 6-9 11-10l3-3 1 4c-2 1-3 3-4 6l1 5h-2l-1-4-5 1-1 3H10z' fill='%237A3C14'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=Big+Shoulders+Display:wght@800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../loto/style.css">
+<link rel="stylesheet" href="hippodrome.css">
+<link rel="stylesheet" href="../asentum.css">
+</head>
+<body>
+<div id="demoBar" class="demobar" hidden>
+  <span>Demo mode: past races and the current race are simulated in your browser, nothing is sent to Asentum.</span>
+</div>
+
+<header class="top">
+  <a class="brand" href="../" aria-label="ASE Vegas home"><svg class="brand-logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 L29 11 L16 30 L3 11 Z" fill="#F6B57A"/><path d="M3 11 H29 M10 11 L16 30 L22 11 M10 11 L16 2 L22 11" fill="none" stroke="#7A3C14" stroke-opacity=".5" stroke-width="1.2" stroke-linejoin="round"/></svg><span class="brand-name">ASE Vegas</span></a>
+  <nav class="gamenav" aria-label="Games"><a href="../">Home</a><a href="../loto/">Loto</a><a href="../raffle/">Raffle</a><a href="../treasure/">Treasure</a><a href="../hippodrome/" aria-current="page">Hippodrome</a><a href="../airdrop/">Airdrop</a></nav>
+  <div class="top-actions"></div>
+</header>
+
+<main class="hippo">
+  <p class="banner" id="pausedBanner" hidden>The Hippodrome is paused: no bets and no new races for now.</p>
+
+  <div class="hhead">
+    <div><p class="eyebrow">ASE Hippodrome · 5 races a day</p><h1 id="raceNo">Race</h1><p class="muted small" id="raceTime">…</p></div>
+    <div class="hchips"><span class="chip gold" id="status">…</span><span class="chip" id="terrainChip">Going: –</span><span class="chip" id="potChip">Pot –</span><span class="chip" id="betsChip">–</span></div>
+  </div>
+
+  <div class="htabs" role="tablist">
+    <button role="tab" id="tabPaddock" aria-selected="true">🐎 Runners</button>
+    <button role="tab" id="tabRace" aria-selected="false">🏁 Last race</button>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="loading" id="loading">Loading the track…</div>
+    <div class="overlay" id="ovPaddock">
+      <div class="nameplate"><span class="num" id="pNum">1</span><span class="nm" id="pName">—</span><div class="sub" id="pSub">—</div></div>
+      <div class="hint">↔ drag to turn around the horse</div>
+    </div>
+    <div class="overlay" id="ovRace" hidden>
+      <div class="hud"><div class="order" id="order"></div><div class="dist" id="dist">1,200 m</div></div>
+      <div class="comment" id="comment">The horses are entering the stalls</div>
+    </div>
+    <div class="count" id="count" hidden></div>
+  </div>
+
+  <!-- PARTANTS + PARIS -->
+  <section id="paddock" class="hcol">
+    <p class="muted small" id="paddockNote"></p>
+    <div class="nav">
+      <button class="navbtn" id="prev" aria-label="Previous horse">◀</button>
+      <select id="sel" aria-label="Choose a horse"></select>
+      <button class="navbtn" id="next" aria-label="Next horse">▶</button>
+    </div>
+    <div class="hgrid">
+      <div class="card">
+        <div class="odds">
+          <div class="ring" id="ring"><b id="note">–</b></div>
+          <div><div class="lbl">Chance to win</div><div class="big" id="chance">—</div></div>
+          <div class="cote"><b id="cote">×—</b><span>estimated odds</span></div>
+        </div>
+        <dl class="rows" id="rows"></dl>
+        <div><div class="sec">Last 5 races</div><div class="last" id="last"></div></div>
+        <div class="quote" id="quote"></div>
+      </div>
+
+      <div class="card betbox" id="betBox">
+        <div class="sec">Place a bet</div>
+        <div class="tchips" id="betTypes"></div>
+        <p class="muted small" id="betHelp"></p>
+        <div class="picks" id="betPicks"></div>
+        <label class="stake">Stake <input id="stake" type="number" inputmode="decimal" min="1" step="any"> <span>ASE</span> <small class="muted" id="stakeHint"></small></label>
+        <p class="small" id="betEst"></p>
+        <button class="btn btn-primary btn-wide" id="placeBet" type="button">Place bet</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="sec">The 6 runners · tap to view</div>
+      <div class="runners" id="runners"></div>
+    </div>
+  </section>
+
+  <!-- COURSE REJOUÉE -->
+  <section id="race" class="hcol" hidden>
+    <p class="muted small" id="replayTitle"></p>
+    <div class="mapcard"><div class="maphead"><span class="sec">Top view</span><span class="sec" id="mapLead"></span></div><canvas id="map" aria-label="Each horse's position on the track"></canvas></div>
+    <div class="card" id="resultCard" hidden>
+      <div class="sec">Official result</div>
+      <div class="result" id="result"></div>
+      <p class="note" id="payNote"></p>
+    </div>
+    <div class="two">
+      <button class="btn" id="again" type="button">🔁 Watch again</button>
+      <button class="btn" id="back" type="button">🐎 Next race runners</button>
+    </div>
+  </section>
+
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button role="tab" aria-selected="true" data-tab="mine">My bets</button>
+    <button role="tab" aria-selected="false" data-tab="results">Results</button>
+    <button role="tab" aria-selected="false" data-tab="rules">Rules</button>
+  </nav>
+  <section class="panel hpanel" id="tab-mine" role="tabpanel"><div id="mineBody"><p class="muted">Connect your wallet to see your bets.</p></div></section>
+  <section class="panel hpanel" id="tab-results" role="tabpanel" hidden><div id="resultsBody"></div></section>
+  <section class="panel hpanel rules" id="tab-rules" role="tabpanel" hidden>
+    <h3>How it works</h3>
+    <p><b>5 races a day</b> at 18:00, 19:00, 20:00, 21:00 and 22:00 (Paris time). For each race, 6 horses out of the 18 in the stable run on one of 4 kinds of going: Firm, Soft, Heavy or Sand. Each horse's chance depends on its form, its rest and whether the going suits it.</p>
+    <p><b>Bets</b> close when the race starts. Win: 2 to 10 ASE. Exacta, Quinella, Trifecta and Trifecta any order: 1 to 5 ASE.</p>
+    <p><b>Pool betting.</b> All the stakes of a race make one pot. 15% goes to the house, the rest is shared between the winning bets according to their stake and how unlikely the bet was. A winning bet always gets at least its stake back. Winnings are sent to your wallet automatically, right after the draw. If nobody wins, the pot is carried over to the next race.</p>
+    <p><b>The draw.</b> Two independent croupiers each seal a secret before bets open. After the start, both reveal their secret: together they decide the finishing order in the contract, so nobody (not even the admin) can choose the winner. The 3D race then replays that result, the same for everyone.</p>
+    <p><b>Falls.</b> Rarely (about once every 50 races) a horse falls, more often when it is out of form and not on its favourite going. A horse that falls finishes last, bets on it are lost, and it rests for 3 days.</p>
+    <p><b>Safety.</b> If a croupier fails to reveal within an hour, the race is cancelled and every player can get all their stakes back from "My bets".</p>
+    <p>Contract: <a data-contract="hippodrome" id="contractLink" target="_blank" rel="noopener">see the explorer</a> (Asentum testnet). Testnet ASE has no monetary value.</p>
+  </section>
+</main>
+
+<footer class="foot">
+  <p><a href="../">ASE Vegas</a> · Hippodrome on the Asentum testnet.</p>
+</footer>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<script type="module" src="js/hippodrome.js"></script>
+</body>
+</html>

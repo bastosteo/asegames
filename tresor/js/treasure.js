@@ -190,7 +190,7 @@ async function sendTx(method, args, value = 0n) {
   const t1 = toast(S.wallet.kind === 'telegram' ? 'Approve the transaction in Telegram…' : 'Approve the transaction in your wallet…', '', 0);
   try {
     const hash = await S.wallet.call(S.contract, method, args, value);
-    t1.textContent = `${method === 'dig' ? 'Digging' : 'Sending'}… (waiting for the network, usually 10 to 60 s)`;
+    t1.textContent = 'Digging… (waiting for the network, usually 10 to 60 s)';
     const rc = await S.rpc.waitReceipt(hash);
     t1.remove();
     if (!rc.success) throw new Error(rc.error || 'rejected by the contract');
@@ -300,9 +300,6 @@ function renderAdmin() {
   $('#pauseBtn').textContent = S.cfg.paused ? 'Resume' : 'Pause';
   setIfIdle('#fCfg [name=price]', L.fmtAse(BigInt(S.cfg.price), 3).replace(/,/g, ''));
   setIfIdle('#fCfg [name=w]', S.cfg.maxPerWallet);
-  view('getBans').then((bans) => {
-    $('#banList').innerHTML = bans.length ? `${plural(bans.length, 'banned wallet', 'banned wallets')}: ` + bans.map((b) => `<a href="${CONFIG.EXPLORER}/address/${L.toAse1(b.a)}" target="_blank" rel="noopener">${esc(L.shortAddr(b.a))}</a>`).join(', ') : 'No banned wallet.';
-  }).catch(() => { $('#banList').textContent = 'This contract version has no ban list.'; });
 }
 $$('.admin-box input').forEach((i) => i.addEventListener('input', () => (i.dataset.touched = '1')));
 function adminForm(sel, fn) {
@@ -312,16 +309,6 @@ function adminForm(sel, fn) {
   });
 }
 adminForm('#fPause', () => [S.cfg.paused ? 'Game resumed' : 'Game paused', 'setPaused', [!S.cfg.paused]]);
-$('#fBan').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const ban = !e.submitter || e.submitter.value !== 'unban';
-  try {
-    const ws = [...new Set(String(new FormData(e.target).get('list')).split(/[\s,;]+/).filter(Boolean).map((a) => L.toHex(a)))];
-    if (!ws.length || ws.length > 40) throw new Error('1 to 40 wallets');
-    if (!confirm(`${ban ? 'Ban' : 'Unban'} ${plural(ws.length, 'wallet', 'wallets')}?\n\n${ws.map((a) => L.toAse1(a)).join('\n')}`)) return;
-    if (await sendTx('setBan', [ws, ban])) { toast(`${plural(ws.length, 'wallet', 'wallets')} ${ban ? 'banned' : 'unbanned'} ✓`, 'ok'); e.target.reset(); await refresh(); }
-  } catch (err) { toast(cleanError(err), 'err'); }
-});
 adminForm('#fCfg', (f) => ['Settings saved', 'setConfig', [L.parseAse(f.get('price')).toString(), Number(f.get('w'))]]);
 
 

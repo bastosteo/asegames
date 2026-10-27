@@ -134,10 +134,6 @@ function getG(id) { const g = jget('g:' + id, null); assert(g, 'unknown grid'); 
 function putG(g) { jset('g:' + g.id, g); }
 function getP(id, i) { const p = jget('p:' + id + ':' + i, null); assert(p, 'unknown dig'); return p; }
 function onlyAdmin(c) { assert(sender() === c.admin, 'admin only'); }
-// Wallets bannis (tricheurs) : "ban:<0x…>" = heure du ban (ms), et la liste complète dans
-// "bans" ([{a, ts}], lecture ; l'heure sert au tirage ASE Airdrop : exclu des tirages après le ban).
-function isBan(a) { return jget('ban:' + a, 0) > 0; }
-const MAX_BAN = 40;   // ~20 000 gas par nouvelle clé : 40 wallets par transaction au plus
 function cellOk(cell) { const k = Number(cell); assert(Number.isInteger(k) && k >= 0 && k < CELLS, 'cell: 0 to 399'); return k; }
 
 // La feuille (case, réponse, sel) appartient-elle à l'arbre de racine "root" ?
@@ -205,7 +201,6 @@ function netOf(price) { return big(price) - (big(price) * SHARE_COMMISSION) / BP
     const k = cellOk(cell);
     assert(jget('d:' + g.id + ':' + k, -1) < 0, 'cell already dug');
     const who = sender();
-    assert(!isBan(who), 'wallet banned');
     const mine = jget('w:' + g.id + ':' + who, 0);
     assert(mine < c.maxPerWallet, 'max ' + c.maxPerWallet + ' digs per wallet on this grid');
     assert(big(msg.value || 0) === big(g.price), 'wrong amount, expected: ' + g.price + ' wei');
@@ -290,24 +285,6 @@ function netOf(price) { return big(price) - (big(price) * SHARE_COMMISSION) / BP
     emit('Config', { key: 'payouts', value: c.payOwner + ',' + c.payCollab + ',' + c.payAirdrop });
     return true;
   },
-  // BANNIR / DÉBANNIR (admin) : une adresse ou une liste (tableau ou "0x…,0x…"), 40 au plus.
-  // Un wallet banni ne peut plus fouiller ; ses fouilles passées restent valables.
-  setBan(list, on) {
-    noValue();
-    const c = cfg(); onlyAdmin(c);
-    const v = on === true || on === 'true';
-    const ws = (Array.isArray(list) ? list : String(list).split(',')).map(addr);
-    assert(ws.length >= 1 && ws.length <= MAX_BAN, 'wallets: 1 to ' + MAX_BAN);
-    const all = jget('bans', []), ts = nowMs();
-    for (const w of ws) {
-      if (isBan(w) === v) continue;
-      jset('ban:' + w, v ? ts : 0);
-      if (v) all.push({ a: w, ts }); else all.splice(all.findIndex((x) => x.a === w), 1);
-    }
-    jset('bans', all);
-    emit('Ban', { banned: String(v), wallets: ws.join(',') });
-    return all.length;
-  },
   setOperator(a) {
     noValue();
     const c = cfg(); onlyAdmin(c);
@@ -338,8 +315,6 @@ function netOf(price) { return big(price) - (big(price) * SHARE_COMMISSION) / BP
   },
   cellOf(id, cell) { return jget('d:' + Number(id) + ':' + cellOk(cell), -1); },
   digsOf(id, who) { return jget('w:' + Number(id) + ':' + addr(who), 0); },
-  isBanned(who) { return isBan(addr(who)); },
-  getBans() { return jget('bans', []); },
   info() {
     const c = cfg(), s = st();
     const g = s.cur ? getG(s.cur) : null;

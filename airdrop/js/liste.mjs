@@ -99,22 +99,10 @@ export async function buildWeek({ view, loto, raffle, treasure, fromTs, toTs, no
     }
   }
 
-  // Wallets bannis (liste du contrat ASE Treasure) avant l'heure de ce tirage : retirés du
-  // tirage. Leurs achats restent dans la cagnotte, qui revient aux autres participants.
-  // L'heure du ban fixe la règle : la vérification d'un ancien tirage donne toujours la même liste.
-  const banned = new Set();
-  for (const contract of list(treasure)) {
-    let bans = [];
-    try { bans = (await view(contract, 'getBans', [])) || []; } catch {}   // ancien contrat sans liste
-    for (const b of bans) if (b && Number(b.ts) <= Number(toTs)) banned.add(String(b.a).toLowerCase());
-  }
-  const excluded = [...banned].filter((b) => count.has(b)).sort();
-  for (const b of excluded) count.delete(b);
-
   const entries = [...count.entries()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   // La liste est définitive dès que la semaine des tickets est finie.
   const ready = t > to;
-  return { ready, waiting: ready ? [] : ['week'], pending: 0, entries, excluded, pot: pot.toString(), games: games.sort((a, b) => a.drawTs - b.drawTs), from, to };
+  return { ready, waiting: ready ? [] : ['week'], pending: 0, entries, pot: pot.toString(), games: games.sort((a, b) => a.drawTs - b.drawTs), from, to };
 }
 
 export function chunks(entries, size = 100) {

@@ -36,10 +36,24 @@ function split(com, drop) {
 const markers = [['.loto-v4-fait', 'Loto (v4)'], ['.tombola-v3-fait', 'Raffle (v3)'], ['.tresor-v2-fait', 'Treasure (v2)'],
   ['.loto-ancien', 'Loto (ancien, 2 ASE)'], ['.raffle-ancienne', 'Raffle (ancienne, 5 ASE)'], ['.v5-ancien-tresor', 'Treasure (ancien, 0,5 ASE)'],
   ['.loto-v3-fait', 'Loto (v3, ancien)'], ['.tombola-v2-fait', 'Raffle (v2, ancien)'], ['.tresor-fait', 'Treasure (v1, ancien)']];
+
+// Adresse du contrat EN LIGNE d'un jeu, lue sur le vrai site (asevegas.com) : toujours la bonne,
+// quel que soit le dossier d'où le contrat a été déployé. '' si le site ne répond pas.
+async function liveContract(game) {
+  try {
+    const t = await (await fetch(`https://asevegas.com/${game}/js/config.js`, { signal: AbortSignal.timeout(15000) })).text();
+    return (t.match(/CONTRACT:\s*'(ase1[0-9a-z]{38})'/) || [])[1] || '';
+  } catch { return ''; }
+}
 let list = process.argv.slice(2).map((c) => [c, c]);
 if (!list.length) {
-  // un fichier peut contenir plusieurs adresses séparées par des virgules (anciens contrats)
+  // d'abord les contrats EN LIGNE (lus sur asevegas.com), puis les anciens trouvés dans les fichiers .xxx-fait
+  // (un fichier peut contenir plusieurs adresses séparées par des virgules)
   const seen = new Set();
+  for (const [g, n] of [['loto', 'Loto (en ligne)'], ['raffle', 'Raffle (en ligne)'], ['treasure', 'Treasure (en ligne)']]) {
+    const a = await liveContract(g);
+    if (a && !seen.has(a)) { seen.add(a); list.push([a, n]); }
+  }
   for (const [f, n] of markers.filter(([f]) => existsSync(f))) {
     const addrs = readFileSync(f, 'utf8').split(/[\s,]+/).filter((a) => /^ase1[0-9a-z]{38}$/.test(a));
     addrs.forEach((a, i) => { if (!seen.has(a)) { seen.add(a); list.push([a, addrs.length > 1 ? `${n} #${i + 1}` : n]); } });
