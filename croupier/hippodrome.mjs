@@ -105,7 +105,7 @@ async function realApi() {
   return {
     me, secret,
     nowMs: () => lastBlockMs,
-    rand: () => randomInt(0, 2 ** 48) / 2 ** 48,
+    rand: () => randomInt(0, 2 ** 47) / 2 ** 47,
     async view(method, args) {
       const j = await get('/view', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contract: CONTRACT, method, args }) });
       if (!j.ok) throw new Error(`view ${method} : ${j.reason || 'échec'}`);
