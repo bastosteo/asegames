@@ -73,13 +73,39 @@ function confetti(n = 90) {
 }
 
 // ------------------------------------------------------------- lectures
-// Les achats d'un tirage terminé ne changent plus : on les garde en mémoire.
+// Ce qui ne change plus (grilles Treasure trouvées, tirages terminés, leurs achats et fouilles) est
+// gardé en mémoire ET dans le navigateur : la 2e visite ne relit que la semaine en cours.
+// Le testnet limite le nombre de lectures (HTTP 429) : une lecture ratée est réessayée, plus lentement.
 const cache = new Map();
+const LS_KEY = 'airdrop.cache.v1';
+const disk = (() => { try { return new Map(JSON.parse(localStorage.getItem(LS_KEY) || '[]')); } catch { return new Map(); } })();
+let diskDirty = false;
+setInterval(() => {
+  if (!diskDirty) return; diskDirty = false;
+  try { const all = [...disk.entries()]; localStorage.setItem(LS_KEY, JSON.stringify(all.slice(-2500))); }
+  catch { try { localStorage.removeItem(LS_KEY); } catch {} }
+}, 5000);
+const FINAL = (m, v) => v && ((m === 'getGrid' && v.status && v.status !== 'open') || (m === 'getRound' && ['done', 'cancelled'].includes(v.status)));
+async function rawView(contract, method, args) {
+  for (let i = 0; ; i++) {
+    try { return await S.rpc.view(contract, method, args); } catch (e) {
+      const m = String(e && e.message);
+      if (i >= 5 || !/read rejected|not responding|HTTP|fetch|JSON/i.test(m)) throw e;
+      await new Promise((ok) => setTimeout(ok, [2000, 4000, 8000, 12000, 16000][i]));
+    }
+  }
+}
 async function viewAt(contract, method, args = []) {
-  const key = method === 'getPurchases' ? contract + '|' + JSON.stringify(args) : '';
-  if (key && cache.has(key)) return cache.get(key);
-  const v = await S.rpc.view(contract, method, args);
-  if (key) cache.set(key, v);
+  const key = contract + '|' + method + '|' + JSON.stringify(args);
+  // fouilles / achats : seulement si la grille / le tirage est déjà connu comme terminé
+  const parent = method === 'getDigs' ? contract + '|getGrid|' + JSON.stringify([args[0]]) : method === 'getPurchases' ? contract + '|getRound|' + JSON.stringify([args[0]]) : '';
+  const keep = contract !== S.contract && (method === 'getGrid' || method === 'getRound' || (parent && disk.has(parent)));   // jamais le contrat Airdrop lui-même
+  if (disk.has(key)) return disk.get(key);
+  if (method === 'getPurchases' && cache.has(key)) return cache.get(key);
+  const v = await rawView(contract, method, args);
+  if (!S.week && contract !== S.contract) { S.reads = (S.reads || 0) + 1; const n = $('#estNote'); if (n) n.textContent = `Counting this week's tickets from Loto, Raffle and Treasure… (${S.reads} reads, the first visit can take a minute or two)`; }
+  if (method === 'getPurchases') cache.set(key, v);
+  if (keep && (FINAL(method, v) || (parent && disk.has(parent)))) { disk.set(key, v); diskDirty = true; }
   return v;
 }
 const view = (m, a = []) => viewAt(S.contract, m, a);
@@ -88,20 +114,26 @@ async function entriesOf(r) {
   for (let j = 0; j < r.chunks; j++) out.push(...(await view('getEntries', [r.id, j])));
   return out;
 }
+let refreshing = false;
 async function refresh() {
+  if (refreshing) return;          // une lecture complète peut prendre plus de 30 s : pas de lectures en double
+  refreshing = true;
   try {
     const [info, cfg, st] = await Promise.all([view('info'), view('getConfig'), view('getState')]);
     S.info = info; S.cfg = cfg; S.st = st;
     S.clockOffset = Number(info.now) - Date.now();
     const ids = []; for (let id = info.round; id >= Math.max(1, info.round - CONFIG.HISTORY_ROUNDS); id--) ids.push(id);
     await Promise.all(ids.map(async (id) => { const old = S.rounds.get(id); if (old && ['done', 'cancelled'].includes(old.status)) return; const r = await view('getRound', [id]); if (r) S.rounds.set(id, r); }));
+    // En attendant le décompte complet : montant déjà reçu par le contrat (solde − prix pas encore versés).
+    if (!S.week) { try { const est = (await S.rpc.balance(S.contract)) - BigInt(info.owed || 0); if (est >= 0n) $('#pot').textContent = '≈ ' + ase(est, 2); } catch {} }
     // Semaine en cours : depuis le tirage précédent (même s'il est encore en cours de tirage).
     const prev = S.rounds.get(info.round - 1);
     const from = prev && prev.status !== 'cancelled' ? prev.drawTs : info.fromTs;
     // Estimation (*) : on compte aussi les tickets des tirages pas encore faits.
-    S.week = await buildWeek({ view: viewAt, loto: S.loto, raffle: S.raffle, treasure: S.treasure, fromTs: from, toTs: info.drawTs, now: Number(info.now) });
+    S.week = await buildWeek({ view: viewAt, loto: S.loto, raffle: S.raffle, treasure: S.treasure, fromTs: from, toTs: info.drawTs, now: Number(info.now), par: 3 });
     renderAll();
   } catch (e) { console.error(e); toast('Could not read the chain: ' + cleanError(e), 'err', 8000); }
+  finally { refreshing = false; }
 }
 
 // Heure annoncée des résultats : heure de tirage du contrat + délai d'envoi des prix
@@ -240,7 +272,7 @@ async function verify(id) {
   try {
     const r = await view('getRound', [id]);
     const stored = await entriesOf(r);
-    const wk = await buildWeek({ view: viewAt, loto: S.loto, raffle: S.raffle, treasure: S.treasure, fromTs: r.fromTs, toTs: r.drawTs, now: chainNow() });
+    const wk = await buildWeek({ view: viewAt, loto: S.loto, raffle: S.raffle, treasure: S.treasure, fromTs: r.fromTs, toTs: r.drawTs, now: chainNow(), par: 3 });
     const steps = [];
     const step = (ok, title, detail) => steps.push(`<div class="verify-step"><span class="mark ${ok ? 'ok' : 'ko'}">${ok ? '✓' : '✗'}</span><div><strong>${title}</strong><br><span class="small">${detail}</span></div></div>`);
     step(JSON.stringify(wk.entries) === JSON.stringify(stored), 'List of players',

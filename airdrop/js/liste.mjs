@@ -32,7 +32,8 @@ async function purchases(view, contract, r) {
   return out;
 }
 
-export async function buildWeek({ view, loto, raffle, treasure, fromTs, toTs, now }) {
+// par : nombre de lectures en parallèle pour ASE Treasure (site : 4 ; croupier : 1, comme avant).
+export async function buildWeek({ view, loto, raffle, treasure, fromTs, toTs, now, par = 1 }) {
   const from = Number(fromTs) > 0 ? Number(fromTs) - CUTOFF_MS : 0, to = Number(toTs) - CUTOFF_MS, t = Number(now);
   const count = new Map(), games = [];
   let pot = 0n;
@@ -72,14 +73,25 @@ export async function buildWeek({ view, loto, raffle, treasure, fromTs, toTs, no
   // ASE Treasure : 1 fouille = 1 chance.
   for (const contract of list(treasure)) {
     const st = await view(contract, 'getState', []), bps = await dropBps(view, contract);
-    for (let id = st.cur; id >= 1; id--) {
-      const g = await view(contract, 'getGrid', [id]);
+    // Les grilles sont lues par paquets de "par" (même résultat qu'une par une, en plus rapide).
+    const readDigs = async (id, g) => { const d = []; for (let k = 0; k < g.digs; k += 400) d.push(...(await view(contract, 'getDigs', [id, k, Math.min(400, g.digs - k)]))); return d; };
+    let next = st.cur, stop = false;
+    const batch = [];
+    while (batch.length || (!stop && next >= 1)) {
+      if (!batch.length) {
+        const ids = []; while (ids.length < Math.max(1, par) && next >= 1) ids.push(next--);
+        const gs = await Promise.all(ids.map((id) => view(contract, 'getGrid', [id])));
+        const keep = ids.map((id, i) => ({ id, g: gs[i] }));
+        let cut = keep.findIndex(({ g }) => g && g.status !== 'open' && g.endTs <= from);
+        if (cut >= 0) { keep.length = cut; stop = true; }
+        const ds = await Promise.all(keep.map(({ id, g }) => (g && g.digs ? readDigs(id, g) : null)));
+        keep.forEach((x, i) => batch.push({ ...x, digs: ds[i] }));
+        if (!batch.length) break;
+      }
+      const { id, g, digs } = batch.shift();
       if (!g) continue;
       const open = g.status === 'open';
-      if (!open && g.endTs <= from) break;
       if (!g.digs) continue;
-      const digs = [];
-      for (let k = 0; k < g.digs; k += 400) digs.push(...(await view(contract, 'getDigs', [id, k, Math.min(400, g.digs - k)])));
       const legacy = digs[0].t === undefined;
       let n = 0, share = 0n;
       if (legacy) {
@@ -99,10 +111,22 @@ export async function buildWeek({ view, loto, raffle, treasure, fromTs, toTs, no
     }
   }
 
+  // Wallets bannis (liste du contrat ASE Treasure) avant l'heure de ce tirage : retirés du
+  // tirage. Leurs achats restent dans la cagnotte, qui revient aux autres participants.
+  // L'heure du ban fixe la règle : la vérification d'un ancien tirage donne toujours la même liste.
+  const banned = new Set();
+  for (const contract of list(treasure)) {
+    let bans = [];
+    try { bans = (await view(contract, 'getBans', [])) || []; } catch {}   // ancien contrat sans liste
+    for (const b of bans) if (b && Number(b.ts) <= Number(toTs)) banned.add(String(b.a).toLowerCase());
+  }
+  const excluded = [...banned].filter((b) => count.has(b)).sort();
+  for (const b of excluded) count.delete(b);
+
   const entries = [...count.entries()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   // La liste est définitive dès que la semaine des tickets est finie.
   const ready = t > to;
-  return { ready, waiting: ready ? [] : ['week'], pending: 0, entries, pot: pot.toString(), games: games.sort((a, b) => a.drawTs - b.drawTs), from, to };
+  return { ready, waiting: ready ? [] : ['week'], pending: 0, entries, excluded, pot: pot.toString(), games: games.sort((a, b) => a.drawTs - b.drawTs), from, to };
 }
 
 export function chunks(entries, size = 100) {
